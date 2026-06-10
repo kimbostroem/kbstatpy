@@ -2,6 +2,9 @@ import pandas as pd
 import polars as pl
 from pymer4.models import lmer as Lmer
 from pymer4.models import glmer as Glmer
+import rpy2.robjects as ro
+
+ro.r('emmeans::emm_options(msg.interaction = FALSE)')
 
 from .options import KbstatOptions
 
