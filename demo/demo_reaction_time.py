@@ -19,7 +19,7 @@ options.id = 'id'
 options.distribution = 'gamma'
 options.link = 'log'
 options.fit_method = 'MPL'
-options.formula = 'rt ~ A * B + (A + B | id)'
+options.formula = 'rt ~ A * B + (1 | id)'
 
 kb = Kbstat(options)
 kb.fit()
