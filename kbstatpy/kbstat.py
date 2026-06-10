@@ -79,7 +79,13 @@ class Kbstat:
         return self.anova_table
 
     def posthoc(self):
-        """Perform post-hoc pairwise comparisons and build a comparison table."""
+        """Perform post-hoc pairwise comparisons and build a comparison table.
+
+        For LMMs (distribution='normal') emmeans uses the Satterthwaite
+        approximation and returns finite df. For GLMMs (any other distribution)
+        Satterthwaite is not defined and emmeans falls back to asymptotic
+        inference (df=Inf). This is expected behaviour, not an error.
+        """
         if self.model is None:
             raise RuntimeError('Call fit() before posthoc()')
         factors = self.options.x if self.options.x else []
