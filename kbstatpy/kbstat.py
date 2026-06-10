@@ -51,10 +51,16 @@ class Kbstat:
         self.model.fit(summarize=False)
 
     def anova(self):
-        """Extract and enrich the ANOVA table from the fitted model."""
+        """Extract and enrich the ANOVA table from the fitted model.
+
+        Degrees of freedom are estimated using the Satterthwaite approximation
+        via R's lmerTest/emmeans. Note: MATLAB's fitglme does not support
+        Satterthwaite; this is a deliberate difference from the MATLAB kbstat
+        implementation.
+        """
         if self.model is None:
             raise RuntimeError('Call fit() before anova()')
-        self.model.anova(jointtest_kwargs={'mode': self.options.df_method, 'lmer_df': self.options.df_method})
+        self.model.anova(jointtest_kwargs={'mode': 'satterthwaite', 'lmer_df': 'satterthwaite'})
         raw = self.model.result_anova.to_pandas() if hasattr(self.model.result_anova, 'to_pandas') else self.model.result_anova
         raw = raw.rename(columns={
             'model term': 'Term',
