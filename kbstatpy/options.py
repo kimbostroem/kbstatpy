@@ -19,6 +19,7 @@ class KbstatOptions:
     distribution: str = 'normal'
     link: str = 'auto'
     fit_method: str = 'MPL'
+    df_method: str = 'satterthwaite'
 
     # Post-hoc settings
     posthoc_method: str = 'emm'

@@ -54,7 +54,7 @@ class Kbstat:
         """Extract and enrich the ANOVA table from the fitted model."""
         if self.model is None:
             raise RuntimeError('Call fit() before anova()')
-        self.model.anova()
+        self.model.anova(jointtest_kwargs={'mode': self.options.df_method, 'lmer_df': self.options.df_method})
         raw = self.model.result_anova.to_pandas() if hasattr(self.model.result_anova, 'to_pandas') else self.model.result_anova
         raw = raw.rename(columns={
             'model term': 'Term',
