@@ -5,6 +5,9 @@ import polars as pl
 from pymer4.models import lmer as Lmer
 from pymer4.models import glmer as Glmer
 import rpy2.robjects as ro
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy.stats as stats
 
 ro.r('emmeans::emm_options(msg.interaction = FALSE)')
 ro.r('options(contrasts = c("contr.sum", "contr.poly"))')
@@ -35,6 +38,7 @@ class Kbstat:
         self.fit()
         self.anova()
         self.posthoc()
+        self.plot_diagnostics()
         self.plot()
         if self.options.out_dir:
             self.save()
@@ -136,6 +140,101 @@ class Kbstat:
     def plot(self):
         """Plot data with significance brackets (to be implemented)."""
         pass
+
+    def plot_diagnostics(self):
+        """Generate a grid of 6 diagnostic plots for the model."""
+        if self.model is None:
+            print("You must fit the model before plotting diagnostics.")
+            return
+
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+
+        if r_obj is not None:
+            self.model.residuals = np.array(ro.r('residuals')(r_obj, type="pearson"))
+        else:
+            raise RuntimeError("Unable to find R model, rerun the fit")
+            
+        if r_obj is not None:
+            self.model.fits = np.array(ro.r('fitted')(r_obj))
+        else:
+            raise RuntimeError("Unable to find R model, rerun the fit")
+
+        # Create a 2x3 grid of subplots (15 inches wide, 10 inches tall)
+        fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
+        axes = axes.flatten()
+
+        # ---------------------------------------------------------
+        # Plot 1: Histogram of Residuals
+        # ---------------------------------------------------------
+        sns.histplot(self.model.residuals, kde=True, ax=axes[0])
+        axes[0].set_title("Histogram of Residuals")
+        axes[0].set_xlabel("Residuals")
+
+        # ---------------------------------------------------------
+        # Plot 2: Normal Q-Q Plot
+        # ---------------------------------------------------------
+        stats.probplot(self.model.residuals, dist="norm", plot=axes[1])
+        axes[1].set_title("Normal Q-Q Plot")
+
+        # ---------------------------------------------------------
+        # Plot 3: Residuals vs Fitted
+        # ---------------------------------------------------------
+        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2])
+        axes[2].axhline(0, color='red', linestyle='--')
+        axes[2].set_title("Residuals vs Fitted")
+        axes[2].set_xlabel("Fitted Values")
+        axes[2].set_ylabel("Residuals")
+
+        # ---------------------------------------------------------
+        # Plot 4: Lagged Residuals
+        # ---------------------------------------------------------
+        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3])
+        axes[3].set_title("Lagged Residuals")
+        axes[3].set_xlabel("Residual (i)")
+        axes[3].set_ylabel("Residual (i+1)")
+
+        # ---------------------------------------------------------
+        # Plot 5: Fitted vs Response
+        # ---------------------------------------------------------
+        y_actual = self.data[self.options.y]
+        sns.scatterplot(x=self.model.fits, y=y_actual, ax=axes[4])
+        
+        min_val = min(self.model.fits.min(), y_actual.min())
+        max_val = max(self.model.fits.max(), y_actual.max())
+        axes[4].plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--')
+        
+        axes[4].set_title("Fitted vs Response")
+        axes[4].set_xlabel("Fitted Values")
+        axes[4].set_ylabel("Actual Raw Data")
+
+        # ---------------------------------------------------------
+        # Plot 6: Symmetry Plot
+        # ---------------------------------------------------------
+        res = self.model.residuals
+        median_res = np.median(res)
+        
+        # Sort residuals below median ascending (most negative first)
+        lower_half = np.sort(res[res <= median_res])
+        # Sort residuals above median descending (most positive first)
+        upper_half = np.sort(res[res > median_res])[::-1]
+        
+        min_len = min(len(lower_half), len(upper_half))
+        
+        if min_len > 0:
+            lower_dist = median_res - lower_half[:min_len]
+            upper_dist = upper_half[:min_len] - median_res
+            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5])
+            
+            max_dist = max(lower_dist.max(), upper_dist.max())
+            axes[5].plot([0, max_dist], [0, max_dist], color='red', linestyle='--')
+            
+        axes[5].set_title("Symmetry Plot")
+        axes[5].set_xlabel("Distance below median")
+        axes[5].set_ylabel("Distance above median")
+
+        # Fixes overlapping text and margins
+        plt.tight_layout() 
+        plt.show()
 
     # ------------------------------------------------------------------
     # Private helpers
