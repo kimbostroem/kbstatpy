@@ -9,6 +9,9 @@ class KbstatOptions:
     in_file: str = ''
     out_dir: str = ''
 
+    # constraints
+    constraints: str = ''
+
     # Model specification
     formula: str = ''
     y: str = ''

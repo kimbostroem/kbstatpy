@@ -31,6 +31,7 @@ class Kbstat:
         """Run the full analysis pipeline."""
         self._load_data()
         self._apply_categorical()
+        self._apply_constraints()
         self.fit()
         self.anova()
         self.posthoc()
@@ -312,6 +313,10 @@ class Kbstat:
                         categories=unique_categories,
                         ordered=False
                     )
+
+    def _apply_constraints(self):
+        if self.options.constraints != '':
+            self.data = self.data.query(self.options.constraints)
 
 # ------------------------------------------------------------------
 # Statistical helper functions
