@@ -35,7 +35,12 @@ class Kbstat:
         self._load_data()
         self._apply_categorical()
         self._apply_constraints()
+        if self.options.remove_outliers:
+            self.remove_outliers_pre()
         self.fit()
+        if self.options.remove_outliers:
+            self.remove_outliers_post()
+            self.fit()
         self.anova()
         self.posthoc()
         self.plot_diagnostics()
@@ -47,10 +52,13 @@ class Kbstat:
         """Load data and fit the LMM or GLMM depending on distribution."""
         if self.data is None:
             self._load_data()
+        data_to_use = self.data
+        if 'is_outlier' in self.data.columns:
+            data_to_use = self.data[~self.data['is_outlier']]
         formula = self._build_formula()
         family = self._family()
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
-        data_pl = pl.from_pandas(self.data)
+        data_pl = pl.from_pandas(data_to_use)
         if family == 'gaussian':
             self.model = Lmer(formula, data=data_pl)
         else:
@@ -67,6 +75,11 @@ class Kbstat:
         """
         if self.model is None:
             raise RuntimeError('Call fit() before anova()')
+
+        data_to_use = self.data
+        if 'is_outlier' in self.data.columns:
+            data_to_use = self.data[~self.data['is_outlier']]
+
         self.model.anova(jointtest_kwargs={'mode': 'satterthwaite', 'lmer_df': 'satterthwaite'})
         raw = self.model.result_anova.to_pandas() if hasattr(self.model.result_anova, 'to_pandas') else self.model.result_anova
         raw = raw.rename(columns={
@@ -77,7 +90,7 @@ class Kbstat:
             'Chisq': 'Chisq',
             'p_value': 'p',
         })
-        n_obs = len(self.data)
+        n_obs = len(data_to_use)
         raw['etaSqp'] = _f2eta_sq_p(raw['F'], raw['DF1'], raw['DF2'], n_obs)
         raw['SMD'] = _f2smd(raw['F'], raw['DF1'], raw['DF2'], n_obs)
         raw['effectSize'] = raw['etaSqp'].apply(_effect_label_eta)
@@ -137,6 +150,36 @@ class Kbstat:
         self._write_summary(out_dir)
         print(f'Saved Summary.txt to {out_dir}')
 
+    def remove_outliers_pre(self):
+
+        if self.options.x:
+            grouped_categories = self.data.groupby(self.options.x)
+            z_scores = grouped_categories[self.options.y].transform(self._calculate_z_score)
+        else:
+            z_scores = self._calculate_z_score(self.data[self.options.y])
+
+        self.data['is_outlier'] = z_scores > 3
+
+    def remove_outliers_post(self):
+        if self.model is None:
+            raise RuntimeError("You must fit the model before removing post outliers.")
+            return
+
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+
+        if r_obj is not None:
+            residuals = np.array(ro.r('residuals')(r_obj, type="pearson"))
+        else:
+            raise RuntimeError("Unable to find R model, rerun the fit")
+
+        z_scores = np.abs((residuals-residuals.mean())/(residuals.std()+1e-9))
+
+        new_outliers = z_scores > 3
+
+        healthy_points = self.data[~self.data['is_outlier']].index
+        self.data.loc[healthy_points, 'is_outlier'] = new_outliers
+
+
     def plot(self):
         """Plot data with significance brackets (to be implemented)."""
         pass
@@ -144,8 +187,7 @@ class Kbstat:
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
         if self.model is None:
-            print("You must fit the model before plotting diagnostics.")
-            return
+            raise RuntimeError ("You must fit the model before plotting diagnostics.")
 
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
 
@@ -196,7 +238,8 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 5: Fitted vs Response
         # ---------------------------------------------------------
-        y_actual = self.data[self.options.y]
+        y_actual = self.data[~self.data['is_outlier']]
+        y_actual = y_actual[self.options.y]
         sns.scatterplot(x=self.model.fits, y=y_actual, ax=axes[4])
         
         min_val = min(self.model.fits.min(), y_actual.min())
@@ -239,6 +282,11 @@ class Kbstat:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+    #
+
+    def _calculate_z_score(self, data):
+        # We add 1e-9 to prevent Divide By Zero crashes if a group's std is 0
+        return np.abs((data - data.mean()) / (data.std() + 1e-9))
 
     def _load_data(self):
         """Read data from in_file into a DataFrame."""

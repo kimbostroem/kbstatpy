@@ -22,7 +22,7 @@ options.fit_method = 'MPL'
 options.formula = 'Distance ~ Chocolate * Gender + (1 | Subject)'
 
 kb = Kbstat(options)
-kb.fit()
+kb.run()
 
 print('\n--- ANOVA ---')
 print(kb.anova())

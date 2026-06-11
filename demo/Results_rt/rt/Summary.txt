@@ -4,23 +4,23 @@ kbstatpy — Analysis Summary
 
 FORMULA
 -------
-Distance ~ Chocolate * Gender + (1 | Subject)
+rt ~ A * B + (1 | id)
 
 MODEL INFORMATION
 -----------------
-  Number of observations : 500
+  Number of observations : 540
   Distribution           : gamma
   Link function          : log
   Fit method             : MPL
-  Random grouping factor : Subject
+  Random grouping factor : id
   Contrast coding        : effects (contr.sum)
 
 ANOVA (Type III)
 ----------------
-            Term  DF1  DF2       F   Chisq            p   etaSqp      SMD effectSize significance
-       Chocolate  1.0  inf   7.362   7.362 6.661783e-03 0.014597 0.243416      small           **
-          Gender  1.0  inf 438.780 438.780 1.995431e-97 0.468892 1.879210 very large          ***
-Chocolate:Gender  1.0  inf 222.403 222.403 2.705147e-50 0.309149 1.337895      large          ***
+Term  DF1  DF2      F  Chisq            p   etaSqp      SMD effectSize significance
+   A  1.0  inf  6.883  6.883 8.703630e-03 0.012586 0.225799      small           **
+   B  1.0  inf 39.803 39.803 2.808720e-10 0.068649 0.542989     medium          ***
+ A:B  1.0  inf  0.026  0.026 8.714004e-01 0.000048 0.013878 negligible         n.s.
 
 NOTE: df = Inf in ANOVA table
 ------------------------------
@@ -42,9 +42,9 @@ POST-HOC PAIRWISE COMPARISONS
 -----------------------------
   Correction: holm
 
-Chocolate  response       SE  df  asymp_LCL  asymp_UCL
-       no  7.065068 0.033771 inf   6.989777   7.141170
-      yes  7.063097 0.033762 inf   6.987827   7.139177
+ A   response        SE  df  asymp_LCL  asymp_UCL
+ 1 396.037139 18.038948 inf 357.600047 438.605689
+ 2 466.030995 21.373785 inf 420.503878 516.487242
 
 SIGNIFICANCE
 ------------
