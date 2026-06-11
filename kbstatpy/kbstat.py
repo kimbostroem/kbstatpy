@@ -238,9 +238,13 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 5: Fitted vs Response
         # ---------------------------------------------------------
-        y_actual = self.data[~self.data['is_outlier']]
-        y_actual = y_actual[self.options.y]
-        sns.scatterplot(x=self.model.fits, y=y_actual, ax=axes[4])
+        if 'is_outlier' in self.data.columns:
+            y_actual = self.data[~self.data['is_outlier']]
+            y_actual = y_actual[self.options.y]
+        else:
+            y_actual = self.data[self.options.y]
+            
+        sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4])
         
         min_val = min(self.model.fits.min(), y_actual.min())
         max_val = max(self.model.fits.max(), y_actual.max())

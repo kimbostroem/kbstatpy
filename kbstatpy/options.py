@@ -23,7 +23,7 @@ class KbstatOptions:
     link: str = 'auto'
     fit_method: str = 'MPL'
 
-    remove_outliers: bool = True
+    remove_outliers: bool = False
 
     # Post-hoc settings
     posthoc_method: str = 'emm'
