@@ -7,6 +7,7 @@ from pymer4.models import glmer as Glmer
 import rpy2.robjects as ro
 
 ro.r('emmeans::emm_options(msg.interaction = FALSE)')
+ro.r('options(contrasts = c("contr.sum", "contr.poly"))')
 
 from .options import KbstatOptions
 
@@ -92,6 +93,8 @@ class Kbstat:
         if not factors:
             return None
         self.model.set_factors(factors)
+        # Override the contr.treatment default that set_factors() hard-codes
+        self.model.set_contrasts({f: 'contr.sum' for f in factors})
         emm_result = self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
@@ -101,7 +104,7 @@ class Kbstat:
         return self.posthoc_table
 
     def save(self):
-        """Write result tables to out_dir as xlsx files."""
+        """Write result tables and summary to out_dir."""
         if self.model is None:
             raise RuntimeError('Call fit() before save()')
         out_dir = self.options.out_dir
@@ -124,6 +127,9 @@ class Kbstat:
         if self.data is not None:
             self.data.to_csv(os.path.join(out_dir, 'Data.csv'), index=False)
             print(f'Saved Data.csv to {out_dir}')
+
+        self._write_summary(out_dir)
+        print(f'Saved Summary.txt to {out_dir}')
 
     def plot(self):
         """Plot data with significance brackets (to be implemented)."""
@@ -165,6 +171,108 @@ class Kbstat:
             'inverse_gaussian': 'inverse.gaussian',
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
+
+    def _write_summary(self, out_dir: str):
+        """Write Summary.txt with model info, fit statistics, ANOVA table, and explanatory notes."""
+        lines = []
+
+        sep = '=' * 70
+
+        # --- Header ---
+        lines += [sep, 'kbstatpy — Analysis Summary', sep, '']
+
+        # --- Formula ---
+        formula = self._build_formula()
+        lines += ['FORMULA', '-------', formula, '']
+
+        # --- Model information ---
+        n_obs = len(self.data) if self.data is not None else '?'
+        family = self._family()
+        link = self.options.link if self.options.link not in ('auto', '') else 'default'
+        fit_method = self.options.fit_method
+        lines += [
+            'MODEL INFORMATION',
+            '-----------------',
+            f'  Number of observations : {n_obs}',
+            f'  Distribution           : {self.options.distribution}',
+            f'  Link function          : {link}',
+            f'  Fit method             : {fit_method}',
+        ]
+        if self.options.id:
+            lines.append(f'  Random grouping factor : {self.options.id}')
+        lines.append(f'  Contrast coding        : effects (contr.sum)')
+        lines.append('')
+
+        # --- Fit statistics ---
+        if hasattr(self.model, 'fit_stats') and self.model.fit_stats is not None:
+            fs = self.model.fit_stats
+            fs_df = fs.to_pandas() if hasattr(fs, 'to_pandas') else fs
+            lines += ['FIT STATISTICS', '--------------']
+            for col in fs_df.columns:
+                val = fs_df[col].iloc[0] if len(fs_df) > 0 else '?'
+                lines.append(f'  {col:<24}: {val}')
+            lines.append('')
+
+        # --- Fixed effects ---
+        if hasattr(self.model, 'coefs') and self.model.coefs is not None:
+            coef_df = self.model.coefs
+            if hasattr(coef_df, 'to_pandas'):
+                coef_df = coef_df.to_pandas()
+            lines += ['FIXED EFFECTS', '-------------', coef_df.to_string(), '']
+
+        # --- ANOVA table ---
+        if self.anova_table is not None:
+            at = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
+            lines += ['ANOVA (Type III)', '----------------', at.to_string(index=False), '']
+
+            # Check for infinite df2 and add explanatory note
+            has_inf_df = False
+            if 'DF2' in at.columns:
+                has_inf_df = bool(np.any(np.isinf(at['DF2'].astype(float).values)))
+            if has_inf_df:
+                lines += [
+                    'NOTE: df = Inf in ANOVA table',
+                    '------------------------------',
+                    'The Satterthwaite approximation for degrees of freedom is only defined',
+                    'for linear mixed models (LMMs, distribution = normal). For generalised',
+                    'linear mixed models (GLMMs) the likelihood is not quadratic and the',
+                    'Satterthwaite formula does not apply. R\'s emmeans therefore falls back',
+                    'to asymptotic inference, yielding df = Inf and Wald chi-square tests.',
+                    '',
+                    'This is mathematically correct behaviour — not a software error.',
+                    '',
+                    'For comparison: MATLAB\'s fitglme also does not support Satterthwaite',
+                    'for GLMMs. Instead it uses the finite approximation df2 = n - p, where',
+                    'n is the number of observations and p is the number of fixed-effect',
+                    'columns. Both approaches are approximations; the asymptotic (df = Inf)',
+                    'method used here is the more principled one.',
+                    '',
+                ]
+
+        # --- Post-hoc ---
+        if self.posthoc_table is not None:
+            ph = self.posthoc_table
+            if hasattr(ph, 'to_pandas'):
+                ph = ph.to_pandas()
+            lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
+            lines += [f'  Correction: {self.options.posthoc_correction}', '']
+            lines += [ph.to_string(index=False), '']
+
+        # --- Significance key ---
+        lines += [
+            'SIGNIFICANCE',
+            '------------',
+            '  *** p < 0.001',
+            '  **  p < 0.01',
+            '  *   p < 0.05',
+            '  n.s. not significant',
+            '',
+            sep,
+        ]
+
+        out_path = os.path.join(out_dir, 'Summary.txt')
+        with open(out_path, 'w', encoding='utf-8') as fh:
+            fh.write('\n'.join(lines) + '\n')
 
     def _build_statistics_table(self, factors: list) -> pd.DataFrame:
         """Build descriptive statistics table per group."""

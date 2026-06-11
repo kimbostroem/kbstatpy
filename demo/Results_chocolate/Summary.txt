@@ -1,0 +1,56 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+Distance ~ Chocolate * Gender + (1 | Subject)
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 500
+  Distribution           : gamma
+  Link function          : log
+  Fit method             : MPL
+  Random grouping factor : Subject
+  Contrast coding        : effects (contr.sum)
+
+ANOVA (Type III)
+----------------
+            Term  DF1  DF2       F   Chisq            p   etaSqp      SMD effectSize significance
+       Chocolate  1.0  inf   7.404   7.404 6.509248e-03 0.014592 0.243376      small           **
+          Gender  1.0  inf 448.703 448.703 1.381480e-99 0.472965 1.894630 very large          ***
+Chocolate:Gender  1.0  inf 209.305 209.305 1.947586e-47 0.295085 1.294002      large          ***
+
+NOTE: df = Inf in ANOVA table
+------------------------------
+The Satterthwaite approximation for degrees of freedom is only defined
+for linear mixed models (LMMs, distribution = normal). For generalised
+linear mixed models (GLMMs) the likelihood is not quadratic and the
+Satterthwaite formula does not apply. R's emmeans therefore falls back
+to asymptotic inference, yielding df = Inf and Wald chi-square tests.
+
+This is mathematically correct behaviour — not a software error.
+
+For comparison: MATLAB's fitglme also does not support Satterthwaite
+for GLMMs. Instead it uses the finite approximation df2 = n - p, where
+n is the number of observations and p is the number of fixed-effect
+columns. Both approaches are approximations; the asymptotic (df = Inf)
+method used here is the more principled one.
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+Chocolate  response       SE  df  asymp_LCL  asymp_UCL
+       no  7.064172 0.032968 inf   6.990662   7.138455
+      yes  7.062157 0.032959 inf   6.988667   7.136419
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================
