@@ -30,6 +30,7 @@ class Kbstat:
     def run(self):
         """Run the full analysis pipeline."""
         self._load_data()
+        self._apply_categorical()
         self.fit()
         self.anova()
         self.posthoc()
@@ -297,6 +298,20 @@ class Kbstat:
             rows.append(row)
         return pd.DataFrame(rows)
 
+    def _apply_categorical(self):
+        categorical_vars = self.options.x.copy()
+        if self.options.id:
+            categorical_vars.append(self.options.id)
+
+        if self.data is not None:
+            for var in categorical_vars:
+                if var in self.data.columns:
+                    unique_categories = self.data[var].unique().tolist()
+                    self.data[var] = pd.Categorical(
+                        self.data[var],
+                        categories=unique_categories,
+                        ordered=False
+                    )
 
 # ------------------------------------------------------------------
 # Statistical helper functions
@@ -338,3 +353,4 @@ def _sig_stars(p):
     if p < 0.05:
         return '*'
     return 'n.s.'
+
