@@ -5,8 +5,8 @@ import polars as pl
 from pymer4.models import lmer as Lmer
 from pymer4.models import glmer as Glmer
 import rpy2.robjects as ro
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 import scipy.stats as stats
 
 ro.r('emmeans::emm_options(msg.interaction = FALSE)')
@@ -280,8 +280,17 @@ class Kbstat:
         axes[5].set_ylabel("Distance above median")
 
         # Fixes overlapping text and margins
-        plt.tight_layout() 
-        plt.show()
+        plt.tight_layout()
+
+        if self.options.out_dir:
+            os.makedirs(self.options.out_dir, exist_ok=True)
+            fig.savefig(os.path.join(self.options.out_dir, 'Diagnostics.pdf'))
+            fig.savefig(os.path.join(self.options.out_dir, 'Diagnostics.png'), dpi=150)
+            print(f'Saved Diagnostics.pdf/.png to {self.options.out_dir}')
+
+        plt.show(block=False)
+        plt.pause(3)
+        plt.close(fig)
 
     # ------------------------------------------------------------------
     # Private helpers

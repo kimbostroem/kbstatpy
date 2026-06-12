@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Demo results
+demo/Results_*/
+
+# macOS
+.DS_Store
