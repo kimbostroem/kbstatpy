@@ -114,7 +114,7 @@ class Kbstat:
         self.model.set_factors(factors)
         # Override the contr.treatment default that set_factors() hard-codes
         self.model.set_contrasts({f: 'contr.sum' for f in factors})
-        emm_result = self.model.emmeans(
+        emm_result= self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
         )
@@ -181,8 +181,162 @@ class Kbstat:
 
 
     def plot(self):
-        """Plot data with significance brackets (to be implemented)."""
-        pass
+        """Generate publication-ready summary plots matching the MATLAB kbstat style.
+
+        Layout mirrors plotGroups.m: one panel per level of the 2nd independent
+        variable (or a single panel when there is only one x-variable).  Within
+        each panel the 1st x-variable is on the x-axis with colored violins,
+        scatter points in matching colors, paired-subject connecting lines,
+        a white median marker with an IQR bar, and significance brackets.
+        """
+        if not self.options.x:
+            print("No independent variables to plot.")
+            return
+
+        # Ensure the outlier column exists
+        if 'is_outlier' not in self.data.columns:
+            self.data['is_outlier'] = False
+
+        n_vars = len(self.options.x)
+        x_var = self.options.x[0]       # Violin / x-axis variable  (e.g. Chocolate)
+        y_var = self.options.y           # Dependent variable        (e.g. Distance)
+        facet_var = self.options.x[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
+        id_var = self.options.id         # Subject identifier for connecting lines
+        y_units = getattr(self.options, 'y_units', '')
+        y_label = f"{y_var} [{y_units}]" if y_units else y_var
+
+        # Use MATLAB's default color cycle (first N colors from 'tab10')
+        x_levels = self.data[x_var].cat.categories.tolist() if hasattr(self.data[x_var], 'cat') else sorted(self.data[x_var].unique())
+        palette = dict(zip(x_levels, sns.color_palette("tab10", len(x_levels))))
+
+        # Determine facets
+        if facet_var:
+            facet_levels = self.data[facet_var].cat.categories.tolist() if hasattr(self.data[facet_var], 'cat') else sorted(self.data[facet_var].unique())
+        else:
+            facet_levels = [None]
+
+        n_panels = len(facet_levels)
+        fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 6), sharey=True)
+        if n_panels == 1:
+            axes = [axes]
+
+        healthy_data = self.data[~self.data['is_outlier']]
+        outlier_data = self.data[self.data['is_outlier']]
+
+        for idx, facet_val in enumerate(facet_levels):
+            ax = axes[idx]
+
+            # Subset for this panel
+            if facet_var is not None:
+                panel_healthy = healthy_data[healthy_data[facet_var] == facet_val]
+                panel_outlier = outlier_data[outlier_data[facet_var] == facet_val]
+            else:
+                panel_healthy = healthy_data
+                panel_outlier = outlier_data
+
+            # --- LAYER 1: Violins (centered on each x-tick, colored per level) ---
+            sns.violinplot(
+                data=panel_healthy, x=x_var, y=y_var, order=x_levels,
+                hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
+                cut=0, inner=None, linewidth=1, saturation=0.4,
+                ax=ax, legend=False, density_norm='width'
+            )
+
+            # --- LAYER 2: Swarm plot (dots distributed within violin shape) ---
+            sns.swarmplot(
+                data=panel_healthy, x=x_var, y=y_var, order=x_levels,
+                color='black', size=3, alpha=0.7, ax=ax, warn_thresh=1
+            )
+
+            # --- LAYER 2b: Outlier points (red X markers) ---
+            if len(panel_outlier) > 0:
+                sns.swarmplot(
+                    data=panel_outlier, x=x_var, y=y_var, order=x_levels,
+                    color='red', size=5, marker='X', alpha=0.9, ax=ax, warn_thresh=1
+                )
+
+            # --- LAYER 3: Connecting lines for paired subjects ---
+            if id_var and len(x_levels) == 2:
+                # Build a pivot: one row per subject, columns = x_levels
+                pivot = panel_healthy.pivot_table(index=id_var, columns=x_var, values=y_var, observed=True)
+                if x_levels[0] in pivot.columns and x_levels[1] in pivot.columns:
+                    paired = pivot.dropna()
+                    # Get x-positions (integer tick positions from violin)
+                    x0, x1 = 0, 1
+                    for _, row in paired.iterrows():
+                        ax.plot([x0, x1], [row[x_levels[0]], row[x_levels[1]]],
+                                color='grey', alpha=0.2, linewidth=0.5, zorder=0)
+
+            # --- LAYER 4: Median marker + IQR bar ---
+            for i, level in enumerate(x_levels):
+                subset = panel_healthy[panel_healthy[x_var] == level][y_var].dropna()
+                if len(subset) == 0:
+                    continue
+                median = subset.median()
+                q25 = subset.quantile(0.25)
+                q75 = subset.quantile(0.75)
+                # Dark IQR bar
+                ax.plot([i, i], [q25, q75], color='0.2', linewidth=2, zorder=5)
+                # White median dot
+                ax.scatter(i, median, color='white', edgecolors='0.2',
+                           s=48, zorder=6, linewidths=1.2)
+
+            # --- LAYER 5: Significance brackets ---
+            if self.posthoc_table is not None:
+                ph = self.posthoc_table
+                # Convert Polars to Pandas if needed
+                if hasattr(ph, 'to_pandas'):
+                    ph = ph.to_pandas()
+                # Try to find the p-value column
+                p_col = None
+                for candidate in ['p.value', 'p_value', 'Pr(>|z|)', 'Pr(>|t|)', 'p']:
+                    if candidate in ph.columns:
+                        p_col = candidate
+                        break
+                if p_col is not None:
+                    y_max = ax.get_ylim()[1]
+                    bracket_y = y_max
+                    bracket_step = (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.06
+                    for _, row in ph.iterrows():
+                        p_val = row[p_col]
+                        if p_val < 0.05:
+                            # Determine star label
+                            if p_val < 0.001:
+                                label = '***'
+                            elif p_val < 0.01:
+                                label = '**'
+                            else:
+                                label = '*'
+                            # Draw bracket across all x_levels (simple 2-level case)
+                            x0_b, x1_b = 0, len(x_levels) - 1
+                            bracket_y += bracket_step
+                            ax.plot([x0_b, x0_b, x1_b, x1_b],
+                                    [bracket_y - bracket_step * 0.3, bracket_y, bracket_y, bracket_y - bracket_step * 0.3],
+                                    color='black', linewidth=1.5)
+                            ax.text((x0_b + x1_b) / 2, bracket_y, label,
+                                    ha='center', va='bottom', fontsize=12, fontweight='bold')
+
+            # --- Axis formatting ---
+            ax.set_xlabel('')
+            ax.set_xticklabels([f"{x_var} = {lev}" for lev in x_levels])
+            if idx == 0:
+                ax.set_ylabel(y_label)
+            else:
+                ax.set_ylabel('')
+            if facet_var is not None:
+                ax.set_title(f"{facet_var} = {facet_val}", fontweight='bold')
+
+        # Super title
+        fig.suptitle(y_var, fontweight='bold', fontsize=14)
+        fig.tight_layout()
+
+        if self.options.out_dir:
+            out_file = os.path.join(self.options.out_dir, 'DataPlots.png')
+            fig.savefig(out_file, dpi=150, bbox_inches='tight')
+            print(f"Saved DataPlots.png to {self.options.out_dir}")
+        else:
+            plt.show()
+        plt.close(fig)
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
@@ -419,6 +573,7 @@ class Kbstat:
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
             lines += [f'  Correction: {self.options.posthoc_correction}', '']
             lines += [ph.to_string(index=False), '']
+
 
         # --- Significance key ---
         lines += [
