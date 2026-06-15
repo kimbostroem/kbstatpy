@@ -15,12 +15,12 @@ sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(DEMO_DIR, 'data', 'toothgrowth.csv')
-options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_03_twoway')
-options.y            = 'len'
-options.x            = ['supp', 'dose']
-options.interaction  = ['supp', 'dose']
-options.distribution = 'normal'
+options.in_file      = os.path.join(DEMO_DIR, 'data', 'toothgrowth.csv')  # input data file
+options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_03_twoway')  # output folder
+options.y            = 'len'             # dependent variable
+options.x            = ['supp', 'dose']  # fixed-effect factors
+options.interaction  = ['supp', 'dose']  # test the supp × dose interaction
+options.distribution = 'normal'          # gaussian LM (no random effects → plain linear model)
 
 kb = Kbstat(options)
 kb.run()

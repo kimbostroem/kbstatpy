@@ -16,14 +16,14 @@ sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(DEMO_DIR, 'data', 'oats.csv')
-options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_06_glmm_gamma')
-options.formula  = 'yield ~ Variety * Nitrogen + (1 | Block)'
-options.y        = 'yield'
-options.x        = ['Variety', 'Nitrogen']
-options.id       = 'Block'
-options.distribution = 'gamma'
-options.link     = 'log'
+options.in_file      = os.path.join(DEMO_DIR, 'data', 'oats.csv')  # input data file
+options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_06_glmm_gamma')  # output folder
+options.formula      = 'yield ~ Variety * Nitrogen + (1 | Block)'  # Wilkinson formula (overrides y, x, id below)
+options.y            = 'yield'                    # dependent variable
+options.x            = ['Variety', 'Nitrogen']    # fixed-effect factors
+options.id           = 'Block'                    # random-effect grouping variable
+options.distribution = 'gamma'                    # gamma GLMM (positive, right-skewed outcome)
+options.link         = 'log'                      # log link function
 
 kb = Kbstat(options)
 kb.run()

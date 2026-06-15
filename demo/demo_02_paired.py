@@ -16,13 +16,13 @@ sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(DEMO_DIR, 'data', 'sleep.csv')
-options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_02_paired')
-options.formula  = 'extra ~ group + (1 | ID)'
-options.y        = 'extra'
-options.x        = ['group']
-options.id       = 'ID'
-options.distribution = 'normal'
+options.in_file      = os.path.join(DEMO_DIR, 'data', 'sleep.csv')  # input data file
+options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_02_paired')  # output folder
+options.formula      = 'extra ~ group + (1 | ID)'  # Wilkinson formula (overrides y, x, id below)
+options.y            = 'extra'           # dependent variable
+options.x            = ['group']         # fixed-effect factor(s)
+options.id           = 'ID'              # random-effect grouping variable (subject ID)
+options.distribution = 'normal'          # gaussian LMM
 
 kb = Kbstat(options)
 kb.run()

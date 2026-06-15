@@ -17,14 +17,14 @@ sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')
-options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_05_lmm_slopes')
-options.formula  = 'Reaction ~ Period + (1 + Period | Subject)'
-options.y        = 'Reaction'
-options.x        = ['Period']
-options.id       = 'Subject'
-options.slope    = ['Period']
-options.distribution = 'normal'
+options.in_file      = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')  # input data file
+options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_05_lmm_slopes')  # output folder
+options.formula      = 'Reaction ~ Period + (1 + Period | Subject)'  # Wilkinson formula (overrides y, x, id, slope below)
+options.y            = 'Reaction'        # dependent variable
+options.x            = ['Period']        # fixed-effect factor(s)
+options.id           = 'Subject'         # random-effect grouping variable (subject ID)
+options.slope        = ['Period']        # random slope(s): each subject gets their own Period slope
+options.distribution = 'normal'          # gaussian LMM with random intercepts and slopes
 
 kb = Kbstat(options)
 kb.run()
