@@ -220,7 +220,13 @@ class Kbstat:
 
         if self.posthoc_table is not None:
             ph_df = self.posthoc_table.to_pandas() if hasattr(self.posthoc_table, 'to_pandas') else self.posthoc_table
-            ph_df.to_excel(os.path.join(out_dir, 'Posthoc.xlsx'), index=False)
+            ph_path = os.path.join(out_dir, 'Posthoc.xlsx')
+            with pd.ExcelWriter(ph_path, engine='openpyxl') as writer:
+                ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
+                ws = writer.sheets['Posthoc']
+                for col_cells in ws.columns:
+                    width = max(len(str(cell.value or '')) for cell in col_cells) + 2
+                    ws.column_dimensions[col_cells[0].column_letter].width = width
             print(f'Saved Posthoc.xlsx to {out_dir}')
 
         if self.statistics_table is not None:
