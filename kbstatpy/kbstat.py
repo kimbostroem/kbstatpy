@@ -352,19 +352,19 @@ class Kbstat:
                 ax=ax, legend=False, density_norm='width'
             )
 
-            # --- LAYER 2: Swarm plot (dots distributed within violin shape) ---
+            # --- LAYER 2: Strip plot (randomly jittered dots within violin shape) ---
             n_coll_before = len(ax.collections)
-            sns.swarmplot(
+            sns.stripplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                color='black', size=3, alpha=0.7, ax=ax, warn_thresh=1
+                color='black', size=3, alpha=0.7, jitter=0.15, ax=ax
             )
             swarm_collections = ax.collections[n_coll_before:]
 
             # --- LAYER 2b: Outlier points (red X markers) ---
             if len(panel_outlier) > 0:
-                sns.swarmplot(
+                sns.stripplot(
                     data=panel_outlier, x=x_var, y=y_var, order=x_levels,
-                    color='red', size=5, marker='X', alpha=0.9, ax=ax, warn_thresh=1
+                    color='red', size=5, marker='X', alpha=0.9, jitter=0.15, ax=ax
                 )
 
             # --- LAYER 3: Connecting lines for paired subjects ---
