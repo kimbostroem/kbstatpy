@@ -17,10 +17,7 @@ Dataset: npk (R base). Nitrogen, phosphate and potassium effects on pea yield
 (pounds per plot). 24 plots in 6 complete blocks (Venables & Ripley, 2002).
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from kbstatpy import Kbstat, KbstatOptions
+from init import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/npk.csv'                      # input data file

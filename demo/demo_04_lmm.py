@@ -8,10 +8,7 @@ sleep deprivation (Belenky et al., 2003). Days 0-4 are labelled 'rested',
 days 5-9 are labelled 'deprived'.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from kbstatpy import Kbstat, KbstatOptions
+from init import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleepstudy.csv'               # input data file

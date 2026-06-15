@@ -13,10 +13,7 @@ fertilisation (Yates, 1935). 3 varieties × 4 nitrogen levels × 6 blocks,
 72 observations total.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from kbstatpy import Kbstat, KbstatOptions
+from init import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/oats.csv'                     # input data file

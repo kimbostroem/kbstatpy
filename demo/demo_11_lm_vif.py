@@ -18,10 +18,7 @@ options.x_order ensures cyl levels are displayed in the natural ascending order
 Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variables.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from kbstatpy import Kbstat, KbstatOptions
+from init import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file     = 'data/mtcars.csv'                    # input data file
