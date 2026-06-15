@@ -74,6 +74,7 @@ kb.save()     # write output files to out_dir
 | `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
 | `posthoc_correction` | str | `'holm'` | P-value correction (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
+| `colors` | str | `'Set2'` | Seaborn/matplotlib color palette for data plots (e.g. `'Set1'`, `'Set2'`, `'tab10'`, `'husl'`) |
 
 ### Supported distributions
 

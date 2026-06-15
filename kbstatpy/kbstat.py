@@ -238,7 +238,7 @@ class Kbstat:
 
         # Use MATLAB's default color cycle (first N colors from 'tab10')
         x_levels = self.data[x_var].cat.categories.tolist() if hasattr(self.data[x_var], 'cat') else sorted(self.data[x_var].unique())
-        palette = dict(zip(x_levels, sns.color_palette("tab10", len(x_levels))))
+        palette = dict(zip(x_levels, sns.color_palette(self.options.colors, len(x_levels))))
 
         # Determine facets
         if facet_var:
