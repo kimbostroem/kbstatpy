@@ -220,12 +220,12 @@ class Kbstat:
 
         if self.posthoc_table is not None:
             ph_df = self.posthoc_table.to_pandas() if hasattr(self.posthoc_table, 'to_pandas') else self.posthoc_table
-            # Format numeric columns as strings to preserve trailing zeros
+            # Round numeric columns for clean display
             for col in ph_df.columns:
                 if col in ('p', 'pCorr'):
-                    ph_df[col] = ph_df[col].apply(lambda v: f'{v:.4f}')
+                    ph_df[col] = ph_df[col].round(4)
                 elif ph_df[col].dtype == float:
-                    ph_df[col] = ph_df[col].apply(lambda v: f'{v:.3f}')
+                    ph_df[col] = ph_df[col].round(3)
             ph_path = os.path.join(out_dir, 'Posthoc.xlsx')
             with pd.ExcelWriter(ph_path, engine='openpyxl') as writer:
                 ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
