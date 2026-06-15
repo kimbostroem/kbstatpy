@@ -48,7 +48,7 @@ class Kbstat:
         self.anova()
         self.posthoc()
         self.plot_diagnostics()
-        self.plot()
+        self.plot_data()
         if self.options.out_dir:
             self.save()
 
@@ -211,7 +211,7 @@ class Kbstat:
         self.data.loc[healthy_points, 'is_outlier'] = new_outliers
 
 
-    def plot(self):
+    def plot_data(self):
         """Generate publication-ready summary plots matching the MATLAB kbstat style.
 
         Layout mirrors plotGroups.m: one panel per level of the 2nd independent
