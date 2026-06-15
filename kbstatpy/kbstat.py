@@ -907,7 +907,7 @@ class Kbstat:
                 q25 = subset.quantile(0.25)
                 q75 = subset.quantile(0.75)
                 # Dark IQR bar
-                ax.plot([i, i], [q25, q75], color='0.2', linewidth=2, zorder=5)
+                ax.plot([i, i], [q25, q75], color='0.2', linewidth=4, zorder=5)
                 # White median dot
                 ax.scatter(i, median, color='white', edgecolors='0.2',
                            s=60, zorder=6, linewidths=1.2)
