@@ -26,6 +26,7 @@ class Kbstat:
         self.model = None
         self.anova_table: pd.DataFrame = None
         self.posthoc_table: pd.DataFrame = None
+        self.contrasts_table: pd.DataFrame = None
         self.statistics_table: pd.DataFrame = None
         self.fig_diagnostics = None
         self.fig_data = None
@@ -131,11 +132,77 @@ class Kbstat:
         self.model.set_factors(factors)
         # Override the contr.treatment default that set_factors() hard-codes
         self.model.set_contrasts({f: 'contr.sum' for f in factors})
-        emm_result= self.model.emmeans(
+        emm_result = self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
         )
-        self.posthoc_table = emm_result
+        emm_df = emm_result.to_pandas() if hasattr(emm_result, 'to_pandas') else emm_result
+
+        # Pairwise contrasts (adjusted for brackets; raw for the p column)
+        import rpy2.robjects.pandas2ri as p2ri
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        ct_adj = None
+        ct_raw = None
+        if r_obj is not None:
+            try:
+                _emm = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'))
+                ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
+                    ro.r('pairs')(_emm, adjust=self.options.posthoc_correction)))
+                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
+                    ro.r('pairs')(_emm, adjust='none')))
+            except Exception:
+                pass
+
+        self.contrasts_table = ct_adj  # used for significance brackets in plot_data
+
+        # Build the rich posthoc table
+        if ct_adj is not None and ct_raw is not None and factors[0] in emm_df.columns:
+            factor_col = factors[0]
+
+            def _parse_level(part, levels):
+                """Match a contrast part like 'group1' to a level value."""
+                for lev in levels:
+                    ls = str(lev)
+                    if part == ls or part == f'{factor_col}{ls}' or part == f'{factor_col} {ls}':
+                        return lev
+                return part  # fallback: return raw string
+
+            def _emm_ci_str(lev):
+                row = emm_df[emm_df[factor_col] == lev]
+                if len(row) == 0:
+                    return ''
+                r = row.iloc[0]
+                return f"{r['emmean']:.3f} ({r['lower_CL']:.3f}, {r['upper_CL']:.3f})"
+
+            levels = emm_df[factor_col].tolist()
+            rows = []
+            for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
+                parts = [p.strip() for p in str(cadj['contrast']).split(' - ')]
+                lev1 = _parse_level(parts[0], levels) if len(parts) > 0 else ''
+                lev2 = _parse_level(parts[1], levels) if len(parts) > 1 else ''
+                t_val = float(cadj['t.ratio'])
+                df_val = float(cadj['df'])
+                smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
+                p_raw  = float(craw['p.value'])
+                p_corr = float(cadj['p.value'])
+                rows.append({
+                    f'{factor_col}_1':  str(lev1),
+                    f'{factor_col}_2':  str(lev2),
+                    'emmCI_1':          _emm_ci_str(lev1),
+                    'emmCI_2':          _emm_ci_str(lev2),
+                    'diff':             float(cadj['estimate']),
+                    't':                t_val,
+                    'df':               df_val,
+                    'p':                p_raw,
+                    'pCorr':            p_corr,
+                    'SMD':              smd,
+                    'effectSize':       _d_label(smd),
+                    'significance':     _sig_stars(p_corr),
+                })
+            self.posthoc_table = pd.DataFrame(rows)
+        else:
+            self.posthoc_table = emm_df  # fallback to marginal means
+
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
 
@@ -326,39 +393,43 @@ class Kbstat:
                            s=48, zorder=6, linewidths=1.2)
 
             # --- LAYER 5: Significance brackets ---
-            if self.posthoc_table is not None:
-                ph = self.posthoc_table
-                # Convert Polars to Pandas if needed
-                if hasattr(ph, 'to_pandas'):
-                    ph = ph.to_pandas()
-                # Try to find the p-value column
-                p_col = None
-                for candidate in ['p.value', 'p_value', 'Pr(>|z|)', 'Pr(>|t|)', 'p']:
-                    if candidate in ph.columns:
-                        p_col = candidate
-                        break
-                if p_col is not None:
-                    y_max = ax.get_ylim()[1]
-                    bracket_y = y_max
-                    bracket_step = (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.06
-                    for _, row in ph.iterrows():
-                        p_val = row[p_col]
-                        if p_val < 0.05:
-                            # Determine star label
-                            if p_val < 0.001:
-                                label = '***'
-                            elif p_val < 0.01:
-                                label = '**'
-                            else:
-                                label = '*'
-                            # Draw bracket across all x_levels (simple 2-level case)
-                            x0_b, x1_b = 0, len(x_levels) - 1
-                            bracket_y += bracket_step
-                            ax.plot([x0_b, x0_b, x1_b, x1_b],
-                                    [bracket_y - bracket_step * 0.3, bracket_y, bracket_y, bracket_y - bracket_step * 0.3],
-                                    color='black', linewidth=1.5)
-                            ax.text((x0_b + x1_b) / 2, bracket_y, label,
-                                    ha='center', va='bottom', fontsize=12, fontweight='bold')
+            if self.contrasts_table is not None:
+                ct = self.contrasts_table
+                if 'p.value' in ct.columns:
+                    y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
+                    bracket_step = y_range * 0.07
+                    bracket_y = ax.get_ylim()[1] + bracket_step * 0.3
+
+                    def _contrast_positions(contrast_str, x_var, x_levels):
+                        """Return (i, j) indices into x_levels for a contrast string."""
+                        parts = [p.strip() for p in contrast_str.split(' - ')]
+                        if len(parts) != 2:
+                            return None, None
+                        found = []
+                        for part in parts:
+                            for i, lev in enumerate(x_levels):
+                                ls = str(lev)
+                                if part == ls or part.endswith(ls) or part == f'{x_var} {ls}':
+                                    found.append(i)
+                                    break
+                        return (found[0], found[1]) if len(found) == 2 else (None, None)
+
+                    for _, crow in ct.iterrows():
+                        p_val = crow['p.value']
+                        if p_val >= 0.05:
+                            continue
+                        label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
+                        xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
+                        if xi is None:
+                            xi, xj = 0, len(x_levels) - 1
+                        tick_h = bracket_step * 0.3
+                        ax.plot([xi, xi, xj, xj],
+                                [bracket_y - tick_h, bracket_y, bracket_y, bracket_y - tick_h],
+                                color='black', linewidth=1.5)
+                        ax.text((xi + xj) / 2, bracket_y, label,
+                                ha='center', va='bottom', fontsize=12, fontweight='bold')
+                        bracket_y += bracket_step * 1.4
+                    ax.set_ylim(top=bracket_y)
 
             # --- Axis formatting ---
             ax.set_xlabel('')
@@ -842,4 +913,24 @@ def _sig_stars(p):
     if p < 0.05:
         return '*'
     return 'n.s.'
+
+
+def _d_label(d):
+    """Verbal Cohen's d effect size label (matches MATLAB effprint for type 'd')."""
+    d = abs(d)
+    if np.isnan(d):
+        return ''
+    if d < 0.05:
+        return 'very small'
+    if d < 0.225:
+        return 'small'
+    if d < 0.425:
+        return 'small to medium'
+    if d < 0.575:
+        return 'medium'
+    if d < 0.725:
+        return 'medium to large'
+    if d < 0.9:
+        return 'large'
+    return 'very large'
 
