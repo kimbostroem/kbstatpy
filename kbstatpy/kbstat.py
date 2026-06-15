@@ -52,10 +52,11 @@ class Kbstat:
         """Load data and fit the LMM or GLMM depending on distribution."""
         if self.data is None:
             self._load_data()
+        formula = self._build_formula()
+        self._backfill_options_from_formula(formula)
         data_to_use = self.data
         if 'is_outlier' in self.data.columns:
             data_to_use = self.data[~self.data['is_outlier']]
-        formula = self._build_formula()
         family = self._family()
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
         data_pl = pl.from_pandas(data_to_use)
@@ -476,6 +477,70 @@ class Kbstat:
         if subject:
             return f'{y} ~ {x} + (1 | {subject})'
         return f'{y} ~ {x}'
+
+    def _parse_formula(self, formula: str) -> dict:
+        """Extract y, x, id, and random slopes from a Wilkinson formula string.
+
+        Handles formulas of the form:
+            y ~ A * B + (1 | id)
+            y ~ A + B + (A + B | id)
+            y ~ A * B              (no random effect)
+        Returns a dict with keys: y, x (list), id, slopes (list).
+        """
+        import re
+
+        formula = formula.replace(' ', '')
+
+        # Split on ~
+        lhs, rhs = formula.split('~', 1)
+        y = lhs.strip()
+
+        # Extract all random-effect groups: (... | grouping)
+        random_terms = re.findall(r'\(([^)]+)\)', rhs)
+        id_var = ''
+        slopes = []
+        for term in random_terms:
+            if '|' in term:
+                left, right = term.split('|', 1)
+                id_var = right.strip()
+                # Slopes are everything before | except the intercept (1)
+                slope_parts = [s.strip() for s in left.split('+') if s.strip() != '1']
+                slopes = slope_parts
+
+        # Remove random-effect groups from rhs to isolate fixed effects
+        fixed_rhs = re.sub(r'\+?\s*\([^)]+\)', '', rhs).strip().strip('+').strip()
+
+        # Collect unique main-effect variable names (ignore interaction terms with :)
+        x = []
+        seen = set()
+        for term in re.split(r'[+]', fixed_rhs):
+            term = term.strip()
+            # Expand * into constituent names (A*B → A, B)
+            parts = re.split(r'[*:]', term)
+            for part in parts:
+                part = part.strip()
+                if part and part not in seen:
+                    seen.add(part)
+                    x.append(part)
+
+        return {'y': y, 'x': x, 'id': id_var, 'slopes': slopes}
+
+    def _backfill_options_from_formula(self, formula: str):
+        """Fill in options.y, .x, .id from formula if not already set."""
+        parsed = self._parse_formula(formula)
+        if not self.options.y:
+            self.options.y = parsed['y']
+            print(f'Detected dependent variable  : {self.options.y}')
+        if not self.options.x:
+            self.options.x = parsed['x']
+            print(f'Detected independent variables: {", ".join(self.options.x)}')
+        if not self.options.id:
+            self.options.id = parsed['id']
+            if self.options.id:
+                print(f'Detected grouping variable   : {self.options.id}')
+        if parsed['slopes']:
+            print(f'Detected random slopes       : {", ".join(parsed["slopes"])}')
+        print(f'Formula                      : {formula}')
 
     def _family(self) -> str:
         """Map options.distribution to an R family name string."""
