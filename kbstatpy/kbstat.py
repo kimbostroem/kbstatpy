@@ -27,6 +27,7 @@ class Kbstat:
         self.anova_table: pd.DataFrame = None
         self.posthoc_table: pd.DataFrame = None
         self.statistics_table: pd.DataFrame = None
+        self.fig_diagnostics = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -164,6 +165,13 @@ class Kbstat:
 
         self._write_summary(out_dir)
         print(f'Saved Summary.txt to {out_dir}')
+
+        if self.fig_diagnostics is not None:
+            self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
+            self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.png'), dpi=150)
+            plt.close(self.fig_diagnostics)
+            self.fig_diagnostics = None
+            print(f'Saved Diagnostics.pdf/.png to {out_dir}')
 
     def remove_outliers_pre(self):
 
@@ -451,15 +459,9 @@ class Kbstat:
         # Fixes overlapping text and margins
         plt.tight_layout()
 
-        if self.options.out_dir:
-            os.makedirs(self.options.out_dir, exist_ok=True)
-            fig.savefig(os.path.join(self.options.out_dir, 'Diagnostics.pdf'))
-            fig.savefig(os.path.join(self.options.out_dir, 'Diagnostics.png'), dpi=150)
-            print(f'Saved Diagnostics.pdf/.png to {self.options.out_dir}')
-
+        self.fig_diagnostics = fig
         plt.show(block=False)
         plt.pause(3)
-        plt.close(fig)
 
     # ------------------------------------------------------------------
     # Private helpers
