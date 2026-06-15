@@ -404,6 +404,11 @@ class Kbstat:
                 ax.scatter(i, median, color='white', edgecolors='0.2',
                            s=48, zorder=6, linewidths=1.2)
 
+            # Expand y-limits so violin tops are not clipped and brackets have room
+            y_lo, y_hi = ax.get_ylim()
+            y_pad = (y_hi - y_lo) * 0.08
+            ax.set_ylim(bottom=y_lo - y_pad, top=y_hi + y_pad)
+
             # --- LAYER 5: Significance brackets ---
             if self.contrasts_table is not None:
                 ct = self.contrasts_table
