@@ -311,17 +311,18 @@ class Kbstat:
         ct_raw = None
         if r_obj is not None:
             try:
-                _emm = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'), type='response')
-                _emm_df_r = ro.r('as.data.frame')(_emm)
-                # Convert factor column to character so rpy2 returns actual labels
-                # (rpy2 converts R factors to integer codes otherwise)
+                # Link-scale emmeans: used for pairs() so contrast strings and t/z ratios are correct
+                _emm_link = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'))
+                ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
+                    ro.r('pairs')(_emm_link, adjust=self.options.posthoc_correction)))
+                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
+                    ro.r('pairs')(_emm_link, adjust='none')))
+                # Response-scale emmeans: used for EMM/CI display values in table and plot
+                _emm_resp = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'), type='response')
+                _emm_df_r = ro.r('as.data.frame')(_emm_resp)
                 ro.r.assign('._emm_df_tmp', _emm_df_r)
                 ro.r(f'._emm_df_tmp[["{factors[0]}"]] <- as.character(._emm_df_tmp[["{factors[0]}"]])')
                 emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
-                ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
-                    ro.r('pairs')(_emm, adjust=self.options.posthoc_correction)))
-                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
-                    ro.r('pairs')(_emm, adjust='none')))
             except Exception:
                 pass
 
