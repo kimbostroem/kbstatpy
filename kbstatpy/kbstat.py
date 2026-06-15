@@ -851,17 +851,37 @@ class Kbstat:
                 panel_outlier = outlier_data
 
             # --- LAYER 1: Violins (centered on each x-tick, colored per level) ---
+            n_viol_before = len(ax.collections)
             sns.violinplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
                 hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
                 cut=0, inner=None, linewidth=1, saturation=0.4,
                 ax=ax, legend=False, density_norm='width'
             )
+            violin_colls = ax.collections[n_viol_before:]
 
-            # --- LAYER 2: Jittered scatter (replaces swarmplot for reliable spread) ---
+            def _violin_hw(xi, y_val):
+                """Half-width of the violin for group xi at height y_val."""
+                for coll in violin_colls:
+                    for path in coll.get_paths():
+                        verts = path.vertices
+                        if abs(verts[:, 0].mean() - xi) > 0.6:
+                            continue
+                        xs = []
+                        for i in range(len(verts) - 1):
+                            x0, y0 = verts[i];  x1, y1 = verts[i + 1]
+                            if y0 == y1:
+                                continue
+                            if min(y0, y1) <= y_val <= max(y0, y1):
+                                t = (y_val - y0) / (y1 - y0)
+                                xs.append(x0 + t * (x1 - x0))
+                        if len(xs) >= 2:
+                            return (max(xs) - min(xs)) / 2
+                return 0.35  # fallback if violin not found
+
+            # --- LAYER 2: Jittered scatter, constrained inside violin body ---
             n_pts = len(panel_healthy)
             dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
-            jitter_w = np.clip(0.15 + 0.1 * np.log1p(n_pts / 5), 0.15, 0.35)
             rng = np.random.default_rng(0)
             dot_xy = {}   # level -> (x_positions, y_values) for paired-line lookup
             for xi, level in enumerate(x_levels):
@@ -869,7 +889,10 @@ class Kbstat:
                 if len(subset) == 0:
                     dot_xy[level] = (np.array([]), np.array([]))
                     continue
-                jx = xi + rng.uniform(-jitter_w, jitter_w, size=len(subset))
+                jx = np.array([
+                    xi + rng.uniform(-_violin_hw(xi, y) * 0.9, _violin_hw(xi, y) * 0.9)
+                    for y in subset.values
+                ])
                 ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
                            alpha=0.4, zorder=4, linewidths=0)
                 dot_xy[level] = (jx, subset.values)
@@ -880,7 +903,10 @@ class Kbstat:
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
                     if len(subset) == 0:
                         continue
-                    jx = xi + rng.uniform(-jitter_w, jitter_w, size=len(subset))
+                    jx = np.array([
+                        xi + rng.uniform(-_violin_hw(xi, y) * 0.9, _violin_hw(xi, y) * 0.9)
+                        for y in subset.values
+                    ])
                     ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
                                marker='X', alpha=0.9, zorder=4, linewidths=0)
 
