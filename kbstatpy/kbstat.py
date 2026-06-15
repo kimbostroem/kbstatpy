@@ -378,53 +378,45 @@ class Kbstat:
             })
         self.correlation_table = pd.DataFrame(rows)
 
-        # --- Scatter plot grid (n×n): diagonal = variable name,
-        #     upper triangle = scatter, lower triangle = hidden ---
-        n = len(vars_)
-        fig, axes = plt.subplots(n, n, figsize=(3.2 * n, 3.2 * n))
-        if n == 1:
-            axes = np.array([[axes]])
+        # --- Flat scatter grid: one panel per unique pair ---
+        pairs = [(vars_[i], vars_[j]) for i in range(len(vars_)) for j in range(i + 1, len(vars_))]
+        n_pairs = len(pairs)
+        ncols = min(n_pairs, max(2, int(np.ceil(np.sqrt(n_pairs)))))
+        nrows = int(np.ceil(n_pairs / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(3.2 * ncols, 3.2 * nrows),
+                                 squeeze=False)
 
         color = sns.color_palette()[0]  # seaborn default blue
 
-        for row_i in range(n):
-            for col_j in range(n):
-                ax = axes[row_i, col_j]
+        for idx, (v1, v2) in enumerate(pairs):
+            ax = axes[idx // ncols][idx % ncols]
+            xy = self.data[[v1, v2]].dropna()
+            x_data = xy[v1].astype(float).values
+            y_data = xy[v2].astype(float).values
 
-                if row_i == col_j:
-                    ax.set_axis_off()
+            ax.scatter(x_data, y_data, color=color, alpha=0.6, s=15, linewidths=0)
+            m, b = np.polyfit(x_data, y_data, 1)
+            x_line = np.array([x_data.min(), x_data.max()])
+            ax.plot(x_line, m * x_line + b, color='red', linewidth=1.2)
 
-                elif col_j > row_i:
-                    # Upper triangle: scatter + regression line + r/p annotation
-                    v1 = vars_[row_i]
-                    v2 = vars_[col_j]
-                    xy = self.data[[v1, v2]].dropna()
-                    x_data = xy[v1].astype(float).values
-                    y_data = xy[v2].astype(float).values
+            r_row = self.correlation_table[
+                (self.correlation_table['var_1'] == v1) &
+                (self.correlation_table['var_2'] == v2)
+            ]
+            if len(r_row):
+                r_val = r_row.iloc[0]['r']
+                p_val = r_row.iloc[0]['p']
+                stars = r_row.iloc[0]['significance']
+                ax.set_title(f"r = {r_val:.3f}{stars}    p = {p_val:.4f}",
+                             fontsize=7, color='0.3', fontstyle='italic', pad=3)
 
-                    ax.scatter(x_data, y_data, color=color, alpha=0.6, s=15, linewidths=0)
-                    m, b = np.polyfit(x_data, y_data, 1)
-                    x_line = np.array([x_data.min(), x_data.max()])
-                    ax.plot(x_line, m * x_line + b, color='red', linewidth=1.2)
+            ax.set_xlabel(v1, fontsize=8)
+            ax.set_ylabel(v2, fontsize=8)
+            ax.tick_params(labelsize=6)
 
-                    r_row = self.correlation_table[
-                        (self.correlation_table['var_1'] == v1) &
-                        (self.correlation_table['var_2'] == v2)
-                    ]
-                    if len(r_row):
-                        r_val = r_row.iloc[0]['r']
-                        p_val = r_row.iloc[0]['p']
-                        stars = r_row.iloc[0]['significance']
-                        ax.set_title(f"r = {r_val:.3f}{stars}    p = {p_val:.4f}",
-                                     fontsize=7, color='0.3', fontstyle='italic', pad=3)
-
-                    ax.set_xlabel(v1, fontsize=8)
-                    ax.set_ylabel(v2, fontsize=8)
-                    ax.tick_params(labelsize=6)
-
-                else:
-                    # Lower triangle: hidden
-                    ax.set_visible(False)
+        # Hide any unused panels in the last row
+        for idx in range(n_pairs, nrows * ncols):
+            axes[idx // ncols][idx % ncols].set_visible(False)
 
         fig.suptitle('Pairwise Correlations', fontweight='bold', fontsize=13)
         plt.tight_layout()
