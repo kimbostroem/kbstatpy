@@ -13,6 +13,7 @@ ro.r('emmeans::emm_options(msg.interaction = FALSE)')
 ro.r('options(contrasts = c("contr.sum", "contr.poly"))')
 
 from .options import KbstatOptions
+from ._glmer_direct import GlmerDirect
 
 
 class Kbstat:
@@ -59,11 +60,16 @@ class Kbstat:
             data_to_use = self.data[~self.data['is_outlier']]
         family = self._family()
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
-        data_pl = pl.from_pandas(data_to_use)
+        has_slopes = bool(self._parse_formula(formula)['slopes'])
         if family == 'gaussian':
-            self.model = Lmer(formula, data=data_pl)
+            self.model = Lmer(formula, data=pl.from_pandas(data_to_use))
+        elif has_slopes:
+            # pymer4 Glmer crashes when random slopes are present (broom.tidy bug).
+            # Use the direct rpy2 wrapper instead — lme4 itself handles slopes correctly.
+            print('Random slopes detected in GLMM — using direct lme4 interface.')
+            self.model = GlmerDirect(formula, data=data_to_use, family=family, link=link)
         else:
-            self.model = Glmer(formula, data=data_pl, family=family, link=link)
+            self.model = Glmer(formula, data=pl.from_pandas(data_to_use), family=family, link=link)
         self.model.fit(summarize=False)
 
     def anova(self):
