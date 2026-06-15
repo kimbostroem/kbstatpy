@@ -6,7 +6,9 @@ No repeated measures — plain linear model, equivalent to an unpaired t-test.
 Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
 """
 
-from init import Kbstat, KbstatOptions
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleep.csv'                    # input data file

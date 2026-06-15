@@ -8,7 +8,9 @@ supplementation by two delivery methods (OJ = orange juice, VC = ascorbic acid)
 at three dose levels (low / medium / high).
 """
 
-from init import Kbstat, KbstatOptions
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/toothgrowth.csv'              # input data file

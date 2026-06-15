@@ -10,7 +10,9 @@ slope variance and intercept-slope correlation estimated by the model.
 Dataset: sleepstudy (lme4), same as demo 4.
 """
 
-from init import Kbstat, KbstatOptions
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleepstudy.csv'               # input data file

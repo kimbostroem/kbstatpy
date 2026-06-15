@@ -13,7 +13,9 @@ and also correlated with each other in a single run.
 Dataset: iris (R base / Fisher, 1936). 150 observations, 3 species × 50 plants.
 """
 
-from init import Kbstat, KbstatOptions
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file = 'data/iris.csv'                          # input data file

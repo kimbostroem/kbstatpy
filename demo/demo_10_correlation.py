@@ -11,7 +11,9 @@ reflecting that GNP, population, and year all trend together over time.
 Dataset: longley (R base / Longley, 1967). 16 annual observations, 7 variables.
 """
 
-from init import Kbstat, KbstatOptions
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file     = 'data/longley.csv'                   # input data file
