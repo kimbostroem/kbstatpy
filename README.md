@@ -70,7 +70,8 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `y` | str or list | `''` | Dependent variable(s). A list (or comma-separated string) runs one analysis per variable |
 | `y_units` | str or list | `''` | Unit label(s) for the y-axis, e.g. `'ms'` or `'kg, N, m'` for multi-y |
 | `x` | list / str | `[]` | Fixed-effect factor column names |
-| `x_order` | str or dict | `None` | Reorder factor levels. String form: `'dose: low, medium, high'` or multiple variables `'dose: low, medium, high; supp: OJ, VC'`. Dict form also accepted: `{'dose': ['low','medium','high']}` |
+| `x_order` | str or dict | `None` | Reorder factor levels. String form: `'dose: low, medium, high'` or multiple variables `'dose: low, medium, high; supp: OJ, VC'`. Dict form also accepted: `{'dose': ['low','medium','high']}`. When used with `rename`, list the renamed values here |
+| `rename` | str or dict | `None` | Rename factor levels and/or variable display labels. String form: `'cyl: 4 -> 4 cyl, 6 -> 6 cyl; dose: low -> Low dose'` for level renames, `'cyl -> Cylinders'` for variable display labels, or combine: `'cyl -> Cylinders; cyl: 4 -> 4 cyl, 6 -> 6 cyl'`. Variable renames apply to axis labels and table headers; level renames apply to data values before fitting |
 | `x_units` | list / str | `''` | Unit label(s) for x-axis tick groups; `'1'` means no units |
 | `id` | str | `''` | Random-effect grouping variable (e.g. subject ID) |
 | `slope` | list / str | `[]` | Variables with random slopes (e.g. `'A, B'` → `(1 + A + B \| id)`) |

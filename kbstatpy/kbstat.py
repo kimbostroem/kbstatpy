@@ -41,6 +41,7 @@ class Kbstat:
         self.AIC    = None
         self.BIC    = None
         self.logLik = None
+        self._display_names: dict = {}   # internal col → display label (from options.rename)
         self.fig_diagnostics = None
         self.fig_data = None
         self.fig_correlation = None
@@ -65,6 +66,36 @@ class Kbstat:
         if not path or os.path.isabs(path):
             return path
         return os.path.join(self._caller_dir, path)
+
+    def _disp(self, name):
+        """Return the display label for an internal column name."""
+        return self._display_names.get(name, name)
+
+    def _disp_cols(self, df: 'pd.DataFrame') -> 'pd.DataFrame':
+        """Return a copy of df with column names substituted via _display_names.
+
+        Handles exact matches and trailing _1/_2 suffixes (e.g. cyl_1 → cylinder_1).
+        """
+        if not self._display_names:
+            return df
+        def _map(c):
+            if c in self._display_names:
+                return self._display_names[c]
+            for suffix in ('_1', '_2'):
+                if c.endswith(suffix):
+                    base = c[:-len(suffix)]
+                    if base in self._display_names:
+                        return self._display_names[base] + suffix
+            return c
+        return df.rename(columns=_map)
+
+    def _disp_vals(self, df: 'pd.DataFrame', col: str) -> 'pd.DataFrame':
+        """Return a copy of df with values in `col` substituted via _display_names."""
+        if not self._display_names or col not in df.columns:
+            return df
+        df = df.copy()
+        df[col] = df[col].map(lambda v: self._display_names.get(str(v), v))
+        return df
 
     def _normalize_options(self):
         """Normalize comma-separated string options to lists and resolve paths."""
@@ -94,20 +125,30 @@ class Kbstat:
                     var, levels = part.split(':', 1)
                     result[var.strip()] = [l.strip() for l in levels.split(',') if l.strip()]
             o.x_order = result
-        # rename: parse 'var: old -> new, old -> new; var2: ...' into nested dict
+        # rename: parse string into level renames (dict) and variable display names.
+        # Two forms per semicolon-separated entry:
+        #   'cyl -> cylinder'         — variable rename (no colon) → _display_names
+        #   'cyl: 4 -> 4 cyl, ...'   — level rename (has colon)   → options.rename dict
         if isinstance(o.rename, str):
-            result = {}
+            level_renames = {}
             for part in o.rename.split(';'):
                 part = part.strip()
+                if not part:
+                    continue
                 if ':' in part:
+                    # Level rename
                     var, pairs_str = part.split(':', 1)
                     mapping = {}
                     for pair in pairs_str.split(','):
                         if '->' in pair:
                             orig, renamed = pair.split('->', 1)
                             mapping[orig.strip()] = renamed.strip()
-                    result[var.strip()] = mapping
-            o.rename = result
+                    level_renames[var.strip()] = mapping
+                elif '->' in part:
+                    # Variable display rename
+                    orig, renamed = part.split('->', 1)
+                    self._display_names[orig.strip()] = renamed.strip()
+            o.rename = level_renames
 
     def run(self):
         """Run the full analysis pipeline.
@@ -134,6 +175,7 @@ class Kbstat:
             if multi and opts.out_dir:
                 opts.out_dir = os.path.join(opts.out_dir, y_var)
             child = Kbstat(opts)
+            child._display_names = self._display_names.copy()
             child._run_single()
 
         if self.options.correlation:
@@ -457,13 +499,15 @@ class Kbstat:
 
             corr_path = os.path.join(out_dir, 'Correlation.xlsx')
             with pd.ExcelWriter(corr_path, engine='openpyxl') as writer:
-                self.correlation_table.to_excel(writer, index=False, sheet_name='Correlation')
+                corr_out = self._disp_vals(self._disp_vals(self.correlation_table, 'var_1'), 'var_2')
+                corr_out.to_excel(writer, index=False, sheet_name='Correlation')
                 _autofit_xlsx(writer, 'Correlation')
 
             if partial_table is not None:
                 pcorr_path = os.path.join(out_dir, 'PartialCorrelation.xlsx')
                 with pd.ExcelWriter(pcorr_path, engine='openpyxl') as writer:
-                    partial_table.to_excel(writer, index=False, sheet_name='PartialCorrelation')
+                    pcorr_out = self._disp_vals(self._disp_vals(partial_table, 'var_1'), 'var_2')
+                    pcorr_out.to_excel(writer, index=False, sheet_name='PartialCorrelation')
                     _autofit_xlsx(writer, 'PartialCorrelation')
 
             if vif_table is not None:
@@ -533,8 +577,8 @@ class Kbstat:
                 ax.set_title(f"r = {r_val:.3f}{stars}    p = {p_val:.4f}",
                              fontsize=7, color='0.3', fontstyle='italic', pad=3)
 
-            ax.set_xlabel(v1 + xlabel_suffix, fontsize=8)
-            ax.set_ylabel(v2 + ylabel_suffix, fontsize=8)
+            ax.set_xlabel(self._disp(v1) + xlabel_suffix, fontsize=8)
+            ax.set_ylabel(self._disp(v2) + ylabel_suffix, fontsize=8)
             ax.tick_params(labelsize=6)
 
         for idx in range(n_pairs, nrows * ncols):
@@ -624,10 +668,10 @@ class Kbstat:
                         transform=ax_t.transData))
 
         for ci, v in enumerate(col_vars):
-            ax_t.text(ci + 0.5, nr + 0.1, v, ha='center', va='bottom',
+            ax_t.text(ci + 0.5, nr + 0.1, self._disp(v), ha='center', va='bottom',
                       fontsize=fs, fontweight='bold', rotation=45)
         for ri, v in enumerate(row_vars):
-            ax_t.text(-0.1, nr - 1 - ri + 0.5, v, ha='right', va='center',
+            ax_t.text(-0.1, nr - 1 - ri + 0.5, self._disp(v), ha='right', va='center',
                       fontsize=fs, fontweight='bold')
 
         ax_t.set_ylim(-0.15, nr + 0.7)
@@ -653,11 +697,13 @@ class Kbstat:
 
         if self.anova_table is not None:
             anova_df = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
+            anova_df = self._disp_vals(anova_df, 'Term')
             anova_df.to_excel(os.path.join(out_dir, 'Anova.xlsx'), index=False)
             print(f'Saved Anova.xlsx to {out_dir}')
 
         if self.posthoc_table is not None:
             ph_df = self.posthoc_table.to_pandas() if hasattr(self.posthoc_table, 'to_pandas') else self.posthoc_table
+            ph_df = self._disp_cols(ph_df)
             # Round numeric columns for clean display
             for col in ph_df.columns:
                 if col in ('p', 'pCorr'):
@@ -674,7 +720,8 @@ class Kbstat:
             print(f'Saved Posthoc.xlsx to {out_dir}')
 
         if self.statistics_table is not None:
-            self.statistics_table.to_excel(os.path.join(out_dir, 'Statistics.xlsx'), index=False)
+            stats_df = self._disp_cols(self.statistics_table)
+            stats_df.to_excel(os.path.join(out_dir, 'Statistics.xlsx'), index=False)
             print(f'Saved Statistics.xlsx to {out_dir}')
 
         if self.data is not None:
@@ -766,7 +813,7 @@ class Kbstat:
         facet_var = self.options.x[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
         id_var = self.options.id         # Subject identifier for connecting lines
         y_units = self.options.y_units if isinstance(self.options.y_units, str) else ''
-        y_label = f"{y_var} [{y_units}]" if y_units else y_var
+        y_label = f"{self._disp(y_var)} [{y_units}]" if y_units else self._disp(y_var)
         if self.options.y_transform:
             y_label = f"{y_label}  (original scale)"
 
@@ -908,7 +955,7 @@ class Kbstat:
             # --- Axis formatting ---
             x_units_list = self.options.x_units  # already a list
             x_unit = x_units_list[0] if len(x_units_list) > 0 else ''
-            x_label = f"{x_var} [{x_unit}]" if x_unit and x_unit != '1' else x_var
+            x_label = f"{self._disp(x_var)} [{x_unit}]" if x_unit and x_unit != '1' else self._disp(x_var)
             ax.set_xlabel(x_label)
             ax.set_xticks(range(len(x_levels)))
             ax.set_xticklabels([str(lev) for lev in x_levels])
@@ -918,7 +965,7 @@ class Kbstat:
                 ax.set_ylabel('')
             if facet_var is not None:
                 facet_unit = x_units_list[1] if len(x_units_list) > 1 else ''
-                facet_label = f"{facet_var} [{facet_unit}]" if facet_unit and facet_unit != '1' else facet_var
+                facet_label = f"{self._disp(facet_var)} [{facet_unit}]" if facet_unit and facet_unit != '1' else self._disp(facet_var)
                 ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
 
         # Super title
