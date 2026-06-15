@@ -473,10 +473,12 @@ class Kbstat:
             return self.options.formula
         y = self.options.y
         x = ' * '.join(self.options.x)
+        covs = ' + '.join(self.options.covariate)
+        rhs = f'{x} + {covs}' if covs else x
         subject = self.options.id
         if subject:
-            return f'{y} ~ {x} + (1 | {subject})'
-        return f'{y} ~ {x}'
+            return f'{y} ~ {rhs} + (1 | {subject})'
+        return f'{y} ~ {rhs}'
 
     def _parse_formula(self, formula: str) -> dict:
         """Extract y, x, id, and random slopes from a Wilkinson formula string.
@@ -532,8 +534,12 @@ class Kbstat:
             self.options.y = parsed['y']
             print(f'Detected dependent variable  : {self.options.y}')
         if not self.options.x:
-            self.options.x = parsed['x']
+            # Exclude declared covariates so they don't appear as factors
+            covs = set(self.options.covariate)
+            self.options.x = [v for v in parsed['x'] if v not in covs]
             print(f'Detected independent variables: {", ".join(self.options.x)}')
+            if covs:
+                print(f'Detected covariates          : {", ".join(self.options.covariate)}')
         if not self.options.id:
             self.options.id = parsed['id']
             if self.options.id:

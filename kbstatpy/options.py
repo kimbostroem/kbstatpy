@@ -25,6 +25,9 @@ class KbstatOptions:
 
     remove_outliers: bool = False
 
+    # Covariates: included in model and ANOVA, excluded from plots and post-hoc
+    covariate: list = field(default_factory=list)
+
     # Post-hoc settings
     posthoc_method: str = 'emm'
     posthoc_correction: str = 'holm'

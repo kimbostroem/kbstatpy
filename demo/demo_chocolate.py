@@ -13,9 +13,9 @@ from kbstatpy import Kbstat, KbstatOptions
 options = KbstatOptions()
 options.in_file = os.path.join(os.path.dirname(__file__), 'Chocolate.csv')
 options.out_dir = os.path.join(os.path.dirname(__file__), 'Results_chocolate')
-options.y = 'Distance'
-options.x = ['Chocolate', 'Gender']
-options.id = 'Subject'
+# options.y = 'Distance'
+# options.x = ['Chocolate', 'Gender']
+# options.id = 'Subject'
 options.distribution = 'gamma'
 options.link = 'log'
 options.fit_method = 'MPL'
