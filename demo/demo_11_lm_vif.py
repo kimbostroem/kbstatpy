@@ -19,8 +19,8 @@ Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variabl
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kbstatpy"))
-from init import Kbstat, KbstatOptions
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file     = 'data/mtcars.csv'                    # input data file

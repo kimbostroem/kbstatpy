@@ -9,8 +9,8 @@ days 5-9 are labelled 'deprived'.
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kbstatpy"))
-from init import Kbstat, KbstatOptions
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleepstudy.csv'               # input data file
