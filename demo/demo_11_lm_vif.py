@@ -12,6 +12,9 @@ and weight (wt) — and one categorical predictor — number of cylinders (cyl).
 The categorical predictor appears in the violin plot; the numeric predictors
 are checked for multicollinearity via VIF and visualised in the correlation plot.
 
+options.x_order ensures cyl levels are displayed in the natural ascending order
+(4 → 6 → 8 cylinders) regardless of how they appear in the data file.
+
 Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variables.
 """
 
@@ -27,6 +30,7 @@ options.out_dir     = os.path.join(DEMO_DIR, 'results', 'demo_11_lm_vif')   # ou
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot
+options.x_order     = {'cyl': ['4', '6', '8']}  # ascending cylinder count
 options.covariate   = 'hp, wt'          # continuous covariates — included in model, excluded from plots
 options.correlation = 'hp, wt'          # correlate the numeric covariates — VIF computed automatically
 
