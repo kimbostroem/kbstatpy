@@ -855,7 +855,7 @@ class Kbstat:
             sns.violinplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
                 hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
-                cut=0.3, inner=None, linewidth=1, saturation=0.4,
+                cut=0.3, inner=None, linewidth=1, saturation=1.0,
                 ax=ax, legend=False, density_norm='width'
             )
             violin_colls = ax.collections[n_viol_before:]
