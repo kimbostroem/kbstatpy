@@ -349,6 +349,7 @@ class Kbstat:
 
             # --- Axis formatting ---
             ax.set_xlabel('')
+            ax.set_xticks(range(len(x_levels)))
             ax.set_xticklabels([f"{x_var} = {lev}" for lev in x_levels])
             if idx == 0:
                 ax.set_ylabel(y_label)
