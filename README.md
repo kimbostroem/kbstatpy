@@ -170,7 +170,7 @@ All files are written to `out_dir`:
 | File | Contents |
 |---|---|
 | `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², SMD, effect size label |
-| `Posthoc.xlsx` | Pairwise EMM comparisons: back-transformed means, CIs, difference, t/z, SMD, p (raw + corrected) |
+| `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference, t/z, SMD, p (raw + corrected) |
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |

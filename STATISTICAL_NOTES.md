@@ -138,8 +138,31 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
    > Seaborn's own `swarmplot` was not used here because seaborn computes beeswarm positions lazily on every redraw event (`tight_layout`, `show`, `savefig`). Any post-hoc modification of dot positions via `set_offsets()` is silently overwritten before the figure is saved. The manual scatter approach avoids this entirely.
 
-3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come directly from `emmeans` and are back-transformed to the original scale when a `y_transform` is active. If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
+3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come from `emmeans` and are always on the original response scale (see below). If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
 
 4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 
 Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
+
+---
+
+## Back-transformation of EMM and CI
+
+Estimated marginal means and their confidence intervals are always reported and plotted on the **original response scale**, regardless of model type.
+
+Two separate `emmeans` calls are made internally:
+
+1. **Link-scale** (`type` default) — feeds `pairs()` to produce pairwise contrasts. On this scale the test statistics (t/z ratio), degrees of freedom, and p-values are correctly computed. For a GLMM with log link this is the log scale; for an LMM with `y_transform = 'log(y)'` this is the log-transformed scale.
+
+2. **Response-scale** (`type = 'response'`) — feeds the EMM display columns in the posthoc table (`emm_1`, `emm_2`) and the CI bar / EMM dot in the data plot. For GLMMs, R's emmeans applies the inverse link function automatically. For LMMs with `y_transform`, the Python-side `_inverse_fn` (derived symbolically via sympy) is applied on top.
+
+This separation is necessary because requesting `type = 'response'` from `pairs()` returns ratios (multiplicative contrasts) with integer-coded contrast labels, breaking the named-level matching used to build the posthoc table.
+
+**What this means in practice:**
+
+| Model type | EMM display | CI display | t/z, p |
+|---|---|---|---|
+| LMM, no transform | raw scale | raw scale | linear scale |
+| LMM + `y_transform = 'log(y)'` | original scale (exp applied) | original scale | log scale |
+| GLMM, log link | original scale (exp applied by R) | original scale | log scale |
+| GLMM, logit link | original scale (probability) | original scale | logit scale |
