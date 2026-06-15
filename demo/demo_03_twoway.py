@@ -17,9 +17,9 @@ from kbstatpy import Kbstat, KbstatOptions
 options = KbstatOptions()
 options.in_file  = os.path.join(DEMO_DIR, 'data', 'toothgrowth.csv')
 options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_03_twoway')
-options.formula  = 'len ~ supp * dose'
-options.y        = 'len'
-options.x        = ['supp', 'dose']
+options.y            = 'len'
+options.x            = ['supp', 'dose']
+options.interaction  = [['supp', 'dose']]
 options.distribution = 'normal'
 
 kb = Kbstat(options)
