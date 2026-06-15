@@ -59,3 +59,31 @@ Random slopes in LMMs (`distribution = 'normal'`) are not affected by this bug a
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.
 
 P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction = 'holm'`), which controls the family-wise error rate and is uniformly more powerful than Bonferroni.
+
+For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
+
+---
+
+## VIF and multicollinearity
+
+**Variance Inflation Factor (VIF)** measures how much the variance of a regression coefficient is inflated due to collinearity with other predictors. For predictor *j*:
+
+```
+VIF_j = 1 / (1 − R²_j)
+```
+
+where R²_j is the coefficient of determination of a linear regression of predictor *j* on all remaining predictors. A VIF of 1 means no collinearity; values above 5 are generally considered concerning, and values above 10 indicate severe collinearity.
+
+**Why it matters:** highly correlated independent variables do not violate any formal assumption of linear regression, but they do inflate standard errors, widen confidence intervals, and destabilise coefficient estimates — making it hard to interpret individual predictor effects. VIF flags this before it becomes a problem.
+
+**When kbstatpy computes VIF:** automatically whenever `options.x` contains numeric (continuous) variables. VIF is computed for all numeric variables in `options.x` + `options.covariate` jointly. Categorical predictors are excluded from the VIF calculation because collinearity between a categorical and a continuous variable is better assessed via other means (e.g. ANOVA on the continuous variable by group).
+
+**Thresholds used:**
+
+| VIF | Verdict |
+|---|---|
+| < 5 | OK |
+| 5 – 10 | concerning |
+| > 10 | severe |
+
+Results are printed to the console and saved to `VIF.xlsx`. A visual summary is also embedded in the correlation scatter grid when `options.correlation` overlaps with the numeric predictors.
