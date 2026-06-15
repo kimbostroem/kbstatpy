@@ -491,8 +491,7 @@ class Kbstat:
         axes = axes.flatten()
 
         n_diag = len(self.model.residuals)
-        dot_size_diag = float(np.clip(25 / np.sqrt(n_diag), 2, 5))
-        s_diag = (dot_size_diag * 1.2) ** 2  # scale to match Q-Q default marker size
+        s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
 
         # ---------------------------------------------------------
         # Plot 1: Histogram of Residuals
