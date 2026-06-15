@@ -36,11 +36,45 @@ echo "  Python $PYTHON_VERSION found"
 echo "  R $R_VERSION found"
 
 # ------------------------------------------------------------------
+# 1b. Check Xcode CLT architecture (macOS only)
+# ------------------------------------------------------------------
+
+XCODE_ARCH_OK=true
+if [[ "$(uname)" == "Darwin" ]]; then
+    CLT_LIB="/Library/Developer/CommandLineTools/usr/lib/libxcrun.dylib"
+    if [[ -f "$CLT_LIB" ]]; then
+        MACHINE_ARCH=$(uname -m)   # arm64 on Apple Silicon, x86_64 on Intel
+        if file "$CLT_LIB" | grep -q "$MACHINE_ARCH"; then
+            echo "  Xcode Command Line Tools architecture OK ($MACHINE_ARCH)"
+        else
+            XCODE_ARCH_OK=false
+            echo "  WARNING: Xcode Command Line Tools architecture mismatch detected."
+            echo "    Your machine is $MACHINE_ARCH but the CLT library is a different arch."
+            echo "    Some packages that require compilation may fail to build."
+            echo "    To fix: sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install"
+            echo "    Continuing with pre-built fallback versions where possible..."
+        fi
+    else
+        echo "  Xcode Command Line Tools not found — compilation-dependent packages may fail."
+        XCODE_ARCH_OK=false
+    fi
+fi
+
+# ------------------------------------------------------------------
 # 2. Install Python packages
 # ------------------------------------------------------------------
 
 echo ""
 echo "[2/4] Installing Python packages..."
+
+# great_tables >= 0.15.0 depends on multimark which requires compilation.
+# Fall back to 0.14.0 if the Xcode CLT are absent or mismatched.
+if [[ "$XCODE_ARCH_OK" == "true" ]]; then
+    GREAT_TABLES_VERSION="great_tables"
+else
+    GREAT_TABLES_VERSION="great_tables==0.14.0"
+    echo "  (using great_tables==0.14.0 to avoid multimark build failure)"
+fi
 
 pip3 install \
     pymer4 \
@@ -50,9 +84,13 @@ pip3 install \
     rpy2 \
     scikit-learn \
     formulae \
-    great_tables \
+    "$GREAT_TABLES_VERSION" \
     joblib \
-    numpy
+    numpy \
+    sympy \
+    matplotlib \
+    seaborn \
+    openpyxl
 
 echo "  Python packages installed."
 
@@ -121,6 +159,5 @@ fi
 echo ""
 echo "=== Installation complete ==="
 echo ""
-echo "To verify, run:"
-echo "  python3 demo/demo_reaction_time.py"
+echo "To verify, run any of the demos in the demo subfolder"
 echo ""

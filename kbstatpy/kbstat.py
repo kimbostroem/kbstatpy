@@ -33,13 +33,64 @@ class Kbstat:
         self.logLik = None
         self.fig_diagnostics = None
         self.fig_data = None
+        self._data_raw: pd.DataFrame = None   # untransformed data, for plotting
+        self._transform_fn = None             # forward transform: array → array
+        self._inverse_fn   = None             # inverse transform: array → array
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _split_csv(value):
+        """Split a comma-separated string into a stripped list, or pass a list through."""
+        if isinstance(value, str):
+            return [v.strip() for v in value.split(',') if v.strip()]
+        return list(value)
+
+    def _normalize_options(self):
+        """Normalize comma-separated string options to lists."""
+        o = self.options
+        for attr in ('x', 'slope', 'covariate'):
+            v = getattr(o, attr)
+            if isinstance(v, str):
+                setattr(o, attr, self._split_csv(v))
+        # interaction: a flat comma-separated string becomes a flat list (single interaction pair)
+        if isinstance(o.interaction, str):
+            o.interaction = self._split_csv(o.interaction)
+        # y_units: normalize to list so entries can be matched positionally to y variables
+        if isinstance(o.y_units, str):
+            o.y_units = self._split_csv(o.y_units)
+
     def run(self):
-        """Run the full analysis pipeline."""
+        """Run the full analysis pipeline.
+
+        If options.y is a list (or comma-separated string) with more than one
+        variable, runs the pipeline once per variable. Results are saved into
+        per-variable subdirectories under out_dir. If y is a single variable,
+        the behaviour is identical to the single-variable case (no subfolder).
+        """
+        import copy, os
+
+        self._normalize_options()
+
+        y_list = self._split_csv(self.options.y)
+        units_list = self.options.y_units  # already normalized to list
+        if len(units_list) == 1:
+            units_list = units_list * len(y_list)
+        multi = len(y_list) > 1
+
+        for i, y_var in enumerate(y_list):
+            opts = copy.deepcopy(self.options)
+            opts.y = y_var
+            opts.y_units = units_list[i] if i < len(units_list) else ''
+            if multi and opts.out_dir:
+                opts.out_dir = os.path.join(opts.out_dir, y_var)
+            child = Kbstat(opts)
+            child._run_single()
+
+    def _run_single(self):
+        """Run the pipeline for a single dependent variable (internal)."""
         self._load_data()
         self._apply_categorical()
         self._apply_constraints()
@@ -183,12 +234,38 @@ class Kbstat:
                         return lev
                 return part  # fallback: return raw string
 
+            inv = self._inverse_fn  # None if no transform
+
+            def _bt(val):
+                """Back-transform a scalar value if a transform is active."""
+                return float(inv(np.array([val]))[0]) if inv is not None else float(val)
+
+            # emmeans column names differ by model family
+            emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
+                            if c in emm_df.columns), emm_df.columns[1])
+            lo_col  = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL')
+                            if c in emm_df.columns), None)
+            hi_col  = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL')
+                            if c in emm_df.columns), None)
+
             def _emm_ci_str(lev):
                 row = emm_df[emm_df[factor_col] == lev]
                 if len(row) == 0:
                     return ''
                 r = row.iloc[0]
-                return f"{r['emmean']:.3f} ({r['lower_CL']:.3f}, {r['upper_CL']:.3f})"
+                emm = _bt(r[emm_col])
+                lo  = _bt(r[lo_col])  if lo_col else np.nan
+                hi  = _bt(r[hi_col])  if hi_col else np.nan
+                if np.isnan(lo) or np.isnan(hi):
+                    return f"{emm:.3f}"
+                return f"{emm:.3f} ({lo:.3f}, {hi:.3f})"
+
+            def _emm_val(lev):
+                """Return back-transformed EMM for a level."""
+                row = emm_df[emm_df[factor_col] == lev]
+                if len(row) == 0:
+                    return np.nan
+                return _bt(row.iloc[0][emm_col])
 
             levels = emm_df[factor_col].tolist()
             rows = []
@@ -196,17 +273,20 @@ class Kbstat:
                 parts = [p.strip() for p in str(cadj['contrast']).split(' - ')]
                 lev1 = _parse_level(parts[0], levels) if len(parts) > 0 else ''
                 lev2 = _parse_level(parts[1], levels) if len(parts) > 1 else ''
-                t_val = float(cadj['t.ratio'])
-                df_val = float(cadj['df'])
+                ratio_col = 't.ratio' if 't.ratio' in cadj.index else 'z.ratio'
+                t_val = float(cadj[ratio_col])
+                df_val = float(cadj['df']) if 'df' in cadj.index else float('inf')
                 smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
                 p_raw  = float(craw['p.value'])
                 p_corr = float(cadj['p.value'])
+                # Difference computed in original (back-transformed) space
+                diff = _emm_val(lev1) - _emm_val(lev2)
                 rows.append({
                     f'{factor_col}_1':  str(lev1),
                     f'{factor_col}_2':  str(lev2),
                     'emm_1':            _emm_ci_str(lev1),
                     'emm_2':            _emm_ci_str(lev2),
-                    'diff':             float(cadj['estimate']),
+                    'diff':             diff,
                     't':                t_val,
                     'df':               df_val,
                     'p':                p_raw,
@@ -319,25 +399,35 @@ class Kbstat:
             print("No independent variables to plot.")
             return
 
-        # Ensure the outlier column exists
-        if 'is_outlier' not in self.data.columns:
-            self.data['is_outlier'] = False
+        # Use raw (untransformed) data for plotting so the y-axis is in original units
+        plot_data = self._data_raw if self._data_raw is not None else self.data
+
+        # Ensure the outlier column exists (mirror from self.data if needed)
+        if 'is_outlier' not in plot_data.columns:
+            if 'is_outlier' in self.data.columns:
+                plot_data = plot_data.copy()
+                plot_data['is_outlier'] = self.data['is_outlier'].values
+            else:
+                plot_data = plot_data.copy()
+                plot_data['is_outlier'] = False
 
         n_vars = len(self.options.x)
         x_var = self.options.x[0]       # Violin / x-axis variable  (e.g. Chocolate)
         y_var = self.options.y           # Dependent variable        (e.g. Distance)
         facet_var = self.options.x[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
         id_var = self.options.id         # Subject identifier for connecting lines
-        y_units = getattr(self.options, 'y_units', '')
+        y_units = self.options.y_units if isinstance(self.options.y_units, str) else ''
         y_label = f"{y_var} [{y_units}]" if y_units else y_var
+        if self.options.y_transform:
+            y_label = f"{y_label}  (original scale)"
 
         # Use MATLAB's default color cycle (first N colors from 'tab10')
-        x_levels = self.data[x_var].cat.categories.tolist() if hasattr(self.data[x_var], 'cat') else sorted(self.data[x_var].unique())
+        x_levels = plot_data[x_var].cat.categories.tolist() if hasattr(plot_data[x_var], 'cat') else sorted(plot_data[x_var].unique())
         palette = dict(zip(x_levels, sns.color_palette(self.options.colors, len(x_levels))))
 
         # Determine facets
         if facet_var:
-            facet_levels = self.data[facet_var].cat.categories.tolist() if hasattr(self.data[facet_var], 'cat') else sorted(self.data[facet_var].unique())
+            facet_levels = plot_data[facet_var].cat.categories.tolist() if hasattr(plot_data[facet_var], 'cat') else sorted(plot_data[facet_var].unique())
         else:
             facet_levels = [None]
 
@@ -346,8 +436,8 @@ class Kbstat:
         if n_panels == 1:
             axes = [axes]
 
-        healthy_data = self.data[~self.data['is_outlier']]
-        outlier_data = self.data[self.data['is_outlier']]
+        healthy_data = plot_data[~plot_data['is_outlier']]
+        outlier_data = plot_data[plot_data['is_outlier']]
 
         for idx, facet_val in enumerate(facet_levels):
             ax = axes[idx]
@@ -613,6 +703,50 @@ class Kbstat:
         # We add 1e-9 to prevent Divide By Zero crashes if a group's std is 0
         return np.abs((data - data.mean()) / (data.std() + 1e-9))
 
+    def _build_transform(self):
+        """Parse options.y_transform and build forward/inverse functions.
+
+        The transform string uses 'y' as the placeholder for the dependent
+        variable, e.g. 'log(y)', 'sqrt(y)', 'y**2'. Sympy is used to derive
+        the analytical inverse; if inversion fails a RuntimeError is raised.
+        """
+        expr_str = self.options.y_transform.strip()
+        if not expr_str:
+            return
+
+        import sympy as sp
+
+        y_sym  = sp.Symbol('y',  positive=True)
+        yi_sym = sp.Symbol('yi', positive=True)
+
+        try:
+            fwd_expr = sp.sympify(expr_str, locals={'y': y_sym})
+        except Exception as e:
+            raise ValueError(f'Could not parse y_transform expression "{expr_str}": {e}')
+
+        # Forward function via numpy eval
+        np_ns = {k: getattr(np, k) for k in dir(np) if not k.startswith('_')}
+        def _forward(arr, _expr=expr_str, _ns=np_ns):
+            y = np.asarray(arr, dtype=float)
+            return eval(_expr, {**_ns, 'y': y})
+        self._transform_fn = _forward
+
+        # Inverse via sympy: solve fwd_expr = yi for y
+        try:
+            solutions = sp.solve(fwd_expr - yi_sym, y_sym)
+            if not solutions:
+                raise ValueError('No solution found')
+            inv_expr = solutions[0]
+            inv_fn   = sp.lambdify(yi_sym, inv_expr, modules='numpy')
+            self._inverse_fn = lambda arr: inv_fn(np.asarray(arr, dtype=float))
+            print(f'Transform : {expr_str}')
+            print(f'Inverse   : {sp.pretty(inv_expr, use_unicode=False)}')
+        except Exception as e:
+            raise RuntimeError(
+                f'Could not derive analytical inverse of "{expr_str}": {e}. '
+                'Specify the inverse manually or choose a simpler transform.'
+            )
+
     def _load_data(self):
         """Read data from in_file into a DataFrame."""
         path = self.options.in_file
@@ -623,6 +757,13 @@ class Kbstat:
             self.data.columns = self.data.columns.str.lstrip('﻿')
         else:
             self.data = pd.read_excel(path)
+
+        # Apply y_transform: keep raw data for plotting, transform y for fitting
+        self._build_transform()
+        if self._transform_fn is not None:
+            y_col = self.options.y
+            self._data_raw = self.data.copy()
+            self.data[y_col] = self._transform_fn(self.data[y_col].values)
 
     def _validate_options_vs_formula(self, formula: str):
         """Warn when explicit options fields disagree with an explicitly provided formula.

@@ -18,11 +18,11 @@ from kbstatpy import Kbstat, KbstatOptions
 options = KbstatOptions()
 options.in_file      = os.path.join(DEMO_DIR, 'data', 'sleep.csv')  # input data file
 options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_02_paired')  # output folder
-options.formula      = 'extra ~ group + (1 | ID)'  # Wilkinson formula (overrides y, x, id below)
 options.y            = 'extra'           # dependent variable
-options.x            = ['group']         # fixed-effect factor(s)
+options.y_units      = 'h'              # unit label for y-axis
+options.x            = 'group'           # fixed-effect factor(s)
 options.id           = 'ID'              # random-effect grouping variable (subject ID)
-options.distribution = 'normal'          # gaussian LMM
+# options.formula    = 'extra ~ group + (1 | ID)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)
 kb.run()

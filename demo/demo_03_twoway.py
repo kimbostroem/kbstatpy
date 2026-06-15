@@ -18,9 +18,10 @@ options = KbstatOptions()
 options.in_file      = os.path.join(DEMO_DIR, 'data', 'toothgrowth.csv')  # input data file
 options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_03_twoway')  # output folder
 options.y            = 'len'             # dependent variable
-options.x            = ['supp', 'dose']  # fixed-effect factors
-options.interaction  = ['supp', 'dose']  # test the supp × dose interaction
-options.distribution = 'normal'          # gaussian LM (no random effects → plain linear model)
+options.y_units      = 'mm'             # unit label for y-axis
+options.x            = 'supp, dose'      # fixed-effect factors
+options.interaction  = 'supp, dose'      # test the supp × dose interaction
+# options.formula    = 'len ~ supp * dose'  # alternative: Wilkinson formula (overrides y, x, interaction above)
 
 kb = Kbstat(options)
 kb.run()

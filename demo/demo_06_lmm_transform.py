@@ -1,0 +1,41 @@
+"""Demo 6: LMM with log-transformed dependent variable.
+
+Reaction times are strictly positive and typically right-skewed, making a
+log-transformation appropriate before fitting a normal LMM. The model is fit
+in log-space; estimated marginal means, confidence intervals, and pairwise
+differences in the post-hoc table are automatically back-transformed to the
+original millisecond scale.
+
+Compare with demo 7 (oats, gamma GLMM): both approaches address right-skewed
+positive outcomes, but an explicit data transform combined with a normal LMM is
+often more interpretable and easier to communicate.
+
+Dataset: sleepstudy (lme4), same as demos 4 and 5.
+"""
+
+import sys, os
+DEMO_DIR = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+
+from kbstatpy import Kbstat, KbstatOptions
+
+options = KbstatOptions()
+options.in_file      = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')           # input data file
+options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_06_lmm_transform') # output folder
+options.y            = 'Reaction'        # dependent variable
+options.y_units      = 'ms'             # unit label for y-axis
+options.y_transform  = 'log(y)'         # log-transform before fitting; back-transformed for plots and tables
+options.x            = 'Period'          # fixed-effect factor(s)
+options.id           = 'Subject'         # random-effect grouping variable (subject ID)
+# options.formula    = 'log(Reaction) ~ Period + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
+
+kb = Kbstat(options)
+kb.run()
+
+# run() is equivalent to calling the following steps individually:
+# kb.fit()               # fit the model
+# kb.anova()             # compute Type III ANOVA table
+# kb.posthoc()           # pairwise post-hoc comparisons
+# kb.plot_diagnostics()  # show diagnostic plots (saved to out_dir when save() is called)
+# kb.plot_data()         # show data plot (saved to out_dir when save() is called)
+# kb.save()              # save all result tables, figures, and Summary.txt to out_dir
