@@ -483,6 +483,10 @@ class Kbstat:
         rhs = f'{x} + {covs}' if covs else x
         subject = self.options.id
         if subject:
+            slopes = self.options.slope
+            if slopes:
+                random_term = ' + '.join(['1'] + slopes)
+                return f'{y} ~ {rhs} + ({random_term} | {subject})'
             return f'{y} ~ {rhs} + (1 | {subject})'
         return f'{y} ~ {rhs}'
 
@@ -550,8 +554,9 @@ class Kbstat:
             self.options.id = parsed['id']
             if self.options.id:
                 print(f'Detected grouping variable   : {self.options.id}')
-        if parsed['slopes']:
-            print(f'Detected random slopes       : {", ".join(parsed["slopes"])}')
+        if not self.options.slope and parsed['slopes']:
+            self.options.slope = parsed['slopes']
+            print(f'Detected random slopes       : {", ".join(self.options.slope)}')
         print(f'Formula                      : {formula}')
 
     def _family(self) -> str:

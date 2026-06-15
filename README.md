@@ -68,6 +68,7 @@ kb.save()     # write output files to out_dir
 | `y` | str | `''` | Dependent variable column name |
 | `x` | list | `[]` | Fixed-effect factor column names |
 | `id` | str | `''` | Random-effect grouping variable (e.g. subject ID) |
+| `slope` | list | `[]` | Variables with random slopes (e.g. `['A', 'B']` → `(1 + A + B \| id)`) |
 | `distribution` | str | `'normal'` | Response distribution (see below) |
 | `link` | str | `'auto'` | Link function (`'auto'`, `'log'`, `'logit'`, …) |
 | `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
@@ -135,4 +136,4 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 
 ## Known issues and workarounds
 
-- **Random slopes in GLMMs (pymer4 bug):** pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's result-parsing layer; lme4 itself fits the model correctly. kbstatpy works around this automatically: when random slopes are detected in a GLMM formula, it routes to a custom `GlmerDirect` wrapper that calls lme4 and emmeans directly via rpy2, bypassing pymer4 entirely. No action required from the user. Random slopes in LMMs (`distribution = 'normal'`) are unaffected. See `STATISTICAL_NOTES.md` for details.
+- **Random slopes in GLMMs (pymer4 bug):** pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's result-parsing layer; lme4 itself fits the model correctly. kbstatpy works around this automatically: when random slopes are explicitly defined via `options.slope` or detected in an explicit formula string, it routes to a custom `GlmerDirect` wrapper that calls lme4 and emmeans directly via rpy2, bypassing pymer4 entirely. No action required from the user. Random slopes in LMMs (`distribution = 'normal'`) are unaffected. See `STATISTICAL_NOTES.md` for details.
