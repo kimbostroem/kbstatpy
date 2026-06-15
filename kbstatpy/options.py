@@ -18,6 +18,7 @@ class KbstatOptions:
     x: list = field(default_factory=list)
     id: str = ''
     slope: list = field(default_factory=list)
+    interaction: list = field(default_factory=list)
 
     # GLM settings
     distribution: str = 'normal'

@@ -682,7 +682,22 @@ class Kbstat:
         if self.options.formula:
             return self.options.formula
         y = self.options.y
-        x = ' * '.join(self.options.x)
+        ia = self.options.interaction  # list of lists, e.g. [['A','B'], ['A','C']]
+        if ia:
+            # Build fixed-effects string: use * for interacting pairs, + for the rest
+            ia_sets = [set(pair) for pair in ia]
+            placed = set()
+            terms = []
+            for pair in ia:
+                term = ' * '.join(pair)
+                terms.append(term)
+                placed.update(pair)
+            for var in self.options.x:
+                if var not in placed:
+                    terms.append(var)
+            x = ' + '.join(terms)
+        else:
+            x = ' + '.join(self.options.x)
         covs = ' + '.join(self.options.covariate)
         rhs = f'{x} + {covs}' if covs else x
         subject = self.options.id
@@ -739,7 +754,19 @@ class Kbstat:
                     seen.add(part)
                     x.append(part)
 
-        return {'y': y, 'x': x, 'id': id_var, 'slopes': slopes}
+        # Collect interaction pairs (terms joined by * or :)
+        interactions = []
+        seen_ia = set()
+        for term in re.split(r'[+]', fixed_rhs):
+            term = term.strip()
+            if '*' in term or ':' in term:
+                parts = [p.strip() for p in re.split(r'[*:]', term) if p.strip()]
+                key = tuple(sorted(parts))
+                if key not in seen_ia:
+                    seen_ia.add(key)
+                    interactions.append(list(parts))
+
+        return {'y': y, 'x': x, 'id': id_var, 'slopes': slopes, 'interactions': interactions}
 
     def _backfill_options_from_formula(self, formula: str):
         """Fill in options.y, .x, .id from formula if not already set."""
@@ -761,6 +788,10 @@ class Kbstat:
         if not self.options.slope and parsed['slopes']:
             self.options.slope = parsed['slopes']
             print(f'Detected random slopes       : {", ".join(self.options.slope)}')
+        if not self.options.interaction and parsed['interactions']:
+            self.options.interaction = parsed['interactions']
+            ia_str = ', '.join(' * '.join(pair) for pair in self.options.interaction)
+            print(f'Detected interactions        : {ia_str}')
         print(f'Formula                      : {formula}')
 
     def _family(self) -> str:
