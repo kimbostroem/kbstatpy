@@ -137,8 +137,13 @@ options.correlation = 'hp, wt'   # variables must be numeric
 
 This produces:
 - **`Correlation.png/.pdf`** — scatter plot grid (one panel per unique pair) with regression line and r/p annotation
-- **`CorrelationTable.png/.pdf`** — colour-coded lower-triangle table (red = positive, blue = negative; only significant pairs coloured)
+- **`CorrelationTable.png/.pdf`** — colour-coded lower-triangle table (red = positive, blue = negative; significant pairs coloured, non-significant shown as `n.s.`)
 - **`Correlation.xlsx`** — full pairwise table with r, p, significance stars, and Cohen's r label
+
+When three or more variables are correlated, partial correlations are also produced (residuals after regressing out all other variables):
+- **`PartialCorrelation.png/.pdf`** — scatter grid of residuals
+- **`PartialCorrelationTable.png/.pdf`** — colour-coded lower-triangle table for partial r
+- **`PartialCorrelation.xlsx`** — partial r, p, significance, and Cohen's r label
 
 If `options.x` contains numeric predictors, VIF is also computed automatically (see below).
 
@@ -169,11 +174,14 @@ All files are written to `out_dir`:
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
-| `DataPlots.pdf/.png` | Violin + box + dot plots per fixed-effect factor |
+| `DataPlots.pdf/.png` | Violin plots with jittered data points (constrained inside violin body), IQR bar, median marker, and significance brackets |
 | `Diagnostics.pdf/.png` | Six model diagnostic plots (residuals, Q-Q, leverage, …) |
 | `Correlation.pdf/.png` | Scatter plot grid for `options.correlation` variables |
-| `CorrelationTable.pdf/.png` | Colour-coded lower-triangle correlation table |
+| `CorrelationTable.pdf/.png` | Colour-coded lower-triangle correlation table; `n.s.` on non-significant pairs |
 | `Correlation.xlsx` | Pairwise Pearson r, p, significance, and Cohen's r label |
+| `PartialCorrelation.pdf/.png` | Scatter grid of residual-based partial correlations (3+ variables only) |
+| `PartialCorrelationTable.pdf/.png` | Colour-coded lower-triangle table for partial correlations |
+| `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
 | `VIF.xlsx` | Variance Inflation Factors for numeric predictors (when applicable) |
 
 For multi-y runs, `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `DataPlots`, and `Diagnostics` are written into per-variable subdirectories. Correlation outputs are shared and written to `out_dir` directly.
@@ -199,8 +207,8 @@ python3 demo/demo_01_unpaired.py
 | `demo_06_lmm_transform.py` | `sleepstudy.csv` | LMM with log-transform; EMMs and CIs back-transformed to original scale |
 | `demo_07_glmm_gamma.py` | `oats.csv` | GLMM with gamma distribution and log link |
 | `demo_08_lmm_partial_interaction.py` | `npk.csv` | LMM with three factors and a partial interaction |
-| `demo_09_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis |
-| `demo_10_correlation.py` | `longley.csv` | Standalone correlation analysis — no model fitted |
+| `demo_09_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
+| `demo_10_correlation.py` | `longley.csv` | Standalone correlation analysis — no model fitted; `constraints` restricts to post-war years (numeric filter) |
 | `demo_11_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 
 To regenerate the demo datasets from R (required once before running the demos):

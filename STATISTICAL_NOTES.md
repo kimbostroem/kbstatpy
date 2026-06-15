@@ -87,3 +87,59 @@ where R²_j is the coefficient of determination of a linear regression of predic
 | > 10 | severe |
 
 Results are printed to the console and saved to `VIF.xlsx`. A visual summary is also embedded in the correlation scatter grid when `options.correlation` overlaps with the numeric predictors.
+
+---
+
+## Data filtering: `constraints`
+
+`options.constraints` accepts a Python expression string that is passed directly to `pandas.DataFrame.query()`. The filter is applied before model fitting and before any correlation or VIF analysis — it is equivalent to manually subsetting the data before passing it to kbstatpy.
+
+```python
+options.constraints = 'Year > 1950'                  # numeric comparison
+options.constraints = 'Species != "setosa"'           # categorical exclusion
+options.constraints = 'Year > 1950 & GNP < 500'      # combined condition
+```
+
+Supported operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `|` (or).
+
+When a categorical column is filtered, kbstatpy removes the excluded level from the column's `Categorical` dtype (via `cat.remove_unused_categories()`). This prevents the excluded level from appearing as a phantom tick on plot axes or as a spurious empty group in post-hoc tables.
+
+---
+
+## Variable display labels: `rename`
+
+`options.rename` provides two related but distinct operations in a single option:
+
+1. **Level rename** — replaces a factor level value before the model is fitted:
+   ```python
+   options.rename = 'supp: OJ -> orange_juice, VC -> vitamin_c'
+   ```
+   The substitution happens in-place in the data so that the model, contrasts, and all table entries see the new value.
+
+2. **Variable display label** — maps an internal column name to a human-readable label used in plot axes and table headers:
+   ```python
+   options.rename = 'mpg -> Consumption; cyl -> Cylinders'
+   ```
+   The internal column name is unchanged; only the display output is affected.
+
+Both can be combined in the same string. The separator between variables is `;`; a `->` without a preceding `:` signals a variable label; a `variable: old -> new` signals a level rename. Numbers in level names are preserved as-is.
+
+Display labels propagate to child `Kbstat` instances in multi-y runs, so a single `rename` entry in the parent covers all per-variable subdirectory outputs.
+
+---
+
+## Data plots: violin + jitter scatter
+
+The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
+
+1. **Violin** — kernel density estimate of the marginal distribution, drawn with `seaborn.violinplot`. `cut=0.3` extends the KDE slightly beyond the data range to avoid hard edges. Alpha is set to 0.5 to keep the violin from obscuring the individual points behind it.
+
+2. **Jittered scatter** — each raw observation is placed at its y-value with a random horizontal offset. The offset is drawn from a uniform distribution whose half-width is 75 % of the violin's local half-width at that y-value, keeping every dot visually inside the violin body. The random seed is fixed (`numpy.random.default_rng(0)`) for reproducibility.
+
+   > Seaborn's own `swarmplot` was not used here because seaborn computes beeswarm positions lazily on every redraw event (`tight_layout`, `show`, `savefig`). Any post-hoc modification of dot positions via `set_offsets()` is silently overwritten before the figure is saved. The manual scatter approach avoids this entirely.
+
+3. **IQR bar** — a thick vertical line (linewidth 4) from Q25 to Q75 of the raw data, drawn in dark grey (`'0.2'`).
+
+4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
+
+Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
