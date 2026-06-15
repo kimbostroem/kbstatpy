@@ -868,6 +868,14 @@ class Kbstat:
             )
             swarm_collections = ax.collections[n_coll_before:]
 
+            # Push swarm dots outward from their group center so they clear the IQR bar
+            for coll in swarm_collections:
+                offs = coll.get_offsets().data.copy()
+                for xi in range(len(x_levels)):
+                    mask = np.abs(offs[:, 0] - xi) < 0.6
+                    offs[mask, 0] = xi + (offs[mask, 0] - xi) * 2.0
+                coll.set_offsets(offs)
+
             # --- LAYER 2b: Outlier points (red X markers) ---
             if len(panel_outlier) > 0:
                 sns.swarmplot(
