@@ -858,58 +858,49 @@ class Kbstat:
                 ax=ax, legend=False, density_norm='width'
             )
 
-            # --- LAYER 2: Swarm plot (dots spread algorithmically, no overlap) ---
+            # --- LAYER 2: Jittered scatter (replaces swarmplot for reliable spread) ---
             n_pts = len(panel_healthy)
             dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
-            n_coll_before = len(ax.collections)
-            sns.swarmplot(
-                data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                color='black', size=dot_size, alpha=0.4, ax=ax, warn_thresh=1
-            )
-            swarm_collections = ax.collections[n_coll_before:]
-
-            # Push swarm dots outward from their group center so they clear the IQR bar.
-            # Dots placed exactly at center (offset ≈ 0) get a small random jitter first
-            # so that scaling has something to work with.
+            jitter_w = np.clip(0.15 + 0.1 * np.log1p(n_pts / 5), 0.15, 0.35)
             rng = np.random.default_rng(0)
-            for coll in swarm_collections:
-                orig = coll.get_offsets().data.copy()
-                new  = orig.copy()
-                for xi in range(len(x_levels)):
-                    mask = np.abs(orig[:, 0] - xi) < 0.6
-                    offset = orig[mask, 0] - xi
-                    near_zero = np.abs(offset) < 0.15
-                    if near_zero.any():
-                        jitter = rng.uniform(0.12, 0.25, size=near_zero.sum())
-                        signs  = rng.choice([-1, 1],     size=near_zero.sum())
-                        offset[near_zero] = signs * jitter
-                    new[mask, 0] = xi + offset * 2.5
-                coll.set_offsets(new)
+            dot_xy = {}   # level -> (x_positions, y_values) for paired-line lookup
+            for xi, level in enumerate(x_levels):
+                subset = panel_healthy[panel_healthy[x_var] == level][y_var].dropna()
+                if len(subset) == 0:
+                    dot_xy[level] = (np.array([]), np.array([]))
+                    continue
+                jx = xi + rng.uniform(-jitter_w, jitter_w, size=len(subset))
+                ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
+                           alpha=0.4, zorder=4, linewidths=0)
+                dot_xy[level] = (jx, subset.values)
 
             # --- LAYER 2b: Outlier points (red X markers) ---
             if len(panel_outlier) > 0:
-                sns.swarmplot(
-                    data=panel_outlier, x=x_var, y=y_var, order=x_levels,
-                    color='red', size=dot_size, marker='X', alpha=0.9, ax=ax, warn_thresh=1
-                )
+                for xi, level in enumerate(x_levels):
+                    subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
+                    if len(subset) == 0:
+                        continue
+                    jx = xi + rng.uniform(-jitter_w, jitter_w, size=len(subset))
+                    ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
+                               marker='X', alpha=0.9, zorder=4, linewidths=0)
 
             # --- LAYER 3: Connecting lines for paired subjects ---
             # Only drawn when each subject has exactly one observation per condition
             # (true paired design). With multiple obs per subject the concept is ambiguous.
-            if id_var and len(x_levels) == 2 and len(swarm_collections) >= 2:
+            if id_var and len(x_levels) == 2:
                 counts = panel_healthy.groupby([id_var, x_var])[y_var].count()
                 is_paired = (counts == 1).all()
                 if is_paired:
                     pivot = panel_healthy.pivot_table(index=id_var, columns=x_var, values=y_var, observed=True)
                     if x_levels[0] in pivot.columns and x_levels[1] in pivot.columns:
                         paired = pivot.dropna()
-                        def _y_to_x(coll):
-                            offs = coll.get_offsets()
-                            return {round(float(y), 10): float(x) for x, y in offs}
-                        lookup0 = _y_to_x(swarm_collections[0])
-                        lookup1 = _y_to_x(swarm_collections[1])
+                        lev0, lev1 = x_levels[0], x_levels[1]
+                        jx0, jy0 = dot_xy[lev0]
+                        jx1, jy1 = dot_xy[lev1]
+                        lookup0 = {round(float(y), 10): float(x) for x, y in zip(jx0, jy0)}
+                        lookup1 = {round(float(y), 10): float(x) for x, y in zip(jx1, jy1)}
                         for _, row in paired.iterrows():
-                            y0, y1 = row[x_levels[0]], row[x_levels[1]]
+                            y0, y1 = row[lev0], row[lev1]
                             xa = lookup0.get(round(float(y0), 10))
                             xb = lookup1.get(round(float(y1), 10))
                             if xa is not None and xb is not None:
@@ -992,6 +983,7 @@ class Kbstat:
 
         # Super title
         fig.suptitle(self._disp(y_var), fontweight='bold', fontsize=14)
+
         fig.tight_layout()
 
         self.fig_data = fig
