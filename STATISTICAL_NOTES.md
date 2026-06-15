@@ -44,6 +44,16 @@ For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs
 
 ---
 
+## Random slopes in GLMMs — pymer4 bug and workaround
+
+pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's `broom.tidy()` result-parsing layer, which constructs a `data.frame` from two objects with mismatched row counts when more than one random-effect term is present per grouping factor. lme4 itself fits the model correctly — the failure is entirely in the Python post-processing step.
+
+**Workaround:** kbstatpy includes a `GlmerDirect` class (`kbstatpy/_glmer_direct.py`) that calls lme4, emmeans, and broom directly via rpy2, bypassing pymer4's broken parsing layer. When `fit()` detects random slopes in a GLMM formula, it automatically routes to `GlmerDirect` instead of pymer4's `Glmer`. The rest of the pipeline (ANOVA, post-hoc, plots, output files) is unaffected — the two backends expose the same interface.
+
+Random slopes in LMMs (`distribution = 'normal'`) are not affected by this bug and continue to use pymer4 directly.
+
+---
+
 ## Post-hoc comparisons: `emmeans`
 
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.

@@ -133,6 +133,6 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 
 ---
 
-## Known limitations
+## Known issues and workarounds
 
-- **Random slopes in GLMMs** are not currently supported (e.g. `(A + B | id)`). This is due to a bug in pymer4 0.9.x's result-parsing layer; lme4 itself handles random slopes correctly. Random intercepts (`(1 | id)`) work without issue. Random slopes work normally for LMMs (`distribution = 'normal'`).
+- **Random slopes in GLMMs (pymer4 bug):** pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's result-parsing layer; lme4 itself fits the model correctly. kbstatpy works around this automatically: when random slopes are detected in a GLMM formula, it routes to a custom `GlmerDirect` wrapper that calls lme4 and emmeans directly via rpy2, bypassing pymer4 entirely. No action required from the user. Random slopes in LMMs (`distribution = 'normal'`) are unaffected. See `STATISTICAL_NOTES.md` for details.
