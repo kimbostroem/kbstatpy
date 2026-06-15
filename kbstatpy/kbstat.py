@@ -392,10 +392,7 @@ class Kbstat:
                 ax = axes[row_i, col_j]
 
                 if row_i == col_j:
-                    # Diagonal: variable name only
                     ax.set_axis_off()
-                    ax.text(0.5, 0.5, vars_[row_i], transform=ax.transAxes,
-                            ha='center', va='center', fontsize=10, fontweight='bold')
 
                 elif col_j > row_i:
                     # Upper triangle: scatter + regression line + r/p annotation
