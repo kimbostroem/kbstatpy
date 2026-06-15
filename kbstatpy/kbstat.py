@@ -274,10 +274,12 @@ class Kbstat:
             )
 
             # --- LAYER 2: Swarm plot (dots distributed within violin shape) ---
+            n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
                 color='black', size=3, alpha=0.7, ax=ax, warn_thresh=1
             )
+            swarm_collections = ax.collections[n_coll_before:]
 
             # --- LAYER 2b: Outlier points (red X markers) ---
             if len(panel_outlier) > 0:
@@ -287,16 +289,27 @@ class Kbstat:
                 )
 
             # --- LAYER 3: Connecting lines for paired subjects ---
-            if id_var and len(x_levels) == 2:
-                # Build a pivot: one row per subject, columns = x_levels
-                pivot = panel_healthy.pivot_table(index=id_var, columns=x_var, values=y_var, observed=True)
-                if x_levels[0] in pivot.columns and x_levels[1] in pivot.columns:
-                    paired = pivot.dropna()
-                    # Get x-positions (integer tick positions from violin)
-                    x0, x1 = 0, 1
-                    for _, row in paired.iterrows():
-                        ax.plot([x0, x1], [row[x_levels[0]], row[x_levels[1]]],
-                                color='grey', alpha=0.4, linewidth=1.2, zorder=3)
+            # Only drawn when each subject has exactly one observation per condition
+            # (true paired design). With multiple obs per subject the concept is ambiguous.
+            if id_var and len(x_levels) == 2 and len(swarm_collections) >= 2:
+                counts = panel_healthy.groupby([id_var, x_var])[y_var].count()
+                is_paired = (counts == 1).all()
+                if is_paired:
+                    pivot = panel_healthy.pivot_table(index=id_var, columns=x_var, values=y_var, observed=True)
+                    if x_levels[0] in pivot.columns and x_levels[1] in pivot.columns:
+                        paired = pivot.dropna()
+                        def _y_to_x(coll):
+                            offs = coll.get_offsets()
+                            return {round(float(y), 10): float(x) for x, y in offs}
+                        lookup0 = _y_to_x(swarm_collections[0])
+                        lookup1 = _y_to_x(swarm_collections[1])
+                        for _, row in paired.iterrows():
+                            y0, y1 = row[x_levels[0]], row[x_levels[1]]
+                            xa = lookup0.get(round(float(y0), 10))
+                            xb = lookup1.get(round(float(y1), 10))
+                            if xa is not None and xb is not None:
+                                ax.plot([xa, xb], [y0, y1],
+                                        color='black', alpha=0.4, linewidth=1.0, zorder=3)
 
             # --- LAYER 4: Median marker + IQR bar ---
             for i, level in enumerate(x_levels):
