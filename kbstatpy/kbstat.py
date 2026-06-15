@@ -378,7 +378,7 @@ class Kbstat:
             })
         self.correlation_table = pd.DataFrame(rows)
 
-        # --- Scatter plot grid (n×n): diagonal = variable name + VIF,
+        # --- Scatter plot grid (n×n): diagonal = variable name,
         #     upper triangle = scatter, lower triangle = hidden ---
         n = len(vars_)
         fig, axes = plt.subplots(n, n, figsize=(3.2 * n, 3.2 * n))
@@ -392,22 +392,10 @@ class Kbstat:
                 ax = axes[row_i, col_j]
 
                 if row_i == col_j:
-                    # Diagonal: variable name + VIF
+                    # Diagonal: variable name only
                     ax.set_axis_off()
-                    v = vars_[row_i]
-                    label = v
-                    if v in vif_map:
-                        vif_val = vif_map[v]
-                        verdict = 'OK' if vif_val < 5 else ('concerning' if vif_val < 10 else 'severe')
-                        vif_color = '0.2' if vif_val < 5 else ('darkorange' if vif_val < 10 else 'red')
-                        ax.text(0.5, 0.55, label, transform=ax.transAxes,
-                                ha='center', va='center', fontsize=10, fontweight='bold')
-                        ax.text(0.5, 0.35, f"VIF = {vif_val:.2f}  ({verdict})",
-                                transform=ax.transAxes, ha='center', va='center',
-                                fontsize=8, color=vif_color, fontstyle='italic')
-                    else:
-                        ax.text(0.5, 0.5, label, transform=ax.transAxes,
-                                ha='center', va='center', fontsize=10, fontweight='bold')
+                    ax.text(0.5, 0.5, vars_[row_i], transform=ax.transAxes,
+                            ha='center', va='center', fontsize=10, fontweight='bold')
 
                 elif col_j > row_i:
                     # Upper triangle: scatter + regression line + r/p annotation
