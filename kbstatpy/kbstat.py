@@ -94,6 +94,20 @@ class Kbstat:
                     var, levels = part.split(':', 1)
                     result[var.strip()] = [l.strip() for l in levels.split(',') if l.strip()]
             o.x_order = result
+        # x_rename: parse 'var: old -> new, old -> new; var2: ...' into nested dict
+        if isinstance(o.x_rename, str):
+            result = {}
+            for part in o.x_rename.split(';'):
+                part = part.strip()
+                if ':' in part:
+                    var, pairs_str = part.split(':', 1)
+                    mapping = {}
+                    for pair in pairs_str.split(','):
+                        if '->' in pair:
+                            orig, renamed = pair.split('->', 1)
+                            mapping[orig.strip()] = renamed.strip()
+                    result[var.strip()] = mapping
+            o.x_rename = result
 
     def run(self):
         """Run the full analysis pipeline.
@@ -1433,6 +1447,12 @@ class Kbstat:
                     col = self.data[var]
                     if pd.api.types.is_numeric_dtype(col):
                         col = col.astype(str)
+                    # Apply level renaming, if any
+                    x_rename = self.options.x_rename
+                    if isinstance(x_rename, dict):
+                        mapping = x_rename.get(var, {})
+                        if mapping:
+                            col = col.map(lambda v: mapping.get(v, v))
                     # Resolve user-specified level order, if any
                     x_order = self.options.x_order
                     if isinstance(x_order, dict):

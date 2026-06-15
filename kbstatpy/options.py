@@ -21,6 +21,7 @@ class KbstatOptions:
     y_transform: str = ''     # optional transform expression using 'y' as placeholder, e.g. 'log(y)'
     x: list = field(default_factory=list)
     x_order: object = None    # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels
+    x_rename: object = None  # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}}
     id: str = ''
     slope: list = field(default_factory=list)
     interaction: list = field(default_factory=list)
