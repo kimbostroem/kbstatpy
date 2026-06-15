@@ -523,24 +523,24 @@ class Kbstat:
         self._plot_corr_scatter(
             self.correlation_table, vars_,
             {v: self.data[v].astype(float).values for v in vars_},
-            'Pairwise Correlations', out_dir, 'Correlation')
+            'Correlations', out_dir, 'Correlation')
 
         if partial_table is not None:
             self._plot_corr_scatter(
                 partial_table, vars_, residuals,
-                'Pairwise Partial Correlations\n(residuals after removing all other variables)',
+                'Partial Correlations\n(residuals after removing all other variables)',
                 out_dir, 'PartialCorrelation',
                 xlabel_suffix=' (residual)', ylabel_suffix=' (residual)')
 
         # --- Heatmap tables ---
         self._plot_corr_table(
             self.correlation_table, vars_,
-            'Pairwise Correlations', out_dir, 'CorrelationTable')
+            'Correlations', out_dir, 'CorrelationTable')
 
         if partial_table is not None:
             self._plot_corr_table(
                 partial_table, vars_,
-                'Pairwise Partial Correlations', out_dir, 'PartialCorrelationTable')
+                'Partial Correlations', out_dir, 'PartialCorrelationTable')
 
         return self.correlation_table
 
@@ -564,7 +564,7 @@ class Kbstat:
             mask = ~(np.isnan(x_data) | np.isnan(y_data))
             x_data, y_data = x_data[mask], y_data[mask]
 
-            ax.scatter(x_data, y_data, color=color, alpha=0.6, s=15, linewidths=0)
+            ax.scatter(x_data, y_data, color=color, alpha=0.6, s=20, linewidths=0)
             m, b = np.polyfit(x_data, y_data, 1)
             x_line = np.array([x_data.min(), x_data.max()])
             ax.plot(x_line, m * x_line + b, color='red', linewidth=1.2)
@@ -648,7 +648,7 @@ class Kbstat:
                     else:
                         facecolor = bg_sig
                         textcolor = '0.6'
-                        label     = ''
+                        label     = 'n.s.'
 
                     ax_t.add_patch(mpatches.FancyBboxPatch(
                         (x + 0.04, y + 0.04), 0.92, 0.92,
@@ -856,7 +856,7 @@ class Kbstat:
 
             # --- LAYER 2: Swarm plot (dots spread algorithmically, no overlap) ---
             n_pts = len(panel_healthy)
-            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 4, 6))
+            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
             n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
@@ -906,7 +906,7 @@ class Kbstat:
                 ax.plot([i, i], [q25, q75], color='0.2', linewidth=2, zorder=5)
                 # White median dot
                 ax.scatter(i, median, color='white', edgecolors='0.2',
-                           s=48, zorder=6, linewidths=1.2)
+                           s=60, zorder=6, linewidths=1.2)
 
             # Expand y-limits so violin tops are not clipped and brackets have room
             y_lo, y_hi = ax.get_ylim()
@@ -969,7 +969,7 @@ class Kbstat:
                 ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
 
         # Super title
-        fig.suptitle(y_var, fontweight='bold', fontsize=14)
+        fig.suptitle(self._disp(y_var), fontweight='bold', fontsize=14)
         fig.tight_layout()
 
         self.fig_data = fig
