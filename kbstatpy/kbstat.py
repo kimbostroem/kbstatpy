@@ -94,10 +94,10 @@ class Kbstat:
                     var, levels = part.split(':', 1)
                     result[var.strip()] = [l.strip() for l in levels.split(',') if l.strip()]
             o.x_order = result
-        # x_rename: parse 'var: old -> new, old -> new; var2: ...' into nested dict
-        if isinstance(o.x_rename, str):
+        # rename: parse 'var: old -> new, old -> new; var2: ...' into nested dict
+        if isinstance(o.rename, str):
             result = {}
-            for part in o.x_rename.split(';'):
+            for part in o.rename.split(';'):
                 part = part.strip()
                 if ':' in part:
                     var, pairs_str = part.split(':', 1)
@@ -107,7 +107,7 @@ class Kbstat:
                             orig, renamed = pair.split('->', 1)
                             mapping[orig.strip()] = renamed.strip()
                     result[var.strip()] = mapping
-            o.x_rename = result
+            o.rename = result
 
     def run(self):
         """Run the full analysis pipeline.
@@ -145,6 +145,7 @@ class Kbstat:
     def _run_single(self):
         """Run the pipeline for a single dependent variable (internal)."""
         self._load_data()
+        self._apply_rename()
         self._apply_categorical()
         self._apply_constraints()
         if self.options.remove_outliers:
@@ -1434,6 +1435,16 @@ class Kbstat:
             rows.append(row)
         return pd.DataFrame(rows)
 
+    def _apply_rename(self):
+        """Apply options.rename mappings to any column in the dataframe."""
+        rename = self.options.rename
+        if not isinstance(rename, dict) or self.data is None:
+            return
+        for col, mapping in rename.items():
+            if col in self.data.columns and mapping:
+                self.data[col] = self.data[col].astype(str).map(
+                    lambda v, m=mapping: m.get(v, v))
+
     def _apply_categorical(self):
         categorical_vars = self.options.x.copy()
         if self.options.id:
@@ -1447,12 +1458,6 @@ class Kbstat:
                     col = self.data[var]
                     if pd.api.types.is_numeric_dtype(col):
                         col = col.astype(str)
-                    # Apply level renaming, if any
-                    x_rename = self.options.x_rename
-                    if isinstance(x_rename, dict):
-                        mapping = x_rename.get(var, {})
-                        if mapping:
-                            col = col.map(lambda v: mapping.get(v, v))
                     # Resolve user-specified level order, if any
                     x_order = self.options.x_order
                     if isinstance(x_order, dict):
