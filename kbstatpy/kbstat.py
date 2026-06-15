@@ -399,6 +399,11 @@ class Kbstat:
         # ---------------------------------------------------------
         stats.probplot(self.model.residuals, dist="norm", plot=axes[1])
         axes[1].set_title("Normal Q-Q Plot")
+        # probplot draws with raw matplotlib (plain blue); recolour to match palette
+        palette_color = sns.color_palette(self.options.colors, 1)[0]
+        axes[1].get_lines()[0].set(color=palette_color, markerfacecolor=palette_color,
+                                   markeredgecolor=palette_color)
+        axes[1].get_lines()[1].set_color('red')
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
