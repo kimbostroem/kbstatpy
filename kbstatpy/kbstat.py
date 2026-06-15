@@ -510,7 +510,7 @@ class Kbstat:
         # probplot draws with raw matplotlib (plain blue); recolour to match seaborn default
         seaborn_color = sns.color_palette()[0]
         axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
-                                   markeredgecolor=seaborn_color)
+                                   markeredgecolor='none')
         axes[1].get_lines()[1].set_color('red')
 
         # ---------------------------------------------------------
