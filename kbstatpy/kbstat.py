@@ -589,8 +589,16 @@ class Kbstat:
         axes[5].set_xlabel("Distance below median")
         axes[5].set_ylabel("Distance above median")
 
-        # Fixes overlapping text and margins
-        plt.tight_layout()
+        # Footer row: formula + fit statistics
+        parts = [f'Formula: {self._build_formula()}']
+        if self.AIC is not None:
+            parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
+        footer = '     |     '.join(parts)
+        fig.subplots_adjust(bottom=0.08)
+        fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
+                 fontstyle='italic', color='0.3')
+
+        plt.tight_layout(rect=[0, 0.06, 1, 1])
 
         self.fig_diagnostics = fig
         plt.show(block=False)
