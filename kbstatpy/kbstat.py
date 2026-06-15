@@ -472,9 +472,7 @@ class Kbstat:
         fig_w = header_size + nc * cell_size
         fig_h = top_margin  + nr * cell_size
         fig_t, ax_t = plt.subplots(figsize=(fig_w, fig_h))
-        ax_t.set_xlim(0, nc + 1)
-        ax_t.set_ylim(0, nr + 1)
-        ax_t.set_aspect('equal')
+        ax_t.set_xlim(-0.15, nc + 0.15)
         ax_t.axis('off')
 
         bg_sig   = '0.93'
