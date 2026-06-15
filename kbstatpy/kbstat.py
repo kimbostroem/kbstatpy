@@ -354,7 +354,7 @@ class Kbstat:
 
             # --- LAYER 2: Swarm plot (dots spread algorithmically, no overlap) ---
             n_pts = len(panel_healthy)
-            dot_size = float(np.clip(40 / np.sqrt(max(n_pts, 1)), 2, 8))
+            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 2, 5))
             n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
@@ -491,7 +491,7 @@ class Kbstat:
         axes = axes.flatten()
 
         n_diag = len(self.model.residuals)
-        dot_size_diag = float(np.clip(40 / np.sqrt(n_diag), 2, 8))
+        dot_size_diag = float(np.clip(25 / np.sqrt(n_diag), 2, 5))
 
         # ---------------------------------------------------------
         # Plot 1: Histogram of Residuals
