@@ -356,7 +356,7 @@ class Kbstat:
             n_coll_before = len(ax.collections)
             sns.stripplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                color='black', size=3, alpha=0.7, jitter=0.3, ax=ax
+                color='black', size=3, alpha=0.7, jitter=0.15, ax=ax
             )
             swarm_collections = ax.collections[n_coll_before:]
 
@@ -364,7 +364,7 @@ class Kbstat:
             if len(panel_outlier) > 0:
                 sns.stripplot(
                     data=panel_outlier, x=x_var, y=y_var, order=x_levels,
-                    color='red', size=5, marker='X', alpha=0.9, jitter=0.3, ax=ax
+                    color='red', size=5, marker='X', alpha=0.9, jitter=0.15, ax=ax
                 )
 
             # --- LAYER 3: Connecting lines for paired subjects ---
