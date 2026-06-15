@@ -353,10 +353,12 @@ class Kbstat:
             )
 
             # --- LAYER 2: Swarm plot (dots spread algorithmically, no overlap) ---
+            n_pts = len(panel_healthy)
+            dot_size = float(np.clip(40 / np.sqrt(max(n_pts, 1)), 2, 8))
             n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                color='black', size=3, alpha=0.7, ax=ax, warn_thresh=1
+                color='black', size=dot_size, alpha=0.7, ax=ax, warn_thresh=1
             )
             swarm_collections = ax.collections[n_coll_before:]
 
@@ -364,7 +366,7 @@ class Kbstat:
             if len(panel_outlier) > 0:
                 sns.swarmplot(
                     data=panel_outlier, x=x_var, y=y_var, order=x_levels,
-                    color='red', size=5, marker='X', alpha=0.9, ax=ax, warn_thresh=1
+                    color='red', size=dot_size, marker='X', alpha=0.9, ax=ax, warn_thresh=1
                 )
 
             # --- LAYER 3: Connecting lines for paired subjects ---
@@ -488,6 +490,9 @@ class Kbstat:
         fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
         axes = axes.flatten()
 
+        n_diag = len(self.model.residuals)
+        dot_size_diag = float(np.clip(40 / np.sqrt(n_diag), 2, 8))
+
         # ---------------------------------------------------------
         # Plot 1: Histogram of Residuals
         # ---------------------------------------------------------
@@ -504,13 +509,13 @@ class Kbstat:
         # probplot draws with raw matplotlib (plain blue); recolour to match seaborn default
         seaborn_color = sns.color_palette()[0]
         axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
-                                   markeredgecolor=seaborn_color)
+                                   markeredgecolor=seaborn_color, markersize=dot_size_diag)
         axes[1].get_lines()[1].set_color('red')
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2])
+        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2], s=dot_size_diag**2)
         axes[2].axhline(0, color='red', linestyle='--')
         axes[2].set_title("Residuals vs Fitted")
         axes[2].set_xlabel("Fitted Values")
@@ -519,7 +524,7 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 4: Lagged Residuals
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3])
+        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3], s=dot_size_diag**2)
         axes[3].set_title("Lagged Residuals")
         axes[3].set_xlabel("Residual (i)")
         axes[3].set_ylabel("Residual (i+1)")
@@ -533,7 +538,7 @@ class Kbstat:
         else:
             y_actual = self.data[self.options.y]
             
-        sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4])
+        sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=dot_size_diag**2)
         
         min_val = min(self.model.fits.min(), y_actual.min())
         max_val = max(self.model.fits.max(), y_actual.max())
@@ -559,7 +564,7 @@ class Kbstat:
         if min_len > 0:
             lower_dist = median_res - lower_half[:min_len]
             upper_dist = upper_half[:min_len] - median_res
-            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5])
+            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5], s=dot_size_diag**2)
             
             max_dist = max(lower_dist.max(), upper_dist.max())
             axes[5].plot([0, max_dist], [0, max_dist], color='red', linestyle='--')
