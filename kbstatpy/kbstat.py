@@ -459,55 +459,63 @@ class Kbstat:
         import matplotlib.colors as mcolors
         cmap = plt.cm.RdBu_r  # red=positive, blue=negative
 
-        cell_size = 1.4          # inches per cell
-        header_size = 1.8        # inches for row/column header
-        n = len(vars_)
-        fig_w = header_size + n * cell_size
-        fig_h = header_size + n * cell_size
+        # Drop first row (vars_[0] as row — no cells left of diagonal) and
+        # last column (vars_[-1] as col — no cells below diagonal).
+        row_vars = vars_[1:]      # rows: v1 .. vn-1
+        col_vars = vars_[:-1]     # cols: v0 .. vn-2
+        nr = len(row_vars)        # = n - 1
+        nc = len(col_vars)        # = n - 1
+
+        cell_size = 1.4
+        header_size = 1.8
+        fig_w = header_size + nc * cell_size
+        fig_h = header_size + nr * cell_size
         fig_t, ax_t = plt.subplots(figsize=(fig_w, fig_h))
-        ax_t.set_xlim(0, n + 1)
-        ax_t.set_ylim(0, n + 1)
+        ax_t.set_xlim(0, nc + 1)
+        ax_t.set_ylim(0, nr + 1)
         ax_t.set_aspect('equal')
         ax_t.axis('off')
 
-        bg_sig   = '0.93'   # light grey for non-significant cells
-        bg_empty = '1.0'    # white for upper triangle / diagonal
+        bg_sig   = '0.93'
+        bg_empty = '1.0'
+        fs = max(5, min(9, 72 / len(vars_)))
 
-        for row_i in range(n):
-            for col_j in range(n):
-                x = col_j          # column index → x position
-                y = n - 1 - row_i  # row index → y position (top-down)
+        for ri, v_row in enumerate(row_vars):
+            for ci, v_col in enumerate(col_vars):
+                x = ci
+                y = nr - 1 - ri   # top-down
 
-                if col_j < row_i:
-                    # Lower triangle: look up correlation
-                    v1, v2 = vars_[col_j], vars_[row_i]
+                orig_row = vars_.index(v_row)
+                orig_col = vars_.index(v_col)
+
+                if orig_col < orig_row:
+                    # Lower triangle cell
                     r_row = self.correlation_table[
-                        (self.correlation_table['var_1'] == v1) &
-                        (self.correlation_table['var_2'] == v2)
+                        (self.correlation_table['var_1'] == v_col) &
+                        (self.correlation_table['var_2'] == v_row)
                     ]
                     if len(r_row) == 0:
                         r_row = self.correlation_table[
-                            (self.correlation_table['var_1'] == v2) &
-                            (self.correlation_table['var_2'] == v1)
+                            (self.correlation_table['var_1'] == v_row) &
+                            (self.correlation_table['var_2'] == v_col)
                         ]
                     if len(r_row):
-                        r_val  = float(r_row.iloc[0]['r'])
-                        p_val  = float(r_row.iloc[0]['p'])
-                        stars  = str(r_row.iloc[0]['significance'])
-                        sig    = p_val < 0.05
+                        r_val = float(r_row.iloc[0]['r'])
+                        p_val = float(r_row.iloc[0]['p'])
+                        stars = str(r_row.iloc[0]['significance'])
+                        sig   = p_val < 0.05
                     else:
                         r_val, p_val, stars, sig = 0.0, 1.0, '', False
 
                     if sig:
-                        norm_r = (r_val + 1) / 2        # map [-1,1] → [0,1]
-                        rgba   = cmap(norm_r)
-                        facecolor = rgba
+                        norm_r    = (r_val + 1) / 2
+                        facecolor = cmap(norm_r)
                         textcolor = 'white' if abs(r_val) > 0.5 else '0.2'
-                        label = f"{r_val:.3f}{stars}"
+                        label     = f"{r_val:.3f}{stars}"
                     else:
                         facecolor = bg_sig
                         textcolor = '0.6'
-                        label = ''
+                        label     = ''
 
                     rect = mpatches.FancyBboxPatch(
                         (x + 0.04, y + 0.04), 0.92, 0.92,
@@ -518,11 +526,10 @@ class Kbstat:
                     if label:
                         ax_t.text(x + 0.5, y + 0.5, label,
                                   ha='center', va='center',
-                                  fontsize=max(5, min(9, 72 / n)),
-                                  color=textcolor, fontweight='bold')
+                                  fontsize=fs, color=textcolor, fontweight='bold')
 
-                elif col_j == row_i:
-                    # Diagonal: empty white cell as anchor
+                elif orig_col == orig_row:
+                    # Diagonal anchor
                     rect = mpatches.FancyBboxPatch(
                         (x + 0.04, y + 0.04), 0.92, 0.92,
                         boxstyle='square,pad=0', linewidth=0.4,
@@ -530,20 +537,16 @@ class Kbstat:
                         transform=ax_t.transData)
                     ax_t.add_patch(rect)
 
-                else:
-                    # Upper triangle: no cell
-                    pass
+        # Column headers (top) — col_vars
+        for ci, v in enumerate(col_vars):
+            ax_t.text(ci + 0.5, nr + 0.1, v, ha='center', va='bottom',
+                      fontsize=fs, fontweight='bold', rotation=45)
 
-        # Column headers (top)
-        for j, v in enumerate(vars_):
-            ax_t.text(j + 0.5, n + 0.1, v, ha='center', va='bottom',
-                      fontsize=max(6, min(9, 72 / n)), fontweight='bold', rotation=45)
-
-        # Row headers (left)
-        for i, v in enumerate(vars_):
-            y = n - 1 - i
+        # Row headers (left) — row_vars
+        for ri, v in enumerate(row_vars):
+            y = nr - 1 - ri
             ax_t.text(-0.1, y + 0.5, v, ha='right', va='center',
-                      fontsize=max(6, min(9, 72 / n)), fontweight='bold')
+                      fontsize=fs, fontweight='bold')
 
         fig_t.suptitle('Pairwise Correlations', fontweight='bold', fontsize=13, y=0.98)
         plt.tight_layout()
