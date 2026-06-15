@@ -30,7 +30,7 @@ class KbstatOptions:
     covariate: list = field(default_factory=list)
 
     # Plot settings
-    colors: str = 'Set2'
+    colors: str = 'Set1'
 
     # Post-hoc settings
     posthoc_method: str = 'emm'
