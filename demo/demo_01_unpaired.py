@@ -20,13 +20,11 @@ options.x        = ['group']
 options.distribution = 'normal'
 
 kb = Kbstat(options)
-kb.fit()
+kb.run()
 
-print('\n--- ANOVA ---')
-print(kb.anova())
-
-print('\n--- Post-hoc ---')
-print(kb.posthoc())
-
-kb.plot_diagnostics()
-kb.save()
+# run() is equivalent to calling the following steps individually:
+# kb.fit()            # fit the model
+# kb.anova()          # compute Type III ANOVA table
+# kb.posthoc()        # pairwise post-hoc comparisons
+# kb.plot_diagnostics()  # diagnostic plots saved to out_dir
+# kb.save()           # save all result tables and Summary.txt to out_dir
