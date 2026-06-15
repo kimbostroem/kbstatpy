@@ -354,7 +354,7 @@ class Kbstat:
 
             # --- LAYER 2: Swarm plot (dots spread algorithmically, no overlap) ---
             n_pts = len(panel_healthy)
-            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 3, 5))
+            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 4, 6))
             n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
