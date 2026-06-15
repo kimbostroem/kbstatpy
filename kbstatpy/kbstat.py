@@ -492,6 +492,7 @@ class Kbstat:
 
         n_diag = len(self.model.residuals)
         dot_size_diag = float(np.clip(25 / np.sqrt(n_diag), 2, 5))
+        s_diag = (dot_size_diag * 1.2) ** 2  # scale to match Q-Q default marker size
 
         # ---------------------------------------------------------
         # Plot 1: Histogram of Residuals
@@ -509,13 +510,13 @@ class Kbstat:
         # probplot draws with raw matplotlib (plain blue); recolour to match seaborn default
         seaborn_color = sns.color_palette()[0]
         axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
-                                   markeredgecolor=seaborn_color, markersize=dot_size_diag)
+                                   markeredgecolor=seaborn_color)
         axes[1].get_lines()[1].set_color('red')
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2], s=dot_size_diag**2)
+        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2], s=s_diag)
         axes[2].axhline(0, color='red', linestyle='--')
         axes[2].set_title("Residuals vs Fitted")
         axes[2].set_xlabel("Fitted Values")
@@ -524,7 +525,7 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 4: Lagged Residuals
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3], s=dot_size_diag**2)
+        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3], s=s_diag)
         axes[3].set_title("Lagged Residuals")
         axes[3].set_xlabel("Residual (i)")
         axes[3].set_ylabel("Residual (i+1)")
@@ -538,7 +539,7 @@ class Kbstat:
         else:
             y_actual = self.data[self.options.y]
             
-        sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=dot_size_diag**2)
+        sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=s_diag)
         
         min_val = min(self.model.fits.min(), y_actual.min())
         max_val = max(self.model.fits.max(), y_actual.max())
@@ -564,7 +565,7 @@ class Kbstat:
         if min_len > 0:
             lower_dist = median_res - lower_half[:min_len]
             upper_dist = upper_half[:min_len] - median_res
-            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5], s=dot_size_diag**2)
+            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5], s=s_diag)
             
             max_dist = max(lower_dist.max(), upper_dist.max())
             axes[5].plot([0, max_dist], [0, max_dist], color='red', linestyle='--')
