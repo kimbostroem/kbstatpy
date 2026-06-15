@@ -55,6 +55,7 @@ class Kbstat:
             self._load_data()
         formula = self._build_formula()
         self._backfill_options_from_formula(formula)
+        self._validate_slopes()
         data_to_use = self.data
         if 'is_outlier' in self.data.columns:
             data_to_use = self.data[~self.data['is_outlier']]
@@ -472,6 +473,15 @@ class Kbstat:
             self.data.columns = self.data.columns.str.lstrip('﻿')
         else:
             self.data = pd.read_excel(path)
+
+    def _validate_slopes(self):
+        """Raise a clear error if any slope variable is not among the fixed-effect factors."""
+        unknown = [s for s in self.options.slope if s not in self.options.x]
+        if unknown:
+            raise ValueError(
+                f"Random slope variable(s) {unknown} not found in fixed-effect factors "
+                f"{self.options.x}. Each slope must be one of the fixed-effect variables."
+            )
 
     def _build_formula(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one."""
