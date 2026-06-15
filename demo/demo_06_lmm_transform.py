@@ -23,6 +23,7 @@ options.y_units      = 'ms'             # unit label for y-axis
 options.y_transform  = 'log(y)'         # log-transform before fitting; back-transformed for plots and tables
 options.x            = 'Period'          # fixed-effect factor(s)
 options.id           = 'Subject'         # random-effect grouping variable (subject ID)
+options.rename       = 'Reaction -> ReactionTime; Period -> Day'
 # options.formula    = 'log(Reaction) ~ Period + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)

@@ -20,6 +20,7 @@ options.y_units      = 'ms'             # unit label for y-axis
 options.x            = 'Period'          # fixed-effect factor(s)
 options.id           = 'Subject'         # random-effect grouping variable (subject ID)
 options.slope        = 'Period'          # random slope(s): each subject gets their own Period slope
+options.rename       = 'Reaction -> ReactionTime; Period -> Day'
 # options.formula    = 'Reaction ~ Period + (1 + Period | Subject)'  # alternative: Wilkinson formula (overrides y, x, id, slope above)
 
 kb = Kbstat(options)

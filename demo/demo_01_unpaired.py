@@ -14,6 +14,7 @@ options.out_dir      = 'results/demo_01_unpaired'          # output folder
 options.y            = 'extra'           # dependent variable
 options.y_units      = 'h'              # unit label for y-axis
 options.x            = 'group'           # fixed-effect factor(s)
+options.rename       = 'extra -> ExtraSleep; group -> DrugGroup'
 # options.formula    = 'extra ~ group'   # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)

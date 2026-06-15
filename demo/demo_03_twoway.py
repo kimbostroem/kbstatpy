@@ -17,6 +17,8 @@ options.y            = 'len'             # dependent variable
 options.y_units      = 'mm'             # unit label for y-axis
 options.x            = 'supp, dose'      # fixed-effect factors
 options.interaction  = 'supp, dose'      # test the supp × dose interaction
+options.rename       = 'len -> ToothLength; supp -> Supplement; dose -> Dose; supp: OJ -> orange_juice, VC -> vitamin_c'
+options.x_order      = 'dose: low, medium, high'
 # options.formula    = 'len ~ supp * dose'  # alternative: Wilkinson formula (overrides y, x, interaction above)
 
 kb = Kbstat(options)

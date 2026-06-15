@@ -18,6 +18,7 @@ options.y            = 'extra'           # dependent variable
 options.y_units      = 'h'              # unit label for y-axis
 options.x            = 'group'           # fixed-effect factor(s)
 options.id           = 'ID'              # random-effect grouping variable (subject ID)
+options.rename       = 'extra -> ExtraSleep; group -> DrugGroup'
 # options.formula    = 'extra ~ group + (1 | ID)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)

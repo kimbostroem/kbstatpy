@@ -17,6 +17,7 @@ options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.x            = 'Period'          # fixed-effect factor(s)
 options.id           = 'Subject'         # random-effect grouping variable (subject ID)
+options.rename       = 'Reaction -> ReactionTime; Period -> Day'
 # options.formula    = 'Reaction ~ Period + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)

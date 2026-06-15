@@ -22,6 +22,7 @@ options.y           = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # 
 options.y_units     = 'cm'                                                    # unit label for y-axis (same for all variables)
 options.x           = 'Species'                                               # fixed-effect factor
 options.correlation = options.y  # also run pairwise correlation on all dependent variables (must be numerical)
+options.rename      = 'Sepal.Length -> SepalLength; Sepal.Width -> SepalWidth; Petal.Length -> PetalLength; Petal.Width -> PetalWidth'
 # options.correlation = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # equivalent explicit form
 
 kb = Kbstat(options)

@@ -25,6 +25,7 @@ options.id           = 'Block'                     # random-effect grouping vari
 options.interaction  = 'Variety, Nitrogen'         # test the Variety × Nitrogen interaction
 options.distribution = 'gamma'                    # gamma GLMM (positive, right-skewed outcome)
 options.link         = 'log'                      # log link function
+options.rename       = 'yield -> CropYield; Variety: Golden.rain -> golden_rain'
 # options.formula    = 'yield ~ Variety * Nitrogen + (1 | Block)'  # alternative: Wilkinson formula (overrides y, x, id, interaction above)
 
 kb = Kbstat(options)

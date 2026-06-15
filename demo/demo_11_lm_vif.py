@@ -26,8 +26,8 @@ options.out_dir     = 'results/demo_11_lm_vif'             # output folder
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot
-options.rename      = 'cyl -> Cylinders; cyl: 4 -> 4 cyl, 6 -> 6 cyl, 8 -> 8 cyl'  # variable display name + level renames
-options.x_order     = 'cyl: 4 cyl, 6 cyl, 8 cyl'                  # ascending order (use renamed values)
+options.rename      = 'mpg -> Consumption; cyl -> Cylinders; hp -> Horsepower; wt -> Weight'
+options.x_order     = 'cyl: 4, 6, 8'                               # ascending order
 options.covariate   = 'hp, wt'          # continuous covariates — included in model, excluded from plots
 options.correlation = 'hp, wt'          # correlate the numeric covariates — VIF computed automatically
 

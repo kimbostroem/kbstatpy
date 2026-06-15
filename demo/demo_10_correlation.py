@@ -17,6 +17,7 @@ options = KbstatOptions()
 options.in_file     = 'data/longley.csv'                   # input data file
 options.out_dir     = 'results/demo_10_correlation'        # output folder
 options.correlation = 'GNP.deflator, GNP, Unemployed, Population, Year'         # variables to correlate (must be numerical)
+options.rename      = 'GNP.deflator -> GNP_Deflator; Unemployed -> Unemployment'
 
 kb = Kbstat(options)
 kb.run()

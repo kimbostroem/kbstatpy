@@ -27,6 +27,7 @@ options.y_units      = 'lb/plot'        # unit label for y-axis
 options.x            = 'N, P, K'         # fixed-effect factors (three binary treatments)
 options.id           = 'block'           # random-effect grouping variable (spatial block)
 options.interaction  = 'P, K'            # test only the P×K interaction (not N×P or N×K)
+options.rename       = 'yield -> CropYield; N -> Nitrogen; P -> Phosphate; K -> Potassium; block -> Block'
 # options.formula    = 'yield ~ N + P*K + (1 | block)'  # alternative: Wilkinson formula (overrides y, x, id, interaction above)
 
 kb = Kbstat(options)
