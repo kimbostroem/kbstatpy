@@ -50,6 +50,7 @@ class Kbstat:
         self._transform_fn = None             # forward transform: array → array
         self._inverse_fn   = None             # inverse transform: array → array
         self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
+        self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
 
     # ------------------------------------------------------------------
     # Public interface
@@ -310,7 +311,7 @@ class Kbstat:
         ct_raw = None
         if r_obj is not None:
             try:
-                _emm = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'))
+                _emm = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'), type='response')
                 _emm_df_r = ro.r('as.data.frame')(_emm)
                 # Convert factor column to character so rpy2 returns actual labels
                 # (rpy2 converts R factors to integer codes otherwise)
@@ -325,6 +326,21 @@ class Kbstat:
                 pass
 
         self.contrasts_table = ct_adj  # used for significance brackets in plot_data
+
+        # For multi-factor models, fetch the full interaction EMM grid so that
+        # plot_data() can place the CI bar at the correct per-panel value.
+        self._emm_df_full = None
+        if r_obj is not None and len(factors) > 1:
+            try:
+                _formula_full = ' * '.join(factors)
+                _emm_full = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{_formula_full}'), type='response')
+                _emm_full_r = ro.r('as.data.frame')(_emm_full)
+                ro.r.assign('._emm_full_tmp', _emm_full_r)
+                for _fc in factors:
+                    ro.r(f'._emm_full_tmp[["{_fc}"]] <- as.character(._emm_full_tmp[["{_fc}"]])')
+                self._emm_df_full = p2ri.rpy2py(ro.r('._emm_full_tmp'))
+            except Exception:
+                pass
 
         # Build the rich posthoc table
         if emm_df is not None and ct_adj is not None and ct_raw is not None and factors[0] in emm_df.columns:
@@ -938,7 +954,9 @@ class Kbstat:
                                         color='black', alpha=0.4, linewidth=1.0, zorder=3)
 
             # --- LAYER 4: EMM marker + 95 % CI bar ---
-            emm_df_plot = getattr(self, '_emm_df', None)
+            # Prefer full interaction grid for multi-factor models (correct per-panel values)
+            _full = getattr(self, '_emm_df_full', None)
+            emm_df_plot = _full if (_full is not None and not _full.empty) else getattr(self, '_emm_df', None)
             inv = getattr(self, '_inverse_fn', None)
 
             def _bt_plot(val):
@@ -951,11 +969,11 @@ class Kbstat:
 
                 emm_val = ci_lo = ci_hi = None
                 if emm_df_plot is not None and not emm_df_plot.empty:
-                    factor_col_plot = x_var
-                    if factor_col_plot not in emm_df_plot.columns:
-                        # multi-factor: try first column
-                        factor_col_plot = emm_df_plot.columns[0]
+                    factor_col_plot = x_var if x_var in emm_df_plot.columns else emm_df_plot.columns[0]
                     row_mask = emm_df_plot[factor_col_plot].astype(str) == str(level)
+                    # In multi-factor models also filter by the facet variable for this panel
+                    if facet_var is not None and facet_var in emm_df_plot.columns and facet_val is not None:
+                        row_mask = row_mask & (emm_df_plot[facet_var].astype(str) == str(facet_val))
                     if row_mask.any():
                         row = emm_df_plot[row_mask].iloc[0]
                         emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
