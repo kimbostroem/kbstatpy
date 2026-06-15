@@ -70,7 +70,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `y` | str or list | `''` | Dependent variable(s). A list (or comma-separated string) runs one analysis per variable |
 | `y_units` | str or list | `''` | Unit label(s) for the y-axis, e.g. `'ms'` or `'kg, N, m'` for multi-y |
 | `x` | list / str | `[]` | Fixed-effect factor column names |
-| `x_order` | dict or list | `None` | Reorder factor levels. Dict form: `{'dose': ['low','medium','high']}`. List form (single x only): `['low','medium','high']` |
+| `x_order` | str or dict | `None` | Reorder factor levels. String form: `'dose: low, medium, high'` or multiple variables `'dose: low, medium, high; supp: OJ, VC'`. Dict form also accepted: `{'dose': ['low','medium','high']}` |
 | `x_units` | list / str | `''` | Unit label(s) for x-axis tick groups; `'1'` means no units |
 | `id` | str | `''` | Random-effect grouping variable (e.g. subject ID) |
 | `slope` | list / str | `[]` | Variables with random slopes (e.g. `'A, B'` → `(1 + A + B \| id)`) |

@@ -67,6 +67,15 @@ class Kbstat:
             o.x_units = self._split_csv(o.x_units)
         if isinstance(o.correlation, str):
             o.correlation = self._split_csv(o.correlation)
+        # x_order: parse 'var: l1, l2; var2: l1, l2' string into dict
+        if isinstance(o.x_order, str):
+            result = {}
+            for part in o.x_order.split(';'):
+                part = part.strip()
+                if ':' in part:
+                    var, levels = part.split(':', 1)
+                    result[var.strip()] = [l.strip() for l in levels.split(',') if l.strip()]
+            o.x_order = result
 
     def run(self):
         """Run the full analysis pipeline.

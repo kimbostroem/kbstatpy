@@ -30,7 +30,7 @@ options.out_dir     = os.path.join(DEMO_DIR, 'results', 'demo_11_lm_vif')   # ou
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot
-options.x_order     = {'cyl': ['4', '6', '8']}  # ascending cylinder count
+options.x_order     = 'cyl: 4, 6, 8'           # ascending cylinder count
 options.covariate   = 'hp, wt'          # continuous covariates — included in model, excluded from plots
 options.correlation = 'hp, wt'          # correlate the numeric covariates — VIF computed automatically
 
