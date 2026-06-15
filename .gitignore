@@ -8,6 +8,7 @@ build/
 
 # Demo results
 demo/Results_*/
+demo/results/
 
 # macOS
 .DS_Store
