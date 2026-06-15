@@ -12,14 +12,13 @@ Dataset: longley (R base / Longley, 1967). 16 annual observations, 7 variables.
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file     = os.path.join(DEMO_DIR, 'data', 'longley.csv')             # input data file
-options.out_dir     = os.path.join(DEMO_DIR, 'results', 'demo_10_correlation')  # output folder
+options.in_file     = 'data/longley.csv'                   # input data file
+options.out_dir     = 'results/demo_10_correlation'        # output folder
 options.correlation = 'GNP.deflator, GNP, Unemployed, Population, Year'         # variables to correlate (must be numerical)
 
 kb = Kbstat(options)

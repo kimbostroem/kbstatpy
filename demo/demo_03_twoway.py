@@ -9,14 +9,13 @@ at three dose levels (low / medium / high).
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = os.path.join(DEMO_DIR, 'data', 'toothgrowth.csv')  # input data file
-options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_03_twoway')  # output folder
+options.in_file      = 'data/toothgrowth.csv'              # input data file
+options.out_dir      = 'results/demo_03_twoway'            # output folder
 options.y            = 'len'             # dependent variable
 options.y_units      = 'mm'             # unit label for y-axis
 options.x            = 'supp, dose'      # fixed-effect factors

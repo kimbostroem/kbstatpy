@@ -19,18 +19,17 @@ Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variabl
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file     = os.path.join(DEMO_DIR, 'data', 'mtcars.csv')          # input data file
-options.out_dir     = os.path.join(DEMO_DIR, 'results', 'demo_11_lm_vif')   # output folder
+options.in_file     = 'data/mtcars.csv'                    # input data file
+options.out_dir     = 'results/demo_11_lm_vif'             # output folder
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot
-options.x_order     = 'cyl: 4, 6, 8'           # ascending cylinder count
+options.x_order     = 'cyl: 4, 6, 8'    # reorder levels in data plot
 options.covariate   = 'hp, wt'          # continuous covariates — included in model, excluded from plots
 options.correlation = 'hp, wt'          # correlate the numeric covariates — VIF computed automatically
 

@@ -14,14 +14,13 @@ fertilisation (Yates, 1935). 3 varieties × 4 nitrogen levels × 6 blocks,
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = os.path.join(DEMO_DIR, 'data', 'oats.csv')  # input data file
-options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_06_glmm_gamma')  # output folder
+options.in_file      = 'data/oats.csv'                     # input data file
+options.out_dir      = 'results/demo_06_glmm_gamma'        # output folder
 options.y            = 'yield'                    # dependent variable
 options.y_units      = 'qt/plot'                  # unit label for y-axis (quarter-pounds per plot)
 options.x            = 'Variety, Nitrogen'         # fixed-effect factors

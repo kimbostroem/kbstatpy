@@ -18,14 +18,13 @@ Dataset: npk (R base). Nitrogen, phosphate and potassium effects on pea yield
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = os.path.join(DEMO_DIR, 'data', 'npk.csv')         # input data file
-options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_07_lmm_partial_interaction')  # output folder
+options.in_file      = 'data/npk.csv'                      # input data file
+options.out_dir      = 'results/demo_07_lmm_partial_interaction'  # output folder
 options.y            = 'yield'           # dependent variable
 options.y_units      = 'lb/plot'        # unit label for y-axis
 options.x            = 'N, P, K'         # fixed-effect factors (three binary treatments)

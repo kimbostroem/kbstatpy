@@ -21,6 +21,16 @@ class Kbstat:
     """Generalized linear mixed model analysis with post-hoc pairwise comparisons."""
 
     def __init__(self, options: KbstatOptions):
+        import inspect
+        # Capture the directory of the script that instantiated Kbstat so that
+        # relative paths in in_file / out_dir resolve against the caller, not CWD.
+        self._caller_dir = os.getcwd()
+        for frame in inspect.stack():
+            fname = frame.filename
+            if fname != __file__ and not fname.startswith('<'):
+                self._caller_dir = os.path.dirname(os.path.abspath(fname))
+                break
+
         self.options = options
         self.data: pd.DataFrame = None
         self.model = None
@@ -50,9 +60,17 @@ class Kbstat:
             return [v.strip() for v in value.split(',') if v.strip()]
         return list(value)
 
+    def _resolve_path(self, path):
+        """Resolve a relative path against the caller's directory."""
+        if not path or os.path.isabs(path):
+            return path
+        return os.path.join(self._caller_dir, path)
+
     def _normalize_options(self):
-        """Normalize comma-separated string options to lists."""
+        """Normalize comma-separated string options to lists and resolve paths."""
         o = self.options
+        o.in_file = self._resolve_path(o.in_file)
+        o.out_dir = self._resolve_path(o.out_dir)
         for attr in ('x', 'slope', 'covariate'):
             v = getattr(o, attr)
             if isinstance(v, str):

@@ -11,14 +11,13 @@ Dataset: sleepstudy (lme4), same as demo 4.
 """
 
 import sys, os
-DEMO_DIR = os.path.dirname(__file__)
-sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')  # input data file
-options.out_dir      = os.path.join(DEMO_DIR, 'results', 'demo_05_lmm_slopes')  # output folder
+options.in_file      = 'data/sleepstudy.csv'               # input data file
+options.out_dir      = 'results/demo_05_lmm_slopes'        # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.x            = 'Period'          # fixed-effect factor(s)
