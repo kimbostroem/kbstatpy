@@ -682,7 +682,10 @@ class Kbstat:
         if self.options.formula:
             return self.options.formula
         y = self.options.y
-        ia = self.options.interaction  # list of lists, e.g. [['A','B'], ['A','C']]
+        ia = self.options.interaction
+        # Normalise: flat list ['A','B'] → [['A','B']]; nested stays as-is
+        if ia and not isinstance(ia[0], list):
+            ia = [ia]
         if ia:
             # Build fixed-effects string: use * for interacting pairs, + for the rest
             ia_sets = [set(pair) for pair in ia]
@@ -789,7 +792,9 @@ class Kbstat:
             self.options.slope = parsed['slopes']
             print(f'Detected random slopes       : {", ".join(self.options.slope)}')
         if not self.options.interaction and parsed['interactions']:
-            self.options.interaction = parsed['interactions']
+            ia = parsed['interactions']
+            # Store as flat list when there is only one interaction pair
+            self.options.interaction = ia[0] if len(ia) == 1 else ia
             ia_str = ', '.join(' * '.join(pair) for pair in self.options.interaction)
             print(f'Detected interactions        : {ia_str}')
         print(f'Formula                      : {formula}')
