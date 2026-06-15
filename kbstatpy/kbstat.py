@@ -393,6 +393,7 @@ class Kbstat:
         sns.histplot(self.model.residuals, kde=True, ax=axes[0])
         axes[0].set_title("Histogram of Residuals")
         axes[0].set_xlabel("Residuals")
+        axes[0].get_lines()[0].set_color('red')
 
         # ---------------------------------------------------------
         # Plot 2: Normal Q-Q Plot
