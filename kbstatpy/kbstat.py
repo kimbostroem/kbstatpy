@@ -93,6 +93,7 @@ class Kbstat:
                 self.AIC    = float(ro.r('AIC')(r_obj)[0])
                 self.BIC    = float(ro.r('BIC')(r_obj)[0])
                 self.logLik = float(ro.r('logLik')(r_obj)[0])
+                print(f'AIC = {self.AIC:.3f}  |  BIC = {self.BIC:.3f}  |  logLik = {self.logLik:.3f}')
             except Exception:
                 self.AIC = self.BIC = self.logLik = None
         else:
