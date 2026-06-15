@@ -855,12 +855,12 @@ class Kbstat:
             sns.violinplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
                 hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
-                cut=0.3, inner=None, linewidth=1, saturation=1.0,
+                cut=0.3, inner=None, linewidth=1, saturation=0.9,
                 ax=ax, legend=False, density_norm='width'
             )
             violin_colls = ax.collections[n_viol_before:]
             for coll in violin_colls:
-                coll.set_alpha(0.75)
+                coll.set_alpha(0.5)
 
             def _violin_hw(xi, y_val):
                 """Half-width of the violin for group xi at height y_val."""
@@ -947,7 +947,7 @@ class Kbstat:
                 ax.plot([i, i], [q25, q75], color='0.2', linewidth=4, zorder=5)
                 # White median dot
                 ax.scatter(i, median, color='white', edgecolors='0.2',
-                           s=60, zorder=6, linewidths=1.2)
+                           s=80, zorder=6, linewidths=1.2)
 
             # Expand y-limits so violin tops are not clipped and brackets have room
             y_lo, y_hi = ax.get_ylim()
