@@ -445,9 +445,10 @@ class Kbstat:
                     _autofit_xlsx(writer, 'VIF')
                 print(f'Saved: {vif_path}')
 
-            fig_path = os.path.join(out_dir, 'Correlation.png')
-            fig.savefig(fig_path, dpi=150, bbox_inches='tight')
-            print(f'Saved: {fig_path}')
+            for ext in ('png', 'pdf'):
+                fig_path = os.path.join(out_dir, f'Correlation.{ext}')
+                fig.savefig(fig_path, dpi=150, bbox_inches='tight')
+            print(f'Saved: {os.path.join(out_dir, "Correlation.png/.pdf")}')
 
         plt.show(block=False)
         plt.pause(3)
@@ -548,9 +549,10 @@ class Kbstat:
         plt.tight_layout()
 
         if self.options.out_dir:
-            tbl_path = os.path.join(self.options.out_dir, 'CorrelationTable.png')
-            fig_t.savefig(tbl_path, dpi=150, bbox_inches='tight')
-            print(f'Saved: {tbl_path}')
+            for ext in ('png', 'pdf'):
+                tbl_path = os.path.join(self.options.out_dir, f'CorrelationTable.{ext}')
+                fig_t.savefig(tbl_path, dpi=150, bbox_inches='tight')
+            print(f'Saved: {os.path.join(self.options.out_dir, "CorrelationTable.png/.pdf")}')
 
         plt.show(block=False)
         plt.pause(3)
