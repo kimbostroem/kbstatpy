@@ -188,8 +188,8 @@ class Kbstat:
                 rows.append({
                     f'{factor_col}_1':  str(lev1),
                     f'{factor_col}_2':  str(lev2),
-                    'emmCI_1':          _emm_ci_str(lev1),
-                    'emmCI_2':          _emm_ci_str(lev2),
+                    'emm_1':            _emm_ci_str(lev1),
+                    'emm_2':            _emm_ci_str(lev2),
                     'diff':             float(cadj['estimate']),
                     't':                t_val,
                     'df':               df_val,
