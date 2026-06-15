@@ -1367,10 +1367,21 @@ class Kbstat:
                     col = self.data[var]
                     if pd.api.types.is_numeric_dtype(col):
                         col = col.astype(str)
-                    unique_categories = col.unique().tolist()
+                    # Resolve user-specified level order, if any
+                    x_order = self.options.x_order
+                    if isinstance(x_order, dict):
+                        order = x_order.get(var, None)
+                    elif isinstance(x_order, list) and var == self.options.x[0]:
+                        order = x_order
+                    else:
+                        order = None
+                    if order is not None:
+                        categories = [str(v) for v in order]
+                    else:
+                        categories = col.unique().tolist()
                     self.data[var] = pd.Categorical(
                         col,
-                        categories=unique_categories,
+                        categories=categories,
                         ordered=False
                     )
 
