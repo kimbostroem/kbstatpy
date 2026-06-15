@@ -548,7 +548,8 @@ class Kbstat:
             ax_t.text(-0.1, y + 0.5, v, ha='right', va='center',
                       fontsize=fs, fontweight='bold')
 
-        fig_t.suptitle('Pairwise Correlations', fontweight='bold', fontsize=13, y=0.98)
+        ax_t.set_ylim(0, nr + 0.7)   # just enough room for rotated column headers
+        ax_t.set_title('Pairwise Correlations', fontweight='bold', fontsize=13, pad=8)
         plt.tight_layout()
 
         if self.options.out_dir:
