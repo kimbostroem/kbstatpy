@@ -467,9 +467,10 @@ class Kbstat:
         nc = len(col_vars)        # = n - 1
 
         cell_size = 1.4
-        header_size = 1.8
+        header_size = 1.8   # horizontal space for row labels
+        top_margin  = 1.5   # vertical space for title + rotated column headers
         fig_w = header_size + nc * cell_size
-        fig_h = header_size + nr * cell_size
+        fig_h = top_margin  + nr * cell_size
         fig_t, ax_t = plt.subplots(figsize=(fig_w, fig_h))
         ax_t.set_xlim(0, nc + 1)
         ax_t.set_ylim(0, nr + 1)
