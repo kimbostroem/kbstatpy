@@ -231,7 +231,7 @@ class Kbstat:
                 ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
                 ws = writer.sheets['Posthoc']
                 for col_cells in ws.columns:
-                    width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85
+                    width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85 + 1
                     ws.column_dimensions[col_cells[0].column_letter].width = width
             print(f'Saved Posthoc.xlsx to {out_dir}')
 
