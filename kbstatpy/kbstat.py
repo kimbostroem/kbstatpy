@@ -28,6 +28,9 @@ class Kbstat:
         self.posthoc_table: pd.DataFrame = None
         self.contrasts_table: pd.DataFrame = None
         self.statistics_table: pd.DataFrame = None
+        self.AIC    = None
+        self.BIC    = None
+        self.logLik = None
         self.fig_diagnostics = None
         self.fig_data = None
 
@@ -82,6 +85,18 @@ class Kbstat:
         else:
             self.model = Glmer(formula, data=data_pl, family=family, link=link)
         self.model.fit(summarize=False)
+
+        # Extract AIC, BIC, logLik from the R model object
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is not None:
+            try:
+                self.AIC    = float(ro.r('AIC')(r_obj)[0])
+                self.BIC    = float(ro.r('BIC')(r_obj)[0])
+                self.logLik = float(ro.r('logLik')(r_obj)[0])
+            except Exception:
+                self.AIC = self.BIC = self.logLik = None
+        else:
+            self.AIC = self.BIC = self.logLik = None
 
     def anova(self):
         """Extract and enrich the ANOVA table from the fitted model.
@@ -782,14 +797,18 @@ class Kbstat:
         lines.append('')
 
         # --- Fit statistics ---
+        lines += ['FIT STATISTICS', '--------------']
+        if self.AIC is not None:
+            lines.append(f'  {"AIC":<24}: {self.AIC:.3f}')
+            lines.append(f'  {"BIC":<24}: {self.BIC:.3f}')
+            lines.append(f'  {"logLik":<24}: {self.logLik:.3f}')
         if hasattr(self.model, 'fit_stats') and self.model.fit_stats is not None:
             fs = self.model.fit_stats
             fs_df = fs.to_pandas() if hasattr(fs, 'to_pandas') else fs
-            lines += ['FIT STATISTICS', '--------------']
             for col in fs_df.columns:
                 val = fs_df[col].iloc[0] if len(fs_df) > 0 else '?'
                 lines.append(f'  {col:<24}: {val}')
-            lines.append('')
+        lines.append('')
 
         # --- Fixed effects ---
         if hasattr(self.model, 'coefs') and self.model.coefs is not None:
