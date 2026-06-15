@@ -1530,6 +1530,9 @@ class Kbstat:
     def _apply_constraints(self):
         if self.options.constraints != '':
             self.data = self.data.query(self.options.constraints)
+            for col in self.data.columns:
+                if hasattr(self.data[col], 'cat'):
+                    self.data[col] = self.data[col].cat.remove_unused_categories()
 
 # ------------------------------------------------------------------
 # Statistical helper functions
