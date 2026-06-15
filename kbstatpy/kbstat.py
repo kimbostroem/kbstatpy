@@ -55,6 +55,7 @@ class Kbstat:
             self._load_data()
         formula = self._build_formula()
         self._backfill_options_from_formula(formula)
+        self._validate_options_vs_formula(formula)
         self._validate_slopes()
         data_to_use = self.data
         if 'is_outlier' in self.data.columns:
@@ -473,6 +474,50 @@ class Kbstat:
             self.data.columns = self.data.columns.str.lstrip('﻿')
         else:
             self.data = pd.read_excel(path)
+
+    def _validate_options_vs_formula(self, formula: str):
+        """Warn when explicit options fields disagree with an explicitly provided formula.
+
+        Only runs when the user has set both options.formula and one or more of
+        y / x / id / slope, since that combination is likely a mistake.
+        """
+        # Nothing to check if formula was built from the fields rather than set explicitly
+        if not self.options.formula:
+            return
+
+        parsed = self._parse_formula(formula)
+        problems = []
+
+        if self.options.y and self.options.y != parsed['y']:
+            problems.append(
+                f"  options.y='{self.options.y}' but formula has dependent variable '{parsed['y']}'"
+            )
+        if self.options.id and self.options.id != parsed['id']:
+            problems.append(
+                f"  options.id='{self.options.id}' but formula has grouping variable '{parsed['id']}'"
+            )
+        if self.options.x:
+            formula_x = set(parsed['x']) - set(self.options.covariate)
+            options_x = set(self.options.x)
+            extra   = options_x - formula_x
+            missing = formula_x - options_x
+            if extra:
+                problems.append(f"  options.x contains {sorted(extra)} not found as fixed effects in formula")
+            if missing:
+                problems.append(f"  options.x is missing {sorted(missing)} that appear as fixed effects in formula")
+        if self.options.slope:
+            formula_slopes = set(parsed['slopes'])
+            options_slopes = set(self.options.slope)
+            extra   = options_slopes - formula_slopes
+            missing = formula_slopes - options_slopes
+            if extra:
+                problems.append(f"  options.slope contains {sorted(extra)} not present as random slopes in formula")
+            if missing:
+                problems.append(f"  options.slope is missing {sorted(missing)} that appear as random slopes in formula")
+
+        if problems:
+            msg = "options fields are inconsistent with the explicit formula:\n" + "\n".join(problems)
+            raise ValueError(msg)
 
     def _validate_slopes(self):
         """Raise a clear error if any slope variable is not among the fixed-effect factors."""
