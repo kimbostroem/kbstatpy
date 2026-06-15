@@ -890,7 +890,7 @@ class Kbstat:
                     dot_xy[level] = (np.array([]), np.array([]))
                     continue
                 jx = np.array([
-                    xi + rng.uniform(-_violin_hw(xi, y) * 0.9, _violin_hw(xi, y) * 0.9)
+                    xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
                     for y in subset.values
                 ])
                 ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
@@ -904,7 +904,7 @@ class Kbstat:
                     if len(subset) == 0:
                         continue
                     jx = np.array([
-                        xi + rng.uniform(-_violin_hw(xi, y) * 0.9, _violin_hw(xi, y) * 0.9)
+                        xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
                         for y in subset.values
                     ])
                     ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
