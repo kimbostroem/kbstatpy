@@ -878,12 +878,12 @@ class Kbstat:
                 for xi in range(len(x_levels)):
                     mask = np.abs(orig[:, 0] - xi) < 0.6
                     offset = orig[mask, 0] - xi
-                    near_zero = np.abs(offset) < 0.05
+                    near_zero = np.abs(offset) < 0.15
                     if near_zero.any():
-                        jitter = rng.uniform(0.05, 0.12, size=near_zero.sum())
+                        jitter = rng.uniform(0.12, 0.25, size=near_zero.sum())
                         signs  = rng.choice([-1, 1],     size=near_zero.sum())
                         offset[near_zero] = signs * jitter
-                    new[mask, 0] = xi + offset * 2.0
+                    new[mask, 0] = xi + offset * 2.5
                 coll.set_offsets(new)
 
             # --- LAYER 2b: Outlier points (red X markers) ---
