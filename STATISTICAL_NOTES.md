@@ -138,7 +138,7 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
    > Seaborn's own `swarmplot` was not used here because seaborn computes beeswarm positions lazily on every redraw event (`tight_layout`, `show`, `savefig`). Any post-hoc modification of dot positions via `set_offsets()` is silently overwritten before the figure is saved. The manual scatter approach avoids this entirely.
 
-3. **IQR bar** — a thick vertical line (linewidth 4) from Q25 to Q75 of the raw data, drawn in dark grey (`'0.2'`).
+3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come directly from `emmeans` and are back-transformed to the original scale when a `y_transform` is active. If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
 
 4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 

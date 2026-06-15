@@ -49,6 +49,7 @@ class Kbstat:
         self._data_raw: pd.DataFrame = None   # untransformed data, for plotting
         self._transform_fn = None             # forward transform: array → array
         self._inverse_fn   = None             # inverse transform: array → array
+        self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -402,6 +403,7 @@ class Kbstat:
         else:
             self.posthoc_table = emm_df if emm_df is not None else pd.DataFrame()  # fallback to marginal means
 
+        self._emm_df = emm_df  # stored for use in plot_data()
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
 
@@ -786,7 +788,7 @@ class Kbstat:
         variable (or a single panel when there is only one x-variable).  Within
         each panel the 1st x-variable is on the x-axis with colored violins,
         scatter points in matching colors, paired-subject connecting lines,
-        a white median marker with an IQR bar, and significance brackets.
+        a white EMM marker with a 95 % CI bar, and significance brackets.
         """
         if not self.options.x:
             print("No independent variables to plot.")
@@ -935,18 +937,52 @@ class Kbstat:
                                 ax.plot([xa, xb], [y0, y1],
                                         color='black', alpha=0.4, linewidth=1.0, zorder=3)
 
-            # --- LAYER 4: Median marker + IQR bar ---
+            # --- LAYER 4: EMM marker + 95 % CI bar ---
+            emm_df_plot = getattr(self, '_emm_df', None)
+            inv = getattr(self, '_inverse_fn', None)
+
+            def _bt_plot(val):
+                return float(inv(np.array([val]))[0]) if inv is not None else float(val)
+
             for i, level in enumerate(x_levels):
                 subset = panel_healthy[panel_healthy[x_var] == level][y_var].dropna()
                 if len(subset) == 0:
                     continue
-                median = subset.median()
-                q25 = subset.quantile(0.25)
-                q75 = subset.quantile(0.75)
-                # Dark IQR bar
-                ax.plot([i, i], [q25, q75], color='0.2', linewidth=4, zorder=5)
-                # White median dot
-                ax.scatter(i, median, color='white', edgecolors='0.2',
+
+                emm_val = ci_lo = ci_hi = None
+                if emm_df_plot is not None and not emm_df_plot.empty:
+                    factor_col_plot = x_var
+                    if factor_col_plot not in emm_df_plot.columns:
+                        # multi-factor: try first column
+                        factor_col_plot = emm_df_plot.columns[0]
+                    row_mask = emm_df_plot[factor_col_plot].astype(str) == str(level)
+                    if row_mask.any():
+                        row = emm_df_plot[row_mask].iloc[0]
+                        emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
+                                        if c in emm_df_plot.columns), None)
+                        lo_col  = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL')
+                                        if c in emm_df_plot.columns), None)
+                        hi_col  = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL')
+                                        if c in emm_df_plot.columns), None)
+                        if emm_col:
+                            emm_val = _bt_plot(row[emm_col])
+                        if lo_col:
+                            ci_lo = _bt_plot(row[lo_col])
+                        if hi_col:
+                            ci_hi = _bt_plot(row[hi_col])
+
+                # Fall back to median / IQR if no EMM available
+                if emm_val is None:
+                    emm_val = subset.median()
+                if ci_lo is None:
+                    ci_lo = subset.quantile(0.25)
+                if ci_hi is None:
+                    ci_hi = subset.quantile(0.75)
+
+                # CI bar
+                ax.plot([i, i], [ci_lo, ci_hi], color='0.2', linewidth=4, zorder=5)
+                # EMM dot
+                ax.scatter(i, emm_val, color='white', edgecolors='0.2',
                            s=80, zorder=6, linewidths=1.2)
 
             # Expand y-limits so violin tops are not clipped and brackets have room
