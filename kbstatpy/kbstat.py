@@ -28,6 +28,7 @@ class Kbstat:
         self.posthoc_table: pd.DataFrame = None
         self.statistics_table: pd.DataFrame = None
         self.fig_diagnostics = None
+        self.fig_data = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -165,6 +166,13 @@ class Kbstat:
 
         self._write_summary(out_dir)
         print(f'Saved Summary.txt to {out_dir}')
+
+        if self.fig_data is not None:
+            self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
+            self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.png'), dpi=150, bbox_inches='tight')
+            plt.close(self.fig_data)
+            self.fig_data = None
+            print(f'Saved DataPlots.pdf/.png to {out_dir}')
 
         if self.fig_diagnostics is not None:
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
@@ -353,13 +361,9 @@ class Kbstat:
         fig.suptitle(y_var, fontweight='bold', fontsize=14)
         fig.tight_layout()
 
-        if self.options.out_dir:
-            out_file = os.path.join(self.options.out_dir, 'DataPlots.png')
-            fig.savefig(out_file, dpi=150, bbox_inches='tight')
-            print(f"Saved DataPlots.png to {self.options.out_dir}")
-        else:
-            plt.show()
-        plt.close(fig)
+        self.fig_data = fig
+        plt.show(block=False)
+        plt.pause(3)
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
