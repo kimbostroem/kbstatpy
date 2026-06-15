@@ -519,28 +519,32 @@ class Kbstat:
         else:
             out_dir = None
 
+        n_pairs = len(self.correlation_table)
+        corr_title   = 'Correlation'   if n_pairs == 1 else 'Correlations'
+        pcorr_title  = 'Partial Correlation'   if n_pairs == 1 else 'Partial Correlations'
+
         # --- Scatter grids ---
         self._plot_corr_scatter(
             self.correlation_table, vars_,
             {v: self.data[v].astype(float).values for v in vars_},
-            'Correlations', out_dir, 'Correlation')
+            corr_title, out_dir, 'Correlation')
 
         if partial_table is not None:
             self._plot_corr_scatter(
                 partial_table, vars_, residuals,
-                'Partial Correlations\n(residuals after removing all other variables)',
+                pcorr_title + '\n(residuals after removing all other variables)',
                 out_dir, 'PartialCorrelation',
                 xlabel_suffix=' (residual)', ylabel_suffix=' (residual)')
 
         # --- Heatmap tables ---
         self._plot_corr_table(
             self.correlation_table, vars_,
-            'Correlations', out_dir, 'CorrelationTable')
+            corr_title, out_dir, 'CorrelationTable')
 
         if partial_table is not None:
             self._plot_corr_table(
                 partial_table, vars_,
-                'Partial Correlations', out_dir, 'PartialCorrelationTable')
+                pcorr_title, out_dir, 'PartialCorrelationTable')
 
         return self.correlation_table
 
