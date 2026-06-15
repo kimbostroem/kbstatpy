@@ -16,6 +16,7 @@ class KbstatOptions:
     formula: str = ''
     y: object = ''            # str for a single dependent variable, or list[str] to iterate
     y_units: object = ''      # unit label(s) for the y-axis, e.g. 'ms' or 'kg, N, m' for multi-y
+    x_units: object = ''      # unit label(s) for x factors, e.g. '1, mg' — '1' means no units
     y_transform: str = ''     # optional transform expression using 'y' as placeholder, e.g. 'log(y)'
     x: list = field(default_factory=list)
     id: str = ''

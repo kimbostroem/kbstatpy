@@ -58,9 +58,11 @@ class Kbstat:
         # interaction: a flat comma-separated string becomes a flat list (single interaction pair)
         if isinstance(o.interaction, str):
             o.interaction = self._split_csv(o.interaction)
-        # y_units: normalize to list so entries can be matched positionally to y variables
+        # y_units / x_units: normalize to list, matched positionally to y / x variables
         if isinstance(o.y_units, str):
             o.y_units = self._split_csv(o.y_units)
+        if isinstance(o.x_units, str):
+            o.x_units = self._split_csv(o.x_units)
 
     def run(self):
         """Run the full analysis pipeline.
@@ -557,15 +559,20 @@ class Kbstat:
                     ax.set_ylim(top=bracket_y)
 
             # --- Axis formatting ---
-            ax.set_xlabel('')
+            x_units_list = self.options.x_units  # already a list
+            x_unit = x_units_list[0] if len(x_units_list) > 0 else ''
+            x_label = f"{x_var} [{x_unit}]" if x_unit and x_unit != '1' else x_var
+            ax.set_xlabel(x_label)
             ax.set_xticks(range(len(x_levels)))
-            ax.set_xticklabels([f"{x_var} = {lev}" for lev in x_levels])
+            ax.set_xticklabels([str(lev) for lev in x_levels])
             if idx == 0:
                 ax.set_ylabel(y_label)
             else:
                 ax.set_ylabel('')
             if facet_var is not None:
-                ax.set_title(f"{facet_var} = {facet_val}", fontweight='bold')
+                facet_unit = x_units_list[1] if len(x_units_list) > 1 else ''
+                facet_label = f"{facet_var} [{facet_unit}]" if facet_unit and facet_unit != '1' else facet_var
+                ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
 
         # Super title
         fig.suptitle(y_var, fontweight='bold', fontsize=14)
