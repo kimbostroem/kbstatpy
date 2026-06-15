@@ -296,7 +296,7 @@ class Kbstat:
                     x0, x1 = 0, 1
                     for _, row in paired.iterrows():
                         ax.plot([x0, x1], [row[x_levels[0]], row[x_levels[1]]],
-                                color='grey', alpha=0.2, linewidth=1.2, zorder=0)
+                                color='grey', alpha=0.4, linewidth=1.2, zorder=3)
 
             # --- LAYER 4: Median marker + IQR bar ---
             for i, level in enumerate(x_levels):
