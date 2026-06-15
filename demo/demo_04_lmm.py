@@ -9,13 +9,14 @@ days 5-9 are labelled 'deprived'.
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+DEMO_DIR = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(os.path.dirname(__file__), 'data', 'sleepstudy.csv')
-options.out_dir  = os.path.join(os.path.dirname(__file__), 'results', 'demo_04_lmm')
+options.in_file  = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')
+options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_04_lmm')
 options.formula  = 'Reaction ~ Period + (1 | Subject)'
 options.y        = 'Reaction'
 options.x        = ['Period']

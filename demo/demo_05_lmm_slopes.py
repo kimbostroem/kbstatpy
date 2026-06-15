@@ -11,13 +11,14 @@ Dataset: sleepstudy (lme4), same as demo 4.
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+DEMO_DIR = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(os.path.dirname(__file__), 'data', 'sleepstudy.csv')
-options.out_dir  = os.path.join(os.path.dirname(__file__), 'results', 'demo_05_lmm_slopes')
+options.in_file  = os.path.join(DEMO_DIR, 'data', 'sleepstudy.csv')
+options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_05_lmm_slopes')
 options.formula  = 'Reaction ~ Period + (1 + Period | Subject)'
 options.y        = 'Reaction'
 options.x        = ['Period']

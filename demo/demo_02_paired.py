@@ -10,13 +10,14 @@ Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
 """
 
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+DEMO_DIR = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(DEMO_DIR, '..'))
 
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file  = os.path.join(os.path.dirname(__file__), 'data', 'sleep.csv')
-options.out_dir  = os.path.join(os.path.dirname(__file__), 'results', 'demo_02_paired')
+options.in_file  = os.path.join(DEMO_DIR, 'data', 'sleep.csv')
+options.out_dir  = os.path.join(DEMO_DIR, 'results', 'demo_02_paired')
 options.formula  = 'extra ~ group + (1 | ID)'
 options.y        = 'extra'
 options.x        = ['group']
