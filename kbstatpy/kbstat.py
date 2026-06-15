@@ -860,7 +860,7 @@ class Kbstat:
             )
             violin_colls = ax.collections[n_viol_before:]
             for coll in violin_colls:
-                coll.set_alpha(0.5)
+                coll.set_alpha(0.75)
 
             def _violin_hw(xi, y_val):
                 """Half-width of the violin for group xi at height y_val."""
