@@ -520,6 +520,15 @@ class Kbstat:
                                   fontsize=max(5, min(9, 72 / n)),
                                   color=textcolor, fontweight='bold')
 
+                elif col_j == row_i:
+                    # Diagonal: empty white cell as anchor
+                    rect = mpatches.FancyBboxPatch(
+                        (x + 0.04, y + 0.04), 0.92, 0.92,
+                        boxstyle='square,pad=0', linewidth=0.4,
+                        edgecolor='0.7', facecolor=bg_empty,
+                        transform=ax_t.transData)
+                    ax_t.add_patch(rect)
+
                 else:
                     # Upper triangle: no cell
                     pass
