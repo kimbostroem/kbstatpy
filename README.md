@@ -79,7 +79,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `covariate` | list / str | `[]` | Numeric covariates: included in the model but excluded from data plots and post-hoc |
 | `y_transform` | str | `''` | Transform expression using `y` as placeholder, e.g. `'log(y)'`. EMMs and CIs are back-transformed automatically |
 | `correlation` | list / str | `''` | Variables for pairwise Pearson correlation (must be numeric). Produces scatter grid, colour table, and Excel output |
-| `constraints` | str | `''` | Row filter expression applied before fitting, e.g. `'group != "control"'` |
+| `constraints` | str | `''` | Row filter applied before analysis, e.g. `'Year > 1950'` or `'group != "control"'`. Standard Python operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `\|` (or) |
 | `distribution` | str | `'normal'` | Response distribution (see below) |
 | `link` | str | `'auto'` | Link function (`'auto'`, `'log'`, `'logit'`, …) |
 | `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
