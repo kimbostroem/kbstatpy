@@ -864,7 +864,7 @@ class Kbstat:
             n_coll_before = len(ax.collections)
             sns.swarmplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                color='black', size=dot_size, alpha=0.7, ax=ax, warn_thresh=1
+                color='black', size=dot_size, alpha=0.4, ax=ax, warn_thresh=1
             )
             swarm_collections = ax.collections[n_coll_before:]
 
