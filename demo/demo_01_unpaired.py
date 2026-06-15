@@ -23,8 +23,9 @@ kb = Kbstat(options)
 kb.run()
 
 # run() is equivalent to calling the following steps individually:
-# kb.fit()            # fit the model
-# kb.anova()          # compute Type III ANOVA table
-# kb.posthoc()        # pairwise post-hoc comparisons
-# kb.plot_diagnostics()  # diagnostic plots saved to out_dir
-# kb.save()           # save all result tables and Summary.txt to out_dir
+# kb.fit()               # fit the model
+# kb.anova()             # compute Type III ANOVA table
+# kb.posthoc()           # pairwise post-hoc comparisons
+# kb.plot_diagnostics()  # show diagnostic plots (saved to out_dir when save() is called)
+# kb.plot_data()         # show data plot (saved to out_dir when save() is called)
+# kb.save()              # save all result tables, figures, and Summary.txt to out_dir
