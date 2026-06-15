@@ -34,4 +34,5 @@ print(kb.anova())
 print('\n--- Post-hoc ---')
 print(kb.posthoc())
 
+kb.plot_diagnostics()
 kb.save()
