@@ -868,13 +868,22 @@ class Kbstat:
             )
             swarm_collections = ax.collections[n_coll_before:]
 
-            # Push swarm dots outward from their group center so they clear the IQR bar
+            # Push swarm dots outward from their group center so they clear the IQR bar.
+            # Dots placed exactly at center (offset ≈ 0) get a small random jitter first
+            # so that scaling has something to work with.
+            rng = np.random.default_rng(0)
             for coll in swarm_collections:
                 orig = coll.get_offsets().data.copy()
                 new  = orig.copy()
                 for xi in range(len(x_levels)):
-                    mask = np.abs(orig[:, 0] - xi) < 0.6   # use original coords for mask
-                    new[mask, 0] = xi + (orig[mask, 0] - xi) * 2.0
+                    mask = np.abs(orig[:, 0] - xi) < 0.6
+                    offset = orig[mask, 0] - xi
+                    near_zero = np.abs(offset) < 0.05
+                    if near_zero.any():
+                        jitter = rng.uniform(0.05, 0.12, size=near_zero.sum())
+                        signs  = rng.choice([-1, 1],     size=near_zero.sum())
+                        offset[near_zero] = signs * jitter
+                    new[mask, 0] = xi + offset * 2.0
                 coll.set_offsets(new)
 
             # --- LAYER 2b: Outlier points (red X markers) ---
