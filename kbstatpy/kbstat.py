@@ -33,6 +33,8 @@ class Kbstat:
         self.logLik = None
         self.fig_diagnostics = None
         self.fig_data = None
+        self.fig_correlation = None
+        self.correlation_table: pd.DataFrame = None
         self._data_raw: pd.DataFrame = None   # untransformed data, for plotting
         self._transform_fn = None             # forward transform: array → array
         self._inverse_fn   = None             # inverse transform: array → array
@@ -63,6 +65,8 @@ class Kbstat:
             o.y_units = self._split_csv(o.y_units)
         if isinstance(o.x_units, str):
             o.x_units = self._split_csv(o.x_units)
+        if isinstance(o.correlation, str):
+            o.correlation = self._split_csv(o.correlation)
 
     def run(self):
         """Run the full analysis pipeline.
@@ -90,6 +94,12 @@ class Kbstat:
                 opts.out_dir = os.path.join(opts.out_dir, y_var)
             child = Kbstat(opts)
             child._run_single()
+
+        if self.options.correlation:
+            if self.data is None:
+                self._load_data()
+                self._apply_constraints()
+            self.correlate()
 
     def _run_single(self):
         """Run the pipeline for a single dependent variable (internal)."""
@@ -201,20 +211,27 @@ class Kbstat:
         self.model.set_factors(factors)
         # Override the contr.treatment default that set_factors() hard-codes
         self.model.set_contrasts({f: 'contr.sum' for f in factors})
-        emm_result = self.model.emmeans(
+        self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
         )
-        emm_df = emm_result.to_pandas() if hasattr(emm_result, 'to_pandas') else emm_result
 
-        # Pairwise contrasts (adjusted for brackets; raw for the p column)
+        # Pairwise contrasts and EMM table — use R directly so factor labels are
+        # the actual level values, not integer indices (pymer4 returns the latter).
         import rpy2.robjects.pandas2ri as p2ri
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        emm_df = None
         ct_adj = None
         ct_raw = None
         if r_obj is not None:
             try:
                 _emm = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'))
+                _emm_df_r = ro.r('as.data.frame')(_emm)
+                # Convert factor column to character so rpy2 returns actual labels
+                # (rpy2 converts R factors to integer codes otherwise)
+                ro.r.assign('._emm_df_tmp', _emm_df_r)
+                ro.r(f'._emm_df_tmp[["{factors[0]}"]] <- as.character(._emm_df_tmp[["{factors[0]}"]])')
+                emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
                 ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
                     ro.r('pairs')(_emm, adjust=self.options.posthoc_correction)))
                 ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
@@ -225,7 +242,7 @@ class Kbstat:
         self.contrasts_table = ct_adj  # used for significance brackets in plot_data
 
         # Build the rich posthoc table
-        if ct_adj is not None and ct_raw is not None and factors[0] in emm_df.columns:
+        if emm_df is not None and ct_adj is not None and ct_raw is not None and factors[0] in emm_df.columns:
             factor_col = factors[0]
 
             def _parse_level(part, levels):
@@ -299,10 +316,166 @@ class Kbstat:
                 })
             self.posthoc_table = pd.DataFrame(rows)
         else:
-            self.posthoc_table = emm_df  # fallback to marginal means
+            self.posthoc_table = emm_df if emm_df is not None else pd.DataFrame()  # fallback to marginal means
 
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
+
+    def correlate(self):
+        """Compute pairwise Pearson correlations, VIF, and generate a scatter plot grid.
+
+        Variables are taken from options.correlation. VIF is computed for any
+        variables that also appear in options.x (multicollinearity check).
+        Results are saved to Correlation.xlsx (two sheets) and Correlation.png.
+        """
+        import itertools
+        from scipy.stats import pearsonr
+        from sklearn.linear_model import LinearRegression
+
+        if self.data is None:
+            self._load_data()
+
+        vars_ = self.options.correlation
+        if not vars_:
+            return
+
+        # --- VIF: for numeric predictors (x and covariate) ---
+        vif_table = None
+        vif_map = {}
+        all_predictors = self.options.x + self.options.covariate
+        x_numeric = [v for v in all_predictors
+                     if v in self.data.columns
+                     and pd.api.types.is_numeric_dtype(self.data[v])]
+        if len(x_numeric) > 1:
+            X = self.data[x_numeric].dropna().astype(float)
+            vif_rows = []
+            for v in x_numeric:
+                others = [c for c in x_numeric if c != v]
+                r2 = LinearRegression().fit(X[others], X[v]).score(X[others], X[v])
+                vif = 1 / (1 - r2) if r2 < 1.0 else float('inf')
+                vif_map[v] = vif
+                vif_rows.append({
+                    'variable': v,
+                    'VIF':      round(vif, 3),
+                    'verdict':  'OK' if vif < 5 else ('concerning' if vif < 10 else 'severe'),
+                })
+            vif_table = pd.DataFrame(vif_rows)
+            for row in vif_rows:
+                print(f"VIF  {row['variable']:<24}: {row['VIF']:.3f}  ({row['verdict']})")
+
+        # --- Correlation table ---
+        rows = []
+        for v1, v2 in itertools.combinations(vars_, 2):
+            xy = self.data[[v1, v2]].dropna()
+            r, p = pearsonr(xy[v1].astype(float), xy[v2].astype(float))
+            rows.append({
+                'var_1':        v1,
+                'var_2':        v2,
+                'r':            round(r, 4),
+                'p':            round(p, 4),
+                'significance': _sig_stars(p),
+                'effectSize':   _r_label(r),
+            })
+        self.correlation_table = pd.DataFrame(rows)
+
+        # --- Scatter plot grid (n×n): diagonal = variable name + VIF,
+        #     upper triangle = scatter, lower triangle = hidden ---
+        n = len(vars_)
+        fig, axes = plt.subplots(n, n, figsize=(3.2 * n, 3.2 * n))
+        if n == 1:
+            axes = np.array([[axes]])
+
+        color = sns.color_palette()[0]  # seaborn default blue
+
+        for row_i in range(n):
+            for col_j in range(n):
+                ax = axes[row_i, col_j]
+
+                if row_i == col_j:
+                    # Diagonal: variable name + VIF
+                    ax.set_axis_off()
+                    v = vars_[row_i]
+                    label = v
+                    if v in vif_map:
+                        vif_val = vif_map[v]
+                        verdict = 'OK' if vif_val < 5 else ('concerning' if vif_val < 10 else 'severe')
+                        vif_color = '0.2' if vif_val < 5 else ('darkorange' if vif_val < 10 else 'red')
+                        ax.text(0.5, 0.55, label, transform=ax.transAxes,
+                                ha='center', va='center', fontsize=10, fontweight='bold')
+                        ax.text(0.5, 0.35, f"VIF = {vif_val:.2f}  ({verdict})",
+                                transform=ax.transAxes, ha='center', va='center',
+                                fontsize=8, color=vif_color, fontstyle='italic')
+                    else:
+                        ax.text(0.5, 0.5, label, transform=ax.transAxes,
+                                ha='center', va='center', fontsize=10, fontweight='bold')
+
+                elif col_j > row_i:
+                    # Upper triangle: scatter + regression line + r/p annotation
+                    v1 = vars_[row_i]
+                    v2 = vars_[col_j]
+                    xy = self.data[[v1, v2]].dropna()
+                    x_data = xy[v1].astype(float).values
+                    y_data = xy[v2].astype(float).values
+
+                    ax.scatter(x_data, y_data, color=color, alpha=0.6, s=15, linewidths=0)
+                    m, b = np.polyfit(x_data, y_data, 1)
+                    x_line = np.array([x_data.min(), x_data.max()])
+                    ax.plot(x_line, m * x_line + b, color='red', linewidth=1.2)
+
+                    r_row = self.correlation_table[
+                        (self.correlation_table['var_1'] == v1) &
+                        (self.correlation_table['var_2'] == v2)
+                    ]
+                    if len(r_row):
+                        r_val = r_row.iloc[0]['r']
+                        p_val = r_row.iloc[0]['p']
+                        stars = r_row.iloc[0]['significance']
+                        ax.set_title(f"r = {r_val:.3f}{stars}    p = {p_val:.4f}",
+                                     fontsize=7, color='0.3', fontstyle='italic', pad=3)
+
+                    ax.set_xlabel(v1, fontsize=8)
+                    ax.set_ylabel(v2, fontsize=8)
+                    ax.tick_params(labelsize=6)
+
+                else:
+                    # Lower triangle: hidden
+                    ax.set_visible(False)
+
+        fig.suptitle('Pairwise Correlations', fontweight='bold', fontsize=13)
+        plt.tight_layout()
+        self.fig_correlation = fig
+
+        # --- Save ---
+        if self.options.out_dir:
+            out_dir = self.options.out_dir
+            os.makedirs(out_dir, exist_ok=True)
+
+            def _autofit_xlsx(writer, sheet_name):
+                ws = writer.sheets[sheet_name]
+                for col_cells in ws.columns:
+                    width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85 + 2
+                    ws.column_dimensions[col_cells[0].column_letter].width = width
+
+            corr_path = os.path.join(out_dir, 'Correlation.xlsx')
+            with pd.ExcelWriter(corr_path, engine='openpyxl') as writer:
+                self.correlation_table.to_excel(writer, index=False, sheet_name='Correlation')
+                _autofit_xlsx(writer, 'Correlation')
+
+            if vif_table is not None:
+                vif_path = os.path.join(out_dir, 'VIF.xlsx')
+                with pd.ExcelWriter(vif_path, engine='openpyxl') as writer:
+                    vif_table.to_excel(writer, index=False, sheet_name='VIF')
+                    _autofit_xlsx(writer, 'VIF')
+                print(f'Saved: {vif_path}')
+
+            fig_path = os.path.join(out_dir, 'Correlation.png')
+            fig.savefig(fig_path, dpi=150, bbox_inches='tight')
+            print(f'Saved: {fig_path}')
+
+        plt.show(block=False)
+        plt.pause(3)
+        plt.close(self.fig_correlation)
+        return self.correlation_table
 
     def save(self):
         """Write result tables and summary to out_dir."""
@@ -400,6 +573,13 @@ class Kbstat:
         if not self.options.x:
             print("No independent variables to plot.")
             return
+        if self.data is not None:
+            col = self.data[self.options.x[0]]
+            underlying = col.cat.categories if hasattr(col, 'cat') else col
+            n_unique = len(underlying.unique()) if hasattr(underlying, 'unique') else len(set(underlying))
+            if pd.api.types.is_numeric_dtype(underlying) and n_unique > 15:
+                print(f"Skipping data plot: '{self.options.x[0]}' is continuous ({n_unique} unique values) — violin plots require categorical x variables.")
+                return
 
         # Use raw (untransformed) data for plotting so the y-axis is in original units
         plot_data = self._data_raw if self._data_raw is not None else self.data
@@ -1096,9 +1276,14 @@ class Kbstat:
         if self.data is not None:
             for var in categorical_vars:
                 if var in self.data.columns:
-                    unique_categories = self.data[var].unique().tolist()
+                    # Convert numeric-valued categoricals to string so rpy2 passes
+                    # them as character vectors, which R treats as factors
+                    col = self.data[var]
+                    if pd.api.types.is_numeric_dtype(col):
+                        col = col.astype(str)
+                    unique_categories = col.unique().tolist()
                     self.data[var] = pd.Categorical(
-                        self.data[var],
+                        col,
                         categories=unique_categories,
                         ordered=False
                     )
@@ -1136,6 +1321,20 @@ def _effect_label_eta(eta):
     if eta < 0.35:
         return 'large'
     return 'very large'
+
+
+def _r_label(r):
+    """Verbal effect size label for Pearson r (Cohen, 1988)."""
+    r = abs(r)
+    if np.isnan(r):
+        return ''
+    if r < 0.1:
+        return 'negligible'
+    if r < 0.3:
+        return 'small'
+    if r < 0.5:
+        return 'medium'
+    return 'large'
 
 
 def _sig_stars(p):
