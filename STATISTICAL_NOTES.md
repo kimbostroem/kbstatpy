@@ -363,31 +363,31 @@ Significance brackets are drawn above the panel using the post-hoc p-values (Hol
 
 ### Diagnostic plots
 
-`Diagnostics.pdf/.png` contains six panels that together check the key assumptions of the fitted model. They should be inspected after every run before drawing conclusions from the ANOVA or post-hoc tables.
+`Diagnostics.pdf/.png` contains six panels that together check the key assumptions of the fitted model. They should be inspected after every run before drawing conclusions from the ANOVA or post-hoc tables. All residuals are Pearson residuals (raw residuals divided by the square root of the model's variance function), which puts them on a comparable scale across model types.
 
-**1. Residuals vs. fitted values.**
-Plots Pearson residuals against the model's fitted values. Look for a flat, horizontal band of roughly constant width centred on zero. A U-shape or arc indicates a missing non-linear term; a funnel (variance increasing with the fitted value) indicates heteroscedasticity — if present for a Gaussian model, consider a log transform or a gamma GLMM.
+**1. Histogram of residuals.**
+A histogram of the Pearson residuals with a KDE overlay. For a Gaussian LMM the distribution should be approximately bell-shaped and centred on zero. Strong skew or multimodality suggests a distributional mismatch — consider switching to a gamma or binomial GLMM as appropriate. For GLMMs the histogram reflects the Pearson residuals after the link transformation, so mild deviation from normality is expected and acceptable.
 
-**2. Q-Q plot of residuals.**
-Quantiles of the standardised residuals are plotted against the theoretical quantiles of the standard normal. Points should fall close to the diagonal reference line. Systematic deviation in the tails indicates that the residual distribution is heavier-tailed (S-curve curling outward) or lighter-tailed (S-curve curling inward) than assumed. For GLMMs the residuals are Pearson residuals, not raw residuals, so moderate tail deviations are often acceptable.
+**2. Normal Q-Q plot.**
+Quantiles of the Pearson residuals are plotted against the theoretical quantiles of the standard normal. Points should fall close to the diagonal reference line. Systematic deviation in the tails indicates a heavier-tailed distribution (S-curve curling outward) or lighter-tailed distribution (curling inward) than assumed. The Q-Q and histogram together give a more complete picture than either alone: the histogram shows the overall shape; the Q-Q is more sensitive to tail behaviour.
 
-**3. Scale–location plot (sqrt|residuals| vs. fitted).**
-The square root of the absolute residuals is plotted against fitted values. A flat smoother line indicates homoscedasticity; an upward slope indicates variance increasing with the mean. This plot is more sensitive to heteroscedasticity than panel 1 because squaring the residuals amplifies large deviations.
+**3. Residuals vs. fitted values.**
+Pearson residuals plotted against the model's fitted values, with a horizontal reference line at zero. Look for a flat, horizontal band of roughly constant width. A U-shape or arc indicates a missing non-linear term in the model. A funnel (variance growing with the fitted value) indicates heteroscedasticity — if present in a Gaussian LMM, consider a log transform (`y_transform`) or a gamma GLMM.
 
-**4. Residuals vs. leverage (Cook's distance).**
-Each observation is plotted at its leverage (how unusual its predictor values are) on the x-axis and its standardised residual on the y-axis. Contours of Cook's distance are overlaid. Points in the upper- or lower-right corner — high leverage *and* large residual — are influential: they pull the regression line towards themselves and may distort the estimates substantially. A general rule of thumb is Cook's D > 1 (or > 4/n for a more sensitive threshold) as a flag for investigation.
+**4. Lagged residuals.**
+Residual at observation *i* plotted against residual at observation *i+1*. This tests for serial autocorrelation: if consecutive residuals are independent the cloud should be an **unstructured, isotropic scatter centred at (0, 0)** — no tilt, no pattern. A circular cloud is the expected appearance.
 
-**5. Residuals vs. observation order (index plot).**
-Residuals are plotted in the order they appear in the dataset. For cross-sectional data with no natural ordering this plot carries limited information. For time-series or repeated-measures data it reveals whether residuals drift or cycle over time — a sign that a time trend or autoregressive structure is missing from the model.
+- **Positive slope (tilted up-right):** positive autocorrelation — consecutive residuals tend to share the same sign. Common in repeated-measures designs where the random intercept does not fully absorb within-subject correlation. Consider adding a random slope.
+- **Negative slope (tilted down-right):** negative autocorrelation — residuals alternate in sign. Less common; can occur in oscillatory processes.
+- **Fan shape along the diagonal:** variance of consecutive pairs grows, indicating heteroscedasticity in the time domain.
 
-**6. Lagged residuals (residual autocorrelation).**
-Residual at observation *i* is plotted against residual at observation *i+1*. This directly tests for serial autocorrelation: if consecutive residuals are independent, the cloud should be an **unstructured, isotropic scatter centred at (0, 0)** — no tilt, no pattern. A circular cloud is the typical appearance of this.
+This panel is only informative when observations have a natural ordering (time series, repeated measures with a defined sequence). For purely cross-sectional data the ordering is arbitrary and any apparent tilt is not a model violation.
 
-- **Positive slope (tilted up-right):** positive autocorrelation — consecutive residuals tend to have the same sign. Common in repeated-measures designs where the random intercept does not fully absorb within-subject correlation. Consider adding a random slope or an explicit AR(1) correlation structure.
-- **Negative slope (tilted down-right):** negative autocorrelation — residuals alternate sign. Less common; can occur with oscillatory processes.
-- **Fan or funnel along the diagonal:** the variance of consecutive-residual pairs grows, suggesting heteroscedasticity in the time domain.
+**5. Fitted vs. response.**
+Model-fitted values on the x-axis, actual raw observations on the y-axis, with an identity line (slope = 1, intercept = 0) as reference. Points should scatter symmetrically around the identity line. A systematic bow above or below the line indicates that the model is biased in a particular range of the response — a signal that a transformation or a different distribution family may be needed. The spread around the line reflects residual variance; the overall correlation reflects model fit.
 
-This plot is only informative when observations have a natural ordering (time series, repeated measures with a defined sequence). For purely cross-sectional data the observation order is arbitrary and any apparent tilt is not a model violation.
+**6. Scale–location.**
+Square root of the absolute Pearson residuals plotted against fitted values, with a horizontal reference line at the mean. A flat line indicates homoscedasticity (constant variance). An upward slope means variance grows with the mean — the classic pattern for right-skewed positive data that motivates the gamma distribution or a log transform. This panel is more sensitive to heteroscedasticity than panel 3 because taking the square root compresses large values and makes the trend easier to see.
 
 ### Back-transformation of EMM and CI
 

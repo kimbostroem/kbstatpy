@@ -1241,29 +1241,14 @@ class Kbstat:
         axes[4].set_ylabel("Actual Raw Data")
 
         # ---------------------------------------------------------
-        # Plot 6: Symmetry Plot
+        # Plot 6: Scale-Location
         # ---------------------------------------------------------
-        res = self.model.residuals
-        median_res = np.median(res)
-        
-        # Sort residuals below median ascending (most negative first)
-        lower_half = np.sort(res[res <= median_res])
-        # Sort residuals above median descending (most positive first)
-        upper_half = np.sort(res[res > median_res])[::-1]
-        
-        min_len = min(len(lower_half), len(upper_half))
-        
-        if min_len > 0:
-            lower_dist = median_res - lower_half[:min_len]
-            upper_dist = upper_half[:min_len] - median_res
-            sns.scatterplot(x=lower_dist, y=upper_dist, ax=axes[5], s=s_diag)
-            
-            max_dist = max(lower_dist.max(), upper_dist.max())
-            axes[5].plot([0, max_dist], [0, max_dist], color='red', linestyle='--')
-            
-        axes[5].set_title("Symmetry Plot")
-        axes[5].set_xlabel("Distance below median")
-        axes[5].set_ylabel("Distance above median")
+        sqrt_abs_res = np.sqrt(np.abs(self.model.residuals))
+        sns.scatterplot(x=self.model.fits, y=sqrt_abs_res, ax=axes[5], s=s_diag)
+        axes[5].axhline(np.mean(sqrt_abs_res), color='red', linestyle='--')
+        axes[5].set_title("Scale-Location")
+        axes[5].set_xlabel("Fitted Values")
+        axes[5].set_ylabel("√|Residuals|")
 
         # Footer row: formula + fit statistics
         parts = [f'Formula: {self._build_formula()}']
