@@ -327,6 +327,14 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
 4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 
+**Why the EMM dot may not align with the centre of the violin or bar.** The violin and jitter scatter show the *raw data distribution* — where the actual observations are. The EMM dot and CI bar show the *model's estimate* — the group mean as inferred by the fitted model, after accounting for covariates, random effects, and the link function. These two quantities are the same only in the simplest case: a balanced, covariate-free LM with no random effects. In all other situations they can diverge:
+
+- **Covariates** shift the EMM to the value the model predicts at the covariate mean, whereas the raw data reflects whatever covariate values happened to occur in that group.
+- **Random effects** marginalise over the subject-level variance, pulling the EMM towards the population mean rather than the sample mean.
+- **Non-linear link functions** (log, logit) mean that back-transforming the mean on the link scale does not equal the arithmetic mean on the response scale. For a binomial GLMM, for example, the model estimates the log-odds per group, marginalises over the random-intercept distribution, and then back-transforms — a result that can differ noticeably from the naive proportion of 1s in the raw data.
+
+This gap is informative: a visible discrepancy between the violin centre and the EMM dot signals that the model is doing real work — adjusting for structure in the data that a simple group mean would ignore. In a simple balanced LM the two coincide, which is why Demos 1–4 show the dot sitting neatly in the middle of the violin.
+
 Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
 
 ### Back-transformation of EMM and CI
