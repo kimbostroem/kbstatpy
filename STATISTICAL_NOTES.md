@@ -78,7 +78,7 @@ Removed observations are retained in the dataset with `is_outlier = True` and sh
 
 ## Analytical extensions
 
-These demos illustrate capabilities that run alongside the core modelling pipeline and are applicable regardless of model complexity.
+Capabilities that run alongside the core modelling pipeline, and the statistical rationale behind kbstatpy's key modelling choices.
 
 ### Multiple dependent variables (Demo 9)
 
@@ -88,13 +88,11 @@ One caveat: testing k outcomes multiplies the family-wise type I error rate. kbs
 
 ### Multicollinearity diagnostics — VIF (Demo 11)
 
-See the dedicated [VIF and multicollinearity](#vif-and-multicollinearity) section below. Demo 11 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
+Demo 11 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
-Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated.
+Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See the VIF subsection below for the mathematical definition and thresholds.
 
----
-
-## Contrast coding: effects coding (`contr.sum`)
+### Contrast coding: effects coding (`contr.sum`)
 
 Categorical predictors are coded using **effects coding** (sum-to-zero contrasts, `contr.sum` in R).
 
@@ -102,9 +100,7 @@ With effects coding each coefficient represents a deviation from the **grand mea
 
 Effects coding is a prerequisite for Type III sums of squares to be well-defined (see below). With treatment coding, Type III main-effect tests change depending on which level is chosen as the reference — a known pathology. With effects coding the tests are invariant.
 
----
-
-## Sums of squares: Type III
+### Sums of squares: Type III
 
 The ANOVA table uses **Type III sums of squares**. Each effect is tested conditional on all other effects in the model, including higher-order interactions.
 
@@ -116,15 +112,13 @@ Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` use
 
 > **Caution:** when an interaction is significant, marginal main-effect estimates from `emmeans` average over the other factor. Main effects should be interpreted cautiously in that case — the interaction result is the primary finding.
 
----
+### Degrees of freedom: Satterthwaite approximation and `df = Inf`
 
-## Degrees of freedom: Satterthwaite approximation and `df = Inf`
-
-### Linear mixed models (LMMs, `distribution = 'normal'`)
+#### Linear mixed models (LMMs, `distribution = 'normal'`)
 
 For LMMs the **Satterthwaite approximation** is used to estimate the denominator degrees of freedom for each F-test. This accounts for the unbalanced random-effects structure and yields finite, data-adaptive df values. It is implemented via R's `lmerTest` and `emmeans` packages.
 
-### Generalised linear mixed models (GLMMs, any other distribution)
+#### Generalised linear mixed models (GLMMs, any other distribution)
 
 The Satterthwaite approximation is **only defined for LMMs**. It relies on the model's Hessian being quadratic in the variance components — an assumption that does not hold for non-Gaussian likelihoods. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests.
 
@@ -132,9 +126,7 @@ This is mathematically correct behaviour, not a software error.
 
 For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because it does not pretend that a GLMM likelihood is quadratic.
 
----
-
-## Post-hoc comparisons: `emmeans`
+### Post-hoc comparisons: `emmeans`
 
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.
 
@@ -142,9 +134,7 @@ P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction 
 
 For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
----
-
-## VIF and multicollinearity
+### VIF and multicollinearity
 
 **Variance Inflation Factor (VIF)** measures how much the variance of a regression coefficient is inflated due to collinearity with other predictors. For predictor *j*:
 
