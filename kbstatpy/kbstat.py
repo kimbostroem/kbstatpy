@@ -842,7 +842,7 @@ class Kbstat:
 
         # Use MATLAB's default color cycle (first N colors from 'tab10')
         x_levels = plot_data[x_var].cat.categories.tolist() if hasattr(plot_data[x_var], 'cat') else sorted(plot_data[x_var].unique())
-        palette = dict(zip(x_levels, sns.color_palette(self.options.colors, len(x_levels))))
+        palette = dict(zip(x_levels, sns.color_palette(self.options.color_scheme, len(x_levels))))
 
         # Determine facets
         if facet_var:
@@ -874,12 +874,12 @@ class Kbstat:
             sns.violinplot(
                 data=panel_healthy, x=x_var, y=y_var, order=x_levels,
                 hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
-                cut=0.3, inner=None, linewidth=1, saturation=0.9,
+                cut=0.3, inner=None, linewidth=1, saturation=self.options.color_sat,
                 ax=ax, legend=False, density_norm='width'
             )
             violin_colls = ax.collections[n_viol_before:]
             for coll in violin_colls:
-                coll.set_alpha(0.5)
+                coll.set_alpha(self.options.color_alpha)
 
             def _violin_hw(xi, y_val):
                 """Half-width of the violin for group xi at height y_val."""

@@ -86,7 +86,9 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `remove_outliers` | bool | `False` | Remove statistical outliers before fitting |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
 | `posthoc_correction` | str | `'holm'` | P-value correction (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
-| `colors` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
+| `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
+| `color_sat` | float | `0.9` | Violin colour saturation (0–1) |
+| `color_alpha` | float | `0.5` | Violin fill transparency (0 = transparent, 1 = opaque) |
 
 ### Supported distributions
 

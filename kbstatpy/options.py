@@ -37,7 +37,9 @@ class KbstatOptions:
     covariate: list = field(default_factory=list)
 
     # Plot settings
-    colors: str = 'Set1'
+    color_scheme: str = 'Set1'
+    color_sat: float = 0.9
+    color_alpha: float = 0.5
 
     # Post-hoc settings
     posthoc_method: str = 'emm'
