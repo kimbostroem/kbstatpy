@@ -180,7 +180,11 @@ Results are printed to the console and saved to `VIF.xlsx`. A visual summary is 
 
 ---
 
-## Data filtering: `constraints`
+## Technical aspects
+
+Implementation details and design decisions behind kbstatpy's data handling, visualisation, and output.
+
+### Data filtering: `constraints`
 
 `options.constraints` accepts a Python expression string that is passed directly to `pandas.DataFrame.query()`. The filter is applied before model fitting and before any correlation or VIF analysis — it is equivalent to manually subsetting the data before passing it to kbstatpy.
 
@@ -194,9 +198,7 @@ Supported operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `|` (
 
 When a categorical column is filtered, kbstatpy removes the excluded level from the column's `Categorical` dtype (via `cat.remove_unused_categories()`). This prevents the excluded level from appearing as a phantom tick on plot axes or as a spurious empty group in post-hoc tables.
 
----
-
-## Variable display labels: `rename`
+### Variable display labels: `rename`
 
 `options.rename` provides two related but distinct operations in a single option:
 
@@ -216,9 +218,7 @@ Both can be combined in the same string. The separator between variables is `;`;
 
 Display labels propagate to child `Kbstat` instances in multi-y runs, so a single `rename` entry in the parent covers all per-variable subdirectory outputs.
 
----
-
-## Data plots: violin + jitter scatter
+### Data plots: violin + jitter scatter
 
 The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
@@ -234,9 +234,7 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
 Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
 
----
-
-## Back-transformation of EMM and CI
+### Back-transformation of EMM and CI
 
 Estimated marginal means and their confidence intervals are always reported and plotted on the **original response scale**, regardless of model type.
 
