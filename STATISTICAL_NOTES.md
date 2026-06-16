@@ -104,6 +104,10 @@ A useful sanity check after outlier removal is whether AIC decreased. A large dr
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
 
+**Outlier removal creates unbalanced data — and that is fine with GLM.** A balanced design has the same number of observations in every cell of the factorial table (e.g. exactly 5 measurements per group in a two-group experiment). Classical ANOVA relies on this balance: with equal cell sizes the group means are orthogonal and sums of squares partition cleanly without ambiguity. Remove even a single observation from one cell and the design becomes unbalanced — the group means are no longer independent, the Type I and Type III sums of squares diverge, and standard ANOVA formulas give incorrect F-statistics.
+
+GLM avoids this entirely. It estimates model parameters directly by maximum likelihood, treating each observation individually rather than working with cell means. The likelihood function is well-defined for any pattern of missingness, so an unbalanced design is handled exactly the same way as a balanced one — no imputation, no correction, no special-casing required. kbstatpy therefore applies outlier removal freely: once the flagged observations are dropped, the model is simply refit on whatever data remain, and the reported estimates, standard errors, and p-values are all correct regardless of how many observations were removed or from which groups they came.
+
 ---
 
 ## Analytical extensions
