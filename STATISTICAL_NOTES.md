@@ -4,6 +4,34 @@ Design decisions and their rationale for the kbstatpy library.
 
 ---
 
+## Equivalence to classical tests
+
+kbstatpy fits all models through the LMM/GLMM framework, but for simple designs the results reduce exactly (or nearly exactly) to their classical counterparts.
+
+### Independent-samples t-test (Demo 1)
+
+`lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
+
+### Paired t-test (Demo 2)
+
+`lmer(y ~ group + (1 | id))` is equivalent to a paired t-test for balanced, complete data, but not algebraically identical. The paired t-test operates directly on pairwise differences (df = n − 1 = 9 for the sleep data). The LMM estimates a random-intercept variance and uses Satterthwaite degrees of freedom, which will be close but not necessarily integer. For balanced data the p-values are very similar; the LMM is slightly more conservative. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
+
+### Two-way ANOVA (Demo 3)
+
+`lm(y ~ A * B)` with effects coding and Type III sums of squares is exactly a classical two-way factorial ANOVA, provided the design is balanced (equal n per cell). The `ToothGrowth` dataset used in Demo 3 has exactly 10 observations per cell, so the results are numerically identical to a classical two-way ANOVA.
+
+For unbalanced designs, Type III SS with effects coding still gives well-defined, interpretable tests — classical ANOVA software often struggles or produces ambiguous results in this case.
+
+### Repeated-measures ANOVA (Demo 4)
+
+`lmer(y ~ time + (1 | subject))` is equivalent to a one-way repeated-measures ANOVA when:
+1. The design is balanced (same number of observations per subject per condition), and
+2. The compound symmetry assumption holds (equal variances and equal pairwise correlations across all time points).
+
+Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
+
+---
+
 ## Contrast coding: effects coding (`contr.sum`)
 
 Categorical predictors are coded using **effects coding** (sum-to-zero contrasts, `contr.sum` in R).

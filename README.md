@@ -216,6 +216,15 @@ python3 demo/demo_01_unpaired.py
 | `demo_11_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 | `demo_12_outliers.py` | `stackloss.csv` | Outlier removal: same LM run twice (default vs. pre-fit IQR + post-fit residual removal) to show the effect on fit quality and estimates |
 
+**Equivalence to classical tests** (all demo datasets are perfectly balanced):
+
+- **Demo 1** — identical to an independent-samples t-test (F = t², same df and p-value)
+- **Demo 2** — equivalent to a paired t-test for balanced complete data; Satterthwaite df ≈ n − 1, p-values very similar but LMM is slightly more conservative and generalises to missing data
+- **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
+- **Demo 4** — identical to a one-way repeated-measures ANOVA under compound symmetry; LMM generalises to missing time points, unbalanced designs, and random slopes
+
+See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for details.
+
 To regenerate the demo datasets from R (required once before running the demos):
 
 ```bash
