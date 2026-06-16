@@ -224,7 +224,7 @@ For multi-y runs, `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `DataPlots`, 
 
 ## Demo scripts
 
-Twelve worked examples are included in the `demo/` folder. Run any demo with:
+Thirteen worked examples are included in the `demo/` folder. Run any demo with:
 
 ```bash
 cd kbstatpy
@@ -247,10 +247,10 @@ python3 demo/demo_01_unpaired.py
 | `demo_12_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
 | `demo_13_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 
-**Equivalence to classical tests** (demos 1–4 and 5, all datasets perfectly balanced) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Equivalence to classical tests** (demos 1–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 1** — identical to an independent-samples t-test (F = t², same df and p-value)
-- **Demo 2** — equivalent to a paired t-test; Satterthwaite df ≈ n − 1, slightly more conservative, generalises to missing data
+- **Demo 2** — equivalent to a paired t-test for balanced data (same estimate, SE, df = n − 1, and p-value); generalises to missing data and unequal group sizes
 - **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
 - **Demo 4** — identical to a one-way repeated-measures ANOVA (4-level within-subject factor) under compound symmetry; LMM generalises to missing cells and unbalanced designs
 - **Demo 5** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
