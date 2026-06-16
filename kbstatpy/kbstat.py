@@ -769,6 +769,7 @@ class Kbstat:
         if self.fig_data is not None:
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.png'), dpi=150, bbox_inches='tight')
+            self._save_interactive(self.fig_data, os.path.join(out_dir, 'DataPlots.html'))
             plt.close(self.fig_data)
             self.fig_data = None
             print(f'Saved DataPlots.pdf/.png to {out_dir}')
@@ -776,7 +777,7 @@ class Kbstat:
         if self.fig_diagnostics is not None:
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.png'), dpi=150)
-            plt.close(self.fig_diagnostics)
+            self._save_interactive(self.fig_diagnostics, os.path.join(out_dir, 'Diagnostics.html'))
             self.fig_diagnostics = None
             print(f'Saved Diagnostics.pdf/.png to {out_dir}')
 
@@ -981,8 +982,13 @@ class Kbstat:
                         xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
                         for y in subset.values
                     ])
-                    ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
-                               alpha=0.4, zorder=4, linewidths=0)
+                    sc = ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
+                                    alpha=0.4, zorder=4, linewidths=0)
+                    tip_labels = [
+                        f'obs {idx}, {self._disp(x_var)}={level}, {self._disp(y_var)}={v:.3f}'
+                        for idx, v in zip(subset.index, subset.values)
+                    ]
+                    self._tooltip(ax, sc, tip_labels)
                     dot_xy[level] = (jx, subset.values)
 
             # --- LAYER 2b: Outlier points (red X markers) ---
@@ -995,8 +1001,13 @@ class Kbstat:
                         xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
                         for y in subset.values
                     ])
-                    ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
-                               marker='X', alpha=0.9, zorder=4, linewidths=0)
+                    sc = ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
+                                    marker='X', alpha=0.9, zorder=4, linewidths=0)
+                    tip_labels = [
+                        f'obs {idx}, {self._disp(x_var)}={level}, {self._disp(y_var)}={v:.3f} [outlier]'
+                        for idx, v in zip(subset.index, subset.values)
+                    ]
+                    self._tooltip(ax, sc, tip_labels)
 
             # --- LAYER 3: Connecting lines for paired subjects ---
             # Only drawn when each subject has exactly one observation per condition
@@ -1185,6 +1196,17 @@ class Kbstat:
         n_diag = len(self.model.residuals)
         s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
 
+        # Build per-observation group label for hover tooltips
+        active_data = self.data[~self.data['is_outlier']].reset_index(drop=True) \
+            if 'is_outlier' in self.data.columns else self.data.reset_index(drop=True)
+        x_vars = [v for v in (self.options.x if isinstance(self.options.x, list) else [self.options.x])
+                  if v in active_data.columns]
+        def _group_label(i):
+            parts = [f'obs {i}']
+            for v in x_vars:
+                parts.append(f'{self._disp(v)}={active_data.at[i, v]}')
+            return ', '.join(parts)
+
         # ---------------------------------------------------------
         # Plot 1: Histogram of Residuals
         # ---------------------------------------------------------
@@ -1212,6 +1234,9 @@ class Kbstat:
         axes[2].set_title("Residuals vs Fitted")
         axes[2].set_xlabel("Fitted Values")
         axes[2].set_ylabel("Residuals")
+        self._tooltip(axes[2], axes[2].collections[-1],
+                      [f'{_group_label(i)}, fitted={self.model.fits[i]:.3f}, resid={self.model.residuals[i]:.3f}'
+                       for i in range(n_diag)])
 
         # ---------------------------------------------------------
         # Plot 4: Lagged Residuals
@@ -1220,6 +1245,9 @@ class Kbstat:
         axes[3].set_title("Lagged Residuals")
         axes[3].set_xlabel("Residual (i)")
         axes[3].set_ylabel("Residual (i+1)")
+        self._tooltip(axes[3], axes[3].collections[-1],
+                      [f'{_group_label(i)}, r(i)={self.model.residuals[i]:.3f}, r(i+1)={self.model.residuals[i+1]:.3f}'
+                       for i in range(n_diag - 1)])
 
         # ---------------------------------------------------------
         # Plot 5: Fitted vs Response
@@ -1229,7 +1257,7 @@ class Kbstat:
             y_actual = y_actual[self.options.y]
         else:
             y_actual = self.data[self.options.y]
-            
+
         sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=s_diag)
         
         min_val = min(self.model.fits.min(), y_actual.min())
@@ -1239,6 +1267,9 @@ class Kbstat:
         axes[4].set_title("Fitted vs Response")
         axes[4].set_xlabel("Fitted Values")
         axes[4].set_ylabel("Actual Raw Data")
+        self._tooltip(axes[4], axes[4].collections[-1],
+                      [f'{_group_label(i)}, actual={float(y_actual.iloc[i]):.3f}, fitted={self.model.fits[i]:.3f}'
+                       for i in range(n_diag)])
 
         # ---------------------------------------------------------
         # Plot 6: Cook's Distance
@@ -1255,6 +1286,11 @@ class Kbstat:
             axes[5].set_ylabel("Cook's D")
             axes[5].text(n_obs * 0.98, threshold * 1.05, f'4/n = {threshold:.3f}',
                          ha='right', va='bottom', fontsize=8, color='red')
+            # Overlay invisible scatter at bar tops for hover tooltips
+            sc = axes[5].scatter(np.arange(n_obs), cooks_d, s=s_diag, alpha=0)
+            self._tooltip(axes[5], sc,
+                          [f'{_group_label(i)}, Cook\'s D={cooks_d[i]:.4f}'
+                           for i in range(n_obs)])
         except Exception:
             axes[5].set_visible(False)
 
@@ -1277,6 +1313,27 @@ class Kbstat:
     # Private helpers
     # ------------------------------------------------------------------
     #
+
+    def _save_interactive(self, fig, path):
+        """Save a matplotlib figure as interactive HTML with hover tooltips via mpld3."""
+        if not self.options.interactive:
+            return
+        try:
+            import mpld3
+            mpld3.save_html(fig, path)
+            print(f'Saved interactive HTML to {path}')
+        except Exception as e:
+            print(f'Warning: interactive HTML export failed ({e})')
+
+    @staticmethod
+    def _tooltip(ax, collection, labels):
+        """Attach an mpld3 PointLabelTooltip to a scatter PathCollection."""
+        try:
+            import mpld3
+            from mpld3 import plugins
+            plugins.connect(ax.get_figure(), plugins.PointLabelTooltip(collection, labels=labels))
+        except Exception:
+            pass
 
     def _calculate_z_score(self, data):
         # We add 1e-9 to prevent Divide By Zero crashes if a group's std is 0
