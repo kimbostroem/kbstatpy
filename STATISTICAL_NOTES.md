@@ -16,7 +16,7 @@ A linear model (`lm`) and its mixed-model extension (`lmer`) make the same distr
 
 - **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so missing data, dropout, and outlier removal do not invalidate the analysis.
 - **Multiple predictors and interactions** — fixed effects, partial interactions, and numeric covariates are all accommodated in the same formula.
-- **Repeated measures and nested data** — random effects (the "mixed" in LMM) account for the correlation structure within subjects or clusters, giving correct standard errors without requiring compound symmetry.
+- **Repeated measures and nested data** — the "mixed" in LMM refers to the combination of *fixed effects* (the population-level factor effects of scientific interest, shared across all observations) and *random effects* (individual-level deviations, e.g. each subject's personal baseline or slope). Random effects account for the correlation structure within subjects or clusters, giving correct standard errors without requiring compound symmetry.
 
 **From LMM to GLMM — the generalisation step.** The specific contribution of the *generalised* linear model is the ability to replace the fixed gaussian assumption with an explicit choice of response distribution and link function:
 
