@@ -1241,14 +1241,22 @@ class Kbstat:
         axes[4].set_ylabel("Actual Raw Data")
 
         # ---------------------------------------------------------
-        # Plot 6: Scale-Location
+        # Plot 6: Cook's Distance
         # ---------------------------------------------------------
-        sqrt_abs_res = np.sqrt(np.abs(self.model.residuals))
-        sns.scatterplot(x=self.model.fits, y=sqrt_abs_res, ax=axes[5], s=s_diag)
-        axes[5].axhline(np.mean(sqrt_abs_res), color='red', linestyle='--')
-        axes[5].set_title("Scale-Location")
-        axes[5].set_xlabel("Fitted Values")
-        axes[5].set_ylabel("√|Residuals|")
+        try:
+            cooks_d = np.array(ro.r('cooks.distance')(r_obj))
+            n_obs = len(cooks_d)
+            threshold = 4 / n_obs
+            colors = ['red' if v > threshold else sns.color_palette()[0] for v in cooks_d]
+            axes[5].bar(np.arange(n_obs), cooks_d, color=colors, width=1.0)
+            axes[5].axhline(threshold, color='red', linestyle='--', linewidth=0.8)
+            axes[5].set_title("Cook's Distance")
+            axes[5].set_xlabel("Observation index")
+            axes[5].set_ylabel("Cook's D")
+            axes[5].text(n_obs * 0.98, threshold * 1.05, f'4/n = {threshold:.3f}',
+                         ha='right', va='bottom', fontsize=8, color='red')
+        except Exception:
+            axes[5].set_visible(False)
 
         # Footer row: formula + fit statistics
         parts = [f'Formula: {self._build_formula()}']

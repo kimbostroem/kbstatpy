@@ -386,8 +386,10 @@ This panel is only informative when observations have a natural ordering (time s
 **5. Fitted vs. response.**
 Model-fitted values on the x-axis, actual raw observations on the y-axis, with an identity line (slope = 1, intercept = 0) as reference. Points should scatter symmetrically around the identity line. A systematic bow above or below the line indicates that the model is biased in a particular range of the response — a signal that a transformation or a different distribution family may be needed. The spread around the line reflects residual variance; the overall correlation reflects model fit.
 
-**6. Scale–location.**
-Square root of the absolute Pearson residuals plotted against fitted values, with a horizontal reference line at the mean. A flat line indicates homoscedasticity (constant variance). An upward slope means variance grows with the mean — the classic pattern for right-skewed positive data that motivates the gamma distribution or a log transform. This panel is more sensitive to heteroscedasticity than panel 3 because taking the square root compresses large values and makes the trend easier to see.
+**6. Cook's distance.**
+A bar chart of Cook's distance for each observation, with a dashed reference line at the conventional threshold 4/n (where n is the number of observations). Cook's D measures how much the vector of all fitted values would change if observation *i* were removed — it combines leverage (how unusual the predictor values are) with residual magnitude into a single influence statistic. Bars coloured red exceed the 4/n threshold and warrant investigation.
+
+A high-leverage observation is one with unusual predictor values; by itself that is not a problem. A large residual is one the model fits poorly; by itself that may just reflect noise. A large Cook's D means both are true simultaneously — the observation sits far from the main predictor cloud *and* the model fits it badly, so it is actively pulling the fitted surface towards itself. These are the observations most likely to distort coefficient estimates and should be examined for data entry errors or considered for removal via `remove_outliers_prefit`.
 
 ### Back-transformation of EMM and CI
 
