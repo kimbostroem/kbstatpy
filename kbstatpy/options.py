@@ -40,6 +40,7 @@ class KbstatOptions:
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
     color_alpha: float = 0.5
+    font: str = ''
 
     # Post-hoc settings
     posthoc_method: str = 'emm'

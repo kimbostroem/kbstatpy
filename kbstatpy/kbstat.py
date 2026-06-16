@@ -56,6 +56,11 @@ class Kbstat:
     # Public interface
     # ------------------------------------------------------------------
 
+    def _apply_font(self):
+        """Apply options.font to matplotlib rcParams if set."""
+        if self.options.font:
+            plt.rcParams['font.family'] = self.options.font
+
     @staticmethod
     def _split_csv(value):
         """Split a comma-separated string into a stripped list, or pass a list through."""
@@ -571,6 +576,7 @@ class Kbstat:
                            out_dir, stem,
                            xlabel_suffix='', ylabel_suffix=''):
         """Scatter plot grid for a correlation table."""
+        self._apply_font()
         pairs = [(vars_[i], vars_[j])
                  for i in range(len(vars_)) for j in range(i + 1, len(vars_))]
         n_pairs = len(pairs)
@@ -622,6 +628,7 @@ class Kbstat:
 
     def _plot_corr_table(self, corr_df, vars_, title, out_dir, stem):
         """Colour-coded lower-triangle correlation heatmap table."""
+        self._apply_font()
         import matplotlib.patches as mpatches
         cmap = plt.cm.RdBu_r
 
@@ -807,6 +814,7 @@ class Kbstat:
         scatter points in matching colors, paired-subject connecting lines,
         a white EMM marker with a 95 % CI bar, and significance brackets.
         """
+        self._apply_font()
         if not self.options.x:
             print("No independent variables to plot.")
             return
@@ -1075,6 +1083,7 @@ class Kbstat:
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
+        self._apply_font()
         if self.model is None:
             raise RuntimeError ("You must fit the model before plotting diagnostics.")
 
