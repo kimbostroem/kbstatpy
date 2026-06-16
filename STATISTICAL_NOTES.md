@@ -30,6 +30,12 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 
 Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
+### Pearson and partial correlation (Demo 10)
+
+Pearson r between two variables X and Y captures their total linear association, including any portion mediated by or confounded with a third variable Z. This is a classical analysis available in any statistics package.
+
+When three or more variables are correlated simultaneously, kbstatpy additionally computes **partial correlations** — the Pearson r between the residuals of regressing X on all other variables and the residuals of regressing Y on all other variables. This isolates the direct association between X and Y that cannot be explained by the remaining variables, and is particularly valuable when variables co-trend over time or share a common driver (as in the Longley macroeconomic data used in Demo 10).
+
 ---
 
 ## Transcending classical tests
@@ -57,24 +63,6 @@ Classical two-way ANOVA always tests all pairwise interactions simultaneously. W
 
 Including only the theoretically motivated interactions keeps the model parsimonious, preserves degrees of freedom, and avoids inflating the multiple-comparison burden with interactions that are not of interest.
 
-### Multiple dependent variables and multiple testing (Demo 9)
-
-Running the same model independently for each of k dependent variables multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate correction depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening.
-
-Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons. Across variables, it is the researcher's responsibility to interpret the results in light of how many outcomes were tested.
-
-### Pearson correlation vs. partial correlation (Demo 10)
-
-Pearson r between two variables X and Y captures their total linear association, including any portion mediated by or confounded with a third variable Z. When multiple variables are correlated simultaneously, this can be misleading: X and Y may appear strongly correlated simply because both trend with Z (e.g. year).
-
-Partial correlation removes the linear influence of all other variables before computing r between each pair. Technically, it is the Pearson r between the residuals of regressing X on all other variables and the residuals of regressing Y on all other variables. This isolates the direct association between X and Y that cannot be explained by the remaining variables.
-
-kbstatpy computes partial correlations automatically when three or more variables are specified in `options.correlation`.
-
-### VIF and numeric predictors (Demo 11)
-
-See the dedicated [VIF and multicollinearity](#vif-and-multicollinearity) section below. Demo 11 illustrates the typical situation in biomechanical and physiological data: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are visualised via the correlation scatter grid with VIF on the diagonal.
-
 ### Outlier removal and AIC as a sanity check (Demo 12)
 
 Outlier removal should always be justified, not automatic. The two-pass strategy in kbstatpy provides a principled workflow:
@@ -85,6 +73,24 @@ Outlier removal should always be justified, not automatic. The two-pass strategy
 A useful sanity check after outlier removal is whether AIC decreased. A large drop (as in Demo 12: 108.8 → 74.5) confirms the removed observations were genuinely influential. A negligible drop suggests the flagged points were not actually distorting the model and removal was unnecessary.
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
+
+---
+
+## Analytical extensions
+
+These demos illustrate capabilities that run alongside the core modelling pipeline and are applicable regardless of model complexity.
+
+### Multiple dependent variables (Demo 9)
+
+Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
+
+One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
+
+### Multicollinearity diagnostics — VIF (Demo 11)
+
+See the dedicated [VIF and multicollinearity](#vif-and-multicollinearity) section below. Demo 11 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
+
+Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated.
 
 ---
 

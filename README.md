@@ -216,22 +216,25 @@ python3 demo/demo_01_unpaired.py
 | `demo_11_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 | `demo_12_outliers.py` | `stackloss.csv` | Outlier removal: same LM run twice (default vs. pre-fit IQR + post-fit residual removal) to show the effect on fit quality and estimates |
 
-**Equivalence to classical tests** (demos 1–4, all datasets perfectly balanced) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Equivalence to classical tests** (demos 1–4 and 10, all datasets perfectly balanced) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 1** — identical to an independent-samples t-test (F = t², same df and p-value)
 - **Demo 2** — equivalent to a paired t-test; Satterthwaite df ≈ n − 1, slightly more conservative, generalises to missing data
 - **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
 - **Demo 4** — identical to a one-way repeated-measures ANOVA under compound symmetry; LMM generalises to missing time points and unbalanced designs
+- **Demo 10** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
 
-**Transcending classical tests** (demos 5–12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Transcending classical tests** (demos 5–8 and 12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 5** — no classical equivalent; random slopes capture subject-specific trajectories that RM-ANOVA assumes away
 - **Demo 6 vs. 7** — log-transform LMM and gamma GLMM are both valid for right-skewed positive data; gamma is preferred when variance scales with the mean
 - **Demo 8** — partial interactions keep the model parsimonious; classical ANOVA always tests all pairwise interactions
-- **Demo 9** — multiple dependent variables; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
-- **Demo 10** — partial correlation isolates direct associations; Pearson r alone is misleading when multiple variables co-trend
+- **Demo 12** — outlier removal makes the design unbalanced; LMM handles this naturally whereas classical ANOVA would require imputation or listwise deletion
+
+**Analytical extensions** (demos 9 and 11) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+
+- **Demo 9** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
 - **Demo 11** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
-- **Demo 12** — AIC drop after outlier removal (108.8 → 74.5) confirms the outliers were genuinely influential; removed points remain visible in the data plot
 
 To regenerate the demo datasets from R (required once before running the demos):
 
