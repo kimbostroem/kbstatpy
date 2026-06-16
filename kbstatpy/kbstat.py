@@ -975,7 +975,7 @@ class Kbstat:
                     color = palette[level]
                     ax.bar(xi, bar_val, width=0.4, color=color,
                            alpha=self.options.color_alpha,
-                           edgecolor='0.2', linewidth=0.8, zorder=2)
+                           edgecolor='0.2', linewidth=1.5, zorder=2)
                     ax.text(xi, bar_val * 1.02 if bar_val > 0 else 0.02,
                             f'n={n}', ha='center', va='bottom',
                             fontsize=8, color='0.4', zorder=7)
