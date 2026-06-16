@@ -81,6 +81,7 @@ pip3 install \
     polars \
     pyarrow \
     pandas \
+    scipy \
     rpy2 \
     scikit-learn \
     formulae \
