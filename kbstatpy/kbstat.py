@@ -1084,7 +1084,8 @@ class Kbstat:
                 emm_sc = ax.scatter(i, emm_val, color='white', edgecolors='0.2',
                                     s=80, zorder=6, linewidths=1.2)
                 self._tooltip(ax, emm_sc,
-                              [f'EMM: {self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'])
+                              [f'EMM: {self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'
+                               f', 95% CI [{ci_lo:.3f}, {ci_hi:.3f}]'])
                 # n= label above CI top (bar style only)
                 if use_bar:
                     n = len(subset)
@@ -1140,6 +1141,10 @@ class Kbstat:
                                 color='black', linewidth=1.5)
                         ax.text((xi + xj) / 2, bracket_y, label,
                                 ha='center', va='bottom', fontsize=12, fontweight='bold')
+                        # Invisible scatter point for hover tooltip on the bracket
+                        bsc = ax.scatter((xi + xj) / 2, bracket_y, s=200, alpha=0, zorder=10)
+                        contrast_lbl = str(crow['contrast'])
+                        self._tooltip(ax, bsc, [f'{contrast_lbl}: p={p_val:.4f} ({label})'])
                         bracket_y += bracket_step * 1.4
                     ax.set_ylim(top=bracket_y)
 
