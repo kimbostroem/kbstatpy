@@ -1,5 +1,37 @@
 # Statistical Notes
 
+## Table of contents
+
+- [Why linear mixed models — and why GLM?](#why-linear-mixed-models-and-why-glm)
+- [Equivalence to classical tests](#equivalence-to-classical-tests)
+  - [Independent-samples t-test (Demo 1)](#independent-samples-t-test-demo-1)
+  - [Paired t-test (Demo 2)](#paired-t-test-demo-2)
+  - [Two-way ANOVA (Demo 3)](#two-way-anova-demo-3)
+  - [Repeated-measures ANOVA (Demo 4)](#repeated-measures-anova-demo-4)
+  - [Pearson and partial correlation (Demo 5)](#pearson-and-partial-correlation-demo-5)
+- [Transcending classical tests](#transcending-classical-tests)
+  - [Random slopes — subject-specific trajectories (Demo 6)](#random-slopes-subject-specific-trajectories-demo-6)
+  - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
+  - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
+  - [Outlier removal, unbalanced designs and data loss (Demo 10)](#outlier-removal-unbalanced-designs-and-data-loss-demo-10)
+- [Analytical extensions](#analytical-extensions)
+  - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
+  - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
+  - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
+  - [Sums of squares: Type III](#sums-of-squares-type-iii)
+  - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
+  - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
+  - [VIF and multicollinearity](#vif-and-multicollinearity)
+- [Technical aspects](#technical-aspects)
+  - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
+  - [Data filtering: `constraints`](#data-filtering-constraints)
+  - [Variable display labels: `rename`](#variable-display-labels-rename)
+  - [Data plots: violin + jitter scatter](#data-plots-violin-jitter-scatter)
+  - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
+  - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
+
+---
+
 ## Why linear mixed models — and why GLM?
 
 The classical statistical toolkit — t-tests, one-way ANOVA, repeated-measures ANOVA — was designed for narrow, idealised conditions: a single factor, perfectly balanced cell sizes, independent observations, and normally distributed response outcomes within each group. Real experimental data routinely violate several of these conditions at once, motivating two successive generalisations.
@@ -30,37 +62,6 @@ The response distribution `p` can be gaussian (recovering the LMM case), gamma (
 **Why the choice of distribution matters.** Real data routinely violate the normality assumption. Reaction times and many physical measurements are strictly positive and right-skewed. Proportions are bounded between 0 and 1. Count data are discrete and cannot be negative. Fitting a gaussian model to such outcomes produces biased estimates, incorrect standard errors, and meaningless predictions (e.g. negative reaction times). The principled solution is to choose a distribution that matches the data-generating process — which is exactly what GLMM allows and what classical tests and plain LMMs cannot do.
 
 When the classical assumptions *are* met, the full GLMM reduces to its classical equivalent and gives the same answer. The sections below document this equivalence and then demonstrate where the generalisation becomes necessary.
-
----
-
-## Table of contents
-
-- [Equivalence to classical tests](#equivalence-to-classical-tests)
-  - [Independent-samples t-test (Demo 1)](#independent-samples-t-test-demo-1)
-  - [Paired t-test (Demo 2)](#paired-t-test-demo-2)
-  - [Two-way ANOVA (Demo 3)](#two-way-anova-demo-3)
-  - [Repeated-measures ANOVA (Demo 4)](#repeated-measures-anova-demo-4)
-  - [Pearson and partial correlation (Demo 5)](#pearson-and-partial-correlation-demo-5)
-- [Transcending classical tests](#transcending-classical-tests)
-  - [Random slopes — subject-specific trajectories (Demo 6)](#random-slopes-subject-specific-trajectories-demo-6)
-  - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
-  - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
-  - [Outlier removal, unbalanced designs and data loss (Demo 10)](#outlier-removal-unbalanced-designs-and-data-loss-demo-10)
-- [Analytical extensions](#analytical-extensions)
-  - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
-  - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
-  - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
-  - [Sums of squares: Type III](#sums-of-squares-type-iii)
-  - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
-  - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
-  - [VIF and multicollinearity](#vif-and-multicollinearity)
-- [Technical aspects](#technical-aspects)
-  - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
-  - [Data filtering: `constraints`](#data-filtering-constraints)
-  - [Variable display labels: `rename`](#variable-display-labels-rename)
-  - [Data plots: violin + jitter scatter](#data-plots-violin-jitter-scatter)
-  - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
-  - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
 
 ---
 
