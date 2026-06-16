@@ -281,17 +281,32 @@ Implementation details and design decisions behind kbstatpy's data handling, vis
 
 kbstatpy requires input data in **long format** (also called *tidy* format). Understanding the distinction is important because research data are often collected or stored in wide format, and importing wide-format data without reshaping it is a common source of errors.
 
-**Wide format** organises repeated measurements as separate columns — one column per condition, time point, or variable. This mirrors how data entry often looks in a spreadsheet:
+**Wide format** encodes a categorical factor by spreading its levels across columns rather than storing them as values in a single column. This pattern appears in several common data collection scenarios:
 
-| Subject | Week_0 | Week_2 | Week_4 |
-|---|---|---|---|
-| S01 | 1 | 0 | 0 |
-| S02 | 1 | 1 | 0 |
-| S03 | 0 | 0 | 0 |
+- **Repeated measurements over time** — one column per time point:
 
-Each row is a subject; each measurement occasion occupies its own column. This is compact and easy to read at a glance, but it encodes the time variable implicitly in the column names rather than explicitly in the data.
+  | Subject | Week_0 | Week_2 | Week_4 |
+  |---|---|---|---|
+  | S01 | 1 | 0 | 0 |
+  | S02 | 1 | 1 | 0 |
 
-**Long format** places every observation on its own row, with separate columns for the grouping variables and the response:
+- **Experimental conditions or groups** — one column per condition, with each subject measured under all of them:
+
+  | Subject | Control | DrugA | DrugB |
+  |---|---|---|---|
+  | S01 | 12.3 | 9.1 | 8.4 |
+  | S02 | 14.0 | 11.2 | 10.5 |
+
+- **Body sides or anatomical locations** — one column per limb or sensor:
+
+  | Subject | Left_knee | Right_knee |
+  |---|---|---|
+  | S01 | 142 | 138 |
+  | S02 | 155 | 160 |
+
+In every case the structure is the same: what should be a factor level (the time point, the condition, the side) has been promoted to a column name, and the table has one row per subject rather than one row per observation. This is compact and easy to read, but it hides the factor structure from any analysis tool that works on column names.
+
+**Long format** places every observation on its own row, with separate columns for the grouping variables and the response. The first example above becomes:
 
 | Subject | Week | present |
 |---|---|---|
@@ -302,9 +317,9 @@ Each row is a subject; each measurement occasion occupies its own column. This i
 | S02 | 2 | 1 |
 | … | … | … |
 
-Each row is one observation. The variable `Week` is now an explicit column that can appear in `options.x`, be tested in the ANOVA table, and enter the model formula. The response `present` is a single column that can be assigned to `options.y`.
+Each row is one observation. The variable `Week` is now an explicit column that can appear in `options.x`, be tested in the ANOVA table, and enter the model formula. The response `present` is a single column that can be assigned to `options.y`. The same transformation applies to any of the wide-format examples above: the column-name factor becomes a value in a new grouping column, and all the measurements collapse into one response column.
 
-**Why the model requires long format.** The statistical model operates on individual observations: each row contributes one likelihood term. The model formula `present ~ trt + week + (1 | Subject)` maps column names to model terms — it has no concept of "spread across columns". Wide format has no single response column and no explicit factor column for the repeated dimension, so there is nothing to assign to `options.y` and `options.x`.
+**Why the model requires long format.** The statistical model operates on individual observations: each row contributes one likelihood term. The model formula `present ~ trt + week + (1 | Subject)` maps column names to model terms — it has no concept of "spread across columns". Wide format has no single response column and no explicit factor column for the grouping dimension, so there is nothing to assign to `options.y` and `options.x`.
 
 **Converting wide to long in Python.** `pandas.melt()` is the standard tool:
 
