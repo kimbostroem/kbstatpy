@@ -83,7 +83,8 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `distribution` | str | `'normal'` | Response distribution (see below) |
 | `link` | str | `'auto'` | Link function (`'auto'`, `'log'`, `'logit'`, …) |
 | `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
-| `remove_outliers` | bool | `False` | Remove statistical outliers before fitting |
+| `remove_outliers_prefit` | bool | `False` | Flag and exclude outliers before fitting using the IQR rule (1.5 × IQR beyond Q1/Q3) per group. Protects the model from extreme raw values |
+| `remove_outliers_postfit` | bool | `False` | Flag and exclude outliers after fitting based on Pearson residuals (z > 3), then refit. Catches observations that become outliers only in relation to the model. Can be combined with `remove_outliers_prefit` |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
 | `posthoc_correction` | str | `'holm'` | P-value correction (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
 | `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |

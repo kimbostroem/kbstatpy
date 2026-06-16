@@ -31,7 +31,8 @@ class KbstatOptions:
     link: str = 'auto'
     fit_method: str = 'MPL'
 
-    remove_outliers: bool = False
+    remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting
+    remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)
 
     # Covariates: included in model and ANOVA, excluded from plots and post-hoc
     covariate: list = field(default_factory=list)

@@ -197,10 +197,10 @@ class Kbstat:
         self._apply_rename()
         self._apply_categorical()
         self._apply_constraints()
-        if self.options.remove_outliers:
+        if self.options.remove_outliers_prefit:
             self.remove_outliers_pre()
         self.fit()
-        if self.options.remove_outliers:
+        if self.options.remove_outliers_postfit:
             self.remove_outliers_post()
             self.fit()
         self.anova()
@@ -776,14 +776,23 @@ class Kbstat:
             print(f'Saved Diagnostics.pdf/.png to {out_dir}')
 
     def remove_outliers_pre(self):
+        """Flag outliers per group using the IQR rule (1.5 × IQR beyond Q1/Q3)."""
+        y = self.options.y
+
+        def _iqr_mask(series):
+            q1, q3 = series.quantile(0.25), series.quantile(0.75)
+            iqr = q3 - q1
+            return (series < q1 - 1.5 * iqr) | (series > q3 + 1.5 * iqr)
 
         if self.options.x:
-            grouped_categories = self.data.groupby(self.options.x)
-            z_scores = grouped_categories[self.options.y].transform(self._calculate_z_score)
+            flags = self.data.groupby(self.options.x)[y].transform(_iqr_mask)
         else:
-            z_scores = self._calculate_z_score(self.data[self.options.y])
+            flags = _iqr_mask(self.data[y])
 
-        self.data['is_outlier'] = z_scores > 3
+        self.data['is_outlier'] = flags.astype(bool)
+        n = int(flags.sum())
+        if n:
+            print(f"Pre-fit outlier removal: {n} observation(s) flagged by IQR rule.")
 
     def remove_outliers_post(self):
         if self.model is None:
@@ -797,12 +806,17 @@ class Kbstat:
         else:
             raise RuntimeError("Unable to find R model, rerun the fit")
 
-        z_scores = np.abs((residuals-residuals.mean())/(residuals.std()+1e-9))
+        z_scores = np.abs((residuals - residuals.mean()) / (residuals.std() + 1e-9))
 
         new_outliers = z_scores > 3
 
+        if 'is_outlier' not in self.data.columns:
+            self.data['is_outlier'] = False
         healthy_points = self.data[~self.data['is_outlier']].index
         self.data.loc[healthy_points, 'is_outlier'] = new_outliers
+        n = int(new_outliers.sum())
+        if n:
+            print(f"Post-fit outlier removal: {n} observation(s) flagged by Pearson residual z > 3.")
 
 
     def plot_data(self):
