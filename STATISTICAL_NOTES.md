@@ -34,7 +34,7 @@
 
 ## Why linear mixed models — and why GLM?
 
-The classical statistical toolkit — t-tests, one-way ANOVA, repeated-measures ANOVA — was designed for narrow, idealised conditions: a single factor, perfectly balanced cell sizes, independent observations, and normally distributed response outcomes within each group. Real experimental data routinely violate several of these conditions at once, motivating two successive generalisations.
+The classical statistical toolkit — t-tests, one-way ANOVA, repeated-measures ANOVA — was designed for narrow, idealised conditions: a flat, non-nested fixed-effects structure, perfectly balanced cell sizes, independent observations, and normally distributed response outcomes within each group. Real experimental data routinely violate several of these conditions at once, motivating two successive generalisations.
 
 **From classical tests to linear models (LM / LMM).** A t-test or ANOVA decomposes each observation into a group mean and a residual:
 
