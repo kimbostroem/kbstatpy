@@ -4,6 +4,36 @@ Design decisions and their rationale for the kbstatpy library.
 
 ---
 
+## Table of contents
+
+- [1  Equivalence to classical tests](#1-equivalence-to-classical-tests)
+  - [1.1  Independent-samples t-test (Demo 1)](#11-independent-samples-t-test-demo-1)
+  - [1.2  Paired t-test (Demo 2)](#12-paired-t-test-demo-2)
+  - [1.3  Two-way ANOVA (Demo 3)](#13-two-way-anova-demo-3)
+  - [1.4  Repeated-measures ANOVA (Demo 4)](#14-repeated-measures-anova-demo-4)
+  - [1.5  Pearson and partial correlation (Demo 10)](#15-pearson-and-partial-correlation-demo-10)
+- [2  Transcending classical tests](#2-transcending-classical-tests)
+  - [2.1  Random slopes — subject-specific trajectories (Demo 5)](#21-random-slopes-subject-specific-trajectories-demo-5)
+  - [2.2  Log-transform LMM vs. gamma GLMM (Demos 6 and 7)](#22-log-transform-lmm-vs-gamma-glmm-demos-6-and-7)
+  - [2.3  Partial interactions (Demo 8)](#23-partial-interactions-demo-8)
+  - [2.4  Outlier removal and AIC as a sanity check (Demo 12)](#24-outlier-removal-and-aic-as-a-sanity-check-demo-12)
+- [3  Analytical extensions](#3-analytical-extensions)
+  - [3.1  Multiple dependent variables (Demo 9)](#31-multiple-dependent-variables-demo-9)
+  - [3.2  Multicollinearity diagnostics — VIF (Demo 11)](#32-multicollinearity-diagnostics-vif-demo-11)
+  - [3.3  Contrast coding: effects coding (`contr.sum`)](#33-contrast-coding-effects-coding-contrsum)
+  - [3.4  Sums of squares: Type III](#34-sums-of-squares-type-iii)
+  - [3.5  Degrees of freedom: Satterthwaite approximation and `df = Inf`](#35-degrees-of-freedom-satterthwaite-approximation-and-df-inf)
+  - [3.6  Post-hoc comparisons: `emmeans`](#36-post-hoc-comparisons-emmeans)
+  - [3.7  VIF and multicollinearity](#37-vif-and-multicollinearity)
+- [4  Technical aspects](#4-technical-aspects)
+  - [4.1  Data filtering: `constraints`](#41-data-filtering-constraints)
+  - [4.2  Variable display labels: `rename`](#42-variable-display-labels-rename)
+  - [4.3  Data plots: violin + jitter scatter](#43-data-plots-violin-jitter-scatter)
+  - [4.4  Back-transformation of EMM and CI](#44-back-transformation-of-emm-and-ci)
+  - [4.5  Random slopes in GLMMs — pymer4 bug and workaround](#45-random-slopes-in-glmms-pymer4-bug-and-workaround)
+
+---
+
 ## 1  Equivalence to classical tests
 
 kbstatpy fits all models through the LMM/GLMM framework, but for simple designs the results reduce exactly (or nearly exactly) to their classical counterparts.
