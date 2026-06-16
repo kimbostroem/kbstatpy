@@ -65,4 +65,14 @@ cat("Exported longley.csv\n")
 write.csv(stackloss, "demo/data/stackloss.csv", row.names = FALSE)
 cat("Exported stackloss.csv\n")
 
+# --- Demo 13: bacteria (GLMM binomial) ---
+# present: bacteria presence (1) / absence (0); trt: placebo/drug/drug+
+# week: time point (factor); ID: child ID (random effect)
+bact <- MASS::bacteria
+bact$present <- as.integer(bact$y == "y")
+bact$week    <- factor(bact$week)
+bact <- bact[, c("ID", "trt", "week", "present")]
+write.csv(bact, "demo/data/bacteria.csv", row.names = FALSE)
+cat("Exported bacteria.csv\n")
+
 cat("\nDone. All datasets written to demo/data/\n")

@@ -14,6 +14,7 @@
   - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
   - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
   - [Outlier removal, unbalanced designs and data loss (Demo 10)](#outlier-removal-unbalanced-designs-and-data-loss-demo-10)
+  - [Binomial GLMM — binary outcomes (Demo 13)](#binomial-glmm-binary-outcomes-demo-13)
 - [Analytical extensions](#analytical-extensions)
   - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
   - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
@@ -148,6 +149,20 @@ All three produce the same consequence for classical ANOVA. The distinction matt
 A useful sanity check after outlier removal is whether AIC decreased. A large drop (as in Demo 10: 108.8 → 74.5) confirms the removed observations were genuinely influential. A negligible drop suggests the flagged points were not actually distorting the model and removal was unnecessary.
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
+
+### Binomial GLMM — binary outcomes (Demo 13)
+
+Classical t-tests and ANOVA have no valid counterpart for binary dependent variables. A binary outcome — bacteria present or absent, treatment succeeded or failed, response correct or incorrect — takes only the values 0 and 1, so the mean is a probability bounded strictly between 0 and 1. Applying a gaussian model to such data is fundamentally wrong: it can predict probabilities below 0 or above 1, it assumes constant variance (whereas binomial variance is `μ(1−μ)`, highest at `μ = 0.5` and zero at the boundaries), and it produces incorrect standard errors and p-values.
+
+A binomial GLMM with logit link handles binary outcomes correctly. The logit link function
+
+```
+logit(μ) = log(μ / (1 − μ)) = x β
+```
+
+maps the linear predictor — which ranges over all real numbers — to a probability between 0 and 1. The model estimates the log-odds of the event for each combination of predictors, and EMMs are back-transformed to the probability scale for reporting.
+
+Demo 13 uses the `bacteria` dataset (MASS package): 50 children with otitis media, measured at up to five time points (weeks 0, 2, 4, 6, 11), under three treatments (placebo, drug, drug+). The outcome is presence or absence of *H. influenzae* bacteria. A random intercept per child accounts for the within-subject correlation across time points.
 
 ---
 
