@@ -55,6 +55,7 @@ When the classical assumptions *are* met, the full GLMM reduces to its classical
   - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
 - [Technical aspects](#technical-aspects)
+  - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
   - [Data plots: violin + jitter scatter](#data-plots-violin-jitter-scatter)
@@ -234,6 +235,31 @@ Results are printed to the console and saved to `VIF.xlsx`. A visual summary is 
 ## Technical aspects
 
 Implementation details and design decisions behind kbstatpy's data handling, visualisation, and output.
+
+### Wilkinson notation for model formulae
+
+kbstatpy uses Wilkinson notation — the same formula syntax as R's `lme4` and `lm` — to specify statistical models. A formula describes the response variable, the fixed effects, and (for mixed models) the random effects.
+
+**Basic structure:**
+
+```
+y ~ x1 + x2          # y as a function of two additive fixed effects
+y ~ x1 * x2          # main effects of x1 and x2 plus their interaction (x1 + x2 + x1:x2)
+y ~ x1 + x1:x2       # main effect of x1 and the x1×x2 interaction, but not the main effect of x2
+```
+
+The `*` operator expands to all main effects and their interaction. The `:` operator specifies an interaction term only, without implying the main effects. This makes it straightforward to include partial interactions (Demo 9).
+
+**Random effects** are added in parentheses after a `|` separator:
+
+```
+y ~ x + (1 | id)          # random intercept per subject: each subject has their own baseline
+y ~ x + (1 + x | id)      # random intercept and random slope: each subject has their own baseline and their own response to x
+```
+
+The left side of `|` specifies which terms vary by subject; the right side names the grouping variable. A random intercept `(1 | id)` accounts for the fact that repeated measurements from the same subject are correlated. A random slope `(x | id)` additionally allows each subject to respond differently to `x`.
+
+**In kbstatpy**, the formula is assembled automatically from `options.y`, `options.x`, `options.id`, `options.slope`, and `options.interaction`. The `options.formula` field accepts a full Wilkinson formula string and overrides all of these when set, giving full control for non-standard model specifications.
 
 ### Data filtering: `constraints`
 
