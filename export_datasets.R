@@ -33,7 +33,7 @@ cat("Exported sleepstudy.csv\n")
 oats <- as.data.frame(nlme::Oats)
 oats$Nitrogen <- factor(oats$nitro,
                         levels = c(0, 0.2, 0.4, 0.6),
-                        labels = c("N0", "N1", "N2", "N3"))
+                        labels = c("0.0", "0.2", "0.4", "0.6"))
 oats$nitro <- NULL
 write.csv(oats, "demo/data/oats.csv", row.names = FALSE)
 cat("Exported oats.csv\n")
