@@ -4,6 +4,21 @@ A Python library for generalised linear mixed model (GLMM) analysis with post-ho
 
 Fitting is done via R's `lme4` and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
 
+## Table of contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Options reference](#options-reference)
+- [Multi-y](#multi-y)
+- [Data transformation](#data-transformation)
+- [Correlation analysis](#correlation-analysis)
+- [Variance Inflation Factor (VIF)](#variance-inflation-factor-vif)
+- [Output files](#output-files)
+- [Demo scripts](#demo-scripts)
+- [Statistical notes](#statistical-notes)
+- [Known issues and workarounds](#known-issues-and-workarounds)
+
 ---
 
 ## Requirements
