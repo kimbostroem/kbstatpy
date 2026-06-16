@@ -871,30 +871,51 @@ class Kbstat:
         x_levels = plot_data[x_var].cat.categories.tolist() if hasattr(plot_data[x_var], 'cat') else sorted(plot_data[x_var].unique())
         palette = dict(zip(x_levels, sns.color_palette(self.options.color_scheme, len(x_levels))))
 
-        # Determine facets
+        # Determine column facets (x[1]) and row facets (x[2])
+        row_var = self.options.x[2] if n_vars > 2 else None
+
         if facet_var:
             facet_levels = plot_data[facet_var].cat.categories.tolist() if hasattr(plot_data[facet_var], 'cat') else sorted(plot_data[facet_var].unique())
         else:
             facet_levels = [None]
 
-        n_panels = len(facet_levels)
-        fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 6), sharey=True)
-        if n_panels == 1:
-            axes = [axes]
+        if row_var:
+            row_levels = plot_data[row_var].cat.categories.tolist() if hasattr(plot_data[row_var], 'cat') else sorted(plot_data[row_var].unique())
+        else:
+            row_levels = [None]
+
+        n_cols = len(facet_levels)
+        n_rows = len(row_levels)
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 6 * n_rows), sharey=True)
+        # Normalise to a 2-D list so axes[row_idx][col_idx] always works
+        if n_rows == 1 and n_cols == 1:
+            axes = [[axes]]
+        elif n_rows == 1:
+            axes = [list(axes)]
+        elif n_cols == 1:
+            axes = [[ax] for ax in axes]
+        else:
+            axes = [list(row) for row in axes]
 
         healthy_data = plot_data[~plot_data['is_outlier']]
         outlier_data = plot_data[plot_data['is_outlier']]
 
-        for idx, facet_val in enumerate(facet_levels):
-            ax = axes[idx]
+        for row_idx, row_val in enumerate(row_levels):
+          for col_idx, facet_val in enumerate(facet_levels):
+            ax = axes[row_idx][col_idx]
 
             # Subset for this panel
+            mask_h = pd.Series(True, index=healthy_data.index)
+            mask_o = pd.Series(True, index=outlier_data.index)
             if facet_var is not None:
-                panel_healthy = healthy_data[healthy_data[facet_var] == facet_val]
-                panel_outlier = outlier_data[outlier_data[facet_var] == facet_val]
-            else:
-                panel_healthy = healthy_data
-                panel_outlier = outlier_data
+                mask_h = mask_h & (healthy_data[facet_var] == facet_val)
+                mask_o = mask_o & (outlier_data[facet_var] == facet_val)
+            if row_var is not None:
+                mask_h = mask_h & (healthy_data[row_var] == row_val)
+                mask_o = mask_o & (outlier_data[row_var] == row_val)
+            panel_healthy = healthy_data[mask_h]
+            panel_outlier = outlier_data[mask_o]
 
             # --- LAYER 1: Violins (centered on each x-tick, colored per level) ---
             n_viol_before = len(ax.collections)
@@ -999,9 +1020,11 @@ class Kbstat:
                 if emm_df_plot is not None and not emm_df_plot.empty:
                     factor_col_plot = x_var if x_var in emm_df_plot.columns else emm_df_plot.columns[0]
                     row_mask = emm_df_plot[factor_col_plot].astype(str) == str(level)
-                    # In multi-factor models also filter by the facet variable for this panel
+                    # In multi-factor models also filter by the facet and row variables for this panel
                     if facet_var is not None and facet_var in emm_df_plot.columns and facet_val is not None:
                         row_mask = row_mask & (emm_df_plot[facet_var].astype(str) == str(facet_val))
+                    if row_var is not None and row_var in emm_df_plot.columns and row_val is not None:
+                        row_mask = row_mask & (emm_df_plot[row_var].astype(str) == str(row_val))
                     if row_mask.any():
                         row = emm_df_plot[row_mask].iloc[0]
                         emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
@@ -1082,11 +1105,16 @@ class Kbstat:
             ax.set_xlabel(x_label)
             ax.set_xticks(range(len(x_levels)))
             ax.set_xticklabels([str(lev) for lev in x_levels])
-            if idx == 0:
-                ax.set_ylabel(y_label)
+            # y-axis label: leftmost column only; row label replaces it when there are multiple rows
+            if col_idx == 0:
+                if n_rows > 1:
+                    ax.set_ylabel(f'{self._disp(row_var)} = {row_val}', fontweight='bold')
+                else:
+                    ax.set_ylabel(y_label)
             else:
                 ax.set_ylabel('')
-            if facet_var is not None:
+            # column header: top row only
+            if row_idx == 0 and facet_var is not None:
                 facet_unit = x_units_list[1] if len(x_units_list) > 1 else ''
                 facet_label = f"{self._disp(facet_var)} [{facet_unit}]" if facet_unit and facet_unit != '1' else self._disp(facet_var)
                 ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
