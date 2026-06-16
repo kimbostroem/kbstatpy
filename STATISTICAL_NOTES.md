@@ -6,53 +6,53 @@ Design decisions and their rationale for the kbstatpy library.
 
 ## Table of contents
 
-- [1  Equivalence to classical tests](#1-equivalence-to-classical-tests)
-  - [1.1  Independent-samples t-test (Demo 1)](#11-independent-samples-t-test-demo-1)
-  - [1.2  Paired t-test (Demo 2)](#12-paired-t-test-demo-2)
-  - [1.3  Two-way ANOVA (Demo 3)](#13-two-way-anova-demo-3)
-  - [1.4  Repeated-measures ANOVA (Demo 4)](#14-repeated-measures-anova-demo-4)
-  - [1.5  Pearson and partial correlation (Demo 10)](#15-pearson-and-partial-correlation-demo-10)
-- [2  Transcending classical tests](#2-transcending-classical-tests)
-  - [2.1  Random slopes — subject-specific trajectories (Demo 5)](#21-random-slopes-subject-specific-trajectories-demo-5)
-  - [2.2  Log-transform LMM vs. gamma GLMM (Demos 6 and 7)](#22-log-transform-lmm-vs-gamma-glmm-demos-6-and-7)
-  - [2.3  Partial interactions (Demo 8)](#23-partial-interactions-demo-8)
-  - [2.4  Outlier removal and AIC as a sanity check (Demo 12)](#24-outlier-removal-and-aic-as-a-sanity-check-demo-12)
-- [3  Analytical extensions](#3-analytical-extensions)
-  - [3.1  Multiple dependent variables (Demo 9)](#31-multiple-dependent-variables-demo-9)
-  - [3.2  Multicollinearity diagnostics — VIF (Demo 11)](#32-multicollinearity-diagnostics-vif-demo-11)
-  - [3.3  Contrast coding: effects coding (`contr.sum`)](#33-contrast-coding-effects-coding-contrsum)
-  - [3.4  Sums of squares: Type III](#34-sums-of-squares-type-iii)
-  - [3.5  Degrees of freedom: Satterthwaite approximation and `df = Inf`](#35-degrees-of-freedom-satterthwaite-approximation-and-df-inf)
-  - [3.6  Post-hoc comparisons: `emmeans`](#36-post-hoc-comparisons-emmeans)
-  - [3.7  VIF and multicollinearity](#37-vif-and-multicollinearity)
-- [4  Technical aspects](#4-technical-aspects)
-  - [4.1  Data filtering: `constraints`](#41-data-filtering-constraints)
-  - [4.2  Variable display labels: `rename`](#42-variable-display-labels-rename)
-  - [4.3  Data plots: violin + jitter scatter](#43-data-plots-violin-jitter-scatter)
-  - [4.4  Back-transformation of EMM and CI](#44-back-transformation-of-emm-and-ci)
-  - [4.5  Random slopes in GLMMs — pymer4 bug and workaround](#45-random-slopes-in-glmms-pymer4-bug-and-workaround)
+- [Equivalence to classical tests](#equivalence-to-classical-tests)
+  - [Independent-samples t-test (Demo 1)](#independent-samples-t-test-demo-1)
+  - [Paired t-test (Demo 2)](#paired-t-test-demo-2)
+  - [Two-way ANOVA (Demo 3)](#two-way-anova-demo-3)
+  - [Repeated-measures ANOVA (Demo 4)](#repeated-measures-anova-demo-4)
+  - [Pearson and partial correlation (Demo 10)](#pearson-and-partial-correlation-demo-10)
+- [Transcending classical tests](#transcending-classical-tests)
+  - [Random slopes — subject-specific trajectories (Demo 5)](#random-slopes-subject-specific-trajectories-demo-5)
+  - [Log-transform LMM vs. gamma GLMM (Demos 6 and 7)](#log-transform-lmm-vs-gamma-glmm-demos-6-and-7)
+  - [Partial interactions (Demo 8)](#partial-interactions-demo-8)
+  - [Outlier removal and AIC as a sanity check (Demo 12)](#outlier-removal-and-aic-as-a-sanity-check-demo-12)
+- [Analytical extensions](#analytical-extensions)
+  - [Multiple dependent variables (Demo 9)](#multiple-dependent-variables-demo-9)
+  - [Multicollinearity diagnostics — VIF (Demo 11)](#multicollinearity-diagnostics-vif-demo-11)
+  - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
+  - [Sums of squares: Type III](#sums-of-squares-type-iii)
+  - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
+  - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
+  - [VIF and multicollinearity](#vif-and-multicollinearity)
+- [Technical aspects](#technical-aspects)
+  - [Data filtering: `constraints`](#data-filtering-constraints)
+  - [Variable display labels: `rename`](#variable-display-labels-rename)
+  - [Data plots: violin + jitter scatter](#data-plots-violin-jitter-scatter)
+  - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
+  - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
 
 ---
 
-## 1  Equivalence to classical tests
+## Equivalence to classical tests
 
 kbstatpy fits all models through the LMM/GLMM framework, but for simple designs the results reduce exactly (or nearly exactly) to their classical counterparts.
 
-### 1.1  Independent-samples t-test (Demo 1)
+### Independent-samples t-test (Demo 1)
 
 `lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
 
-### 1.2  Paired t-test (Demo 2)
+### Paired t-test (Demo 2)
 
 `lmer(y ~ group + (1 | id))` is equivalent to a paired t-test for balanced, complete data, but not algebraically identical. The paired t-test operates directly on pairwise differences (df = n − 1 = 9 for the sleep data). The LMM estimates a random-intercept variance and uses Satterthwaite degrees of freedom, which will be close but not necessarily integer. For balanced data the p-values are very similar; the LMM is slightly more conservative. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
 
-### 1.3  Two-way ANOVA (Demo 3)
+### Two-way ANOVA (Demo 3)
 
 `lm(y ~ A * B)` with effects coding and Type III sums of squares is exactly a classical two-way factorial ANOVA, provided the design is balanced (equal n per cell). The `ToothGrowth` dataset used in Demo 3 has exactly 10 observations per cell, so the results are numerically identical to a classical two-way ANOVA.
 
 For unbalanced designs, Type III SS with effects coding still gives well-defined, interpretable tests — classical ANOVA software often struggles or produces ambiguous results in this case.
 
-### 1.4  Repeated-measures ANOVA (Demo 4)
+### Repeated-measures ANOVA (Demo 4)
 
 `lmer(y ~ time + (1 | subject))` is equivalent to a one-way repeated-measures ANOVA when:
 1. The design is balanced (same number of observations per subject per condition), and
@@ -60,7 +60,7 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 
 Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
-### 1.5  Pearson and partial correlation (Demo 10)
+### Pearson and partial correlation (Demo 10)
 
 Pearson r between two variables X and Y captures their total linear association, including any portion mediated by or confounded with a third variable Z. This is a classical analysis available in any statistics package.
 
@@ -68,17 +68,17 @@ When three or more variables are correlated simultaneously, kbstatpy additionall
 
 ---
 
-## 2  Transcending classical tests
+## Transcending classical tests
 
 From Demo 5 onwards the models go beyond what classical ANOVA and t-tests can express. The linear mixed model framework — and its generalisation to non-Gaussian outcomes — offers a unified language for designs that classical methods either cannot handle at all or handle only through awkward workarounds. The subsections below highlight what each demo achieves that would be impossible or impractical with classical tools.
 
-### 2.1  Random slopes — subject-specific trajectories (Demo 5)
+### Random slopes — subject-specific trajectories (Demo 5)
 
 Adding random slopes (`(1 + time | subject)`) allows each subject's response to change at a different rate across time, not just shift vertically. This has no classical equivalent: RM-ANOVA assumes a single fixed time effect shared by all subjects. When individual trajectories differ substantially — as in the sleep deprivation data, where some subjects are much more sensitive to sleep loss than others — a random-slopes model is more realistic and yields better-calibrated estimates and standard errors.
 
 The cost is additional parameters (one variance and one covariance per random-effect term), which requires sufficient subjects (typically ≥ 20) for stable estimation.
 
-### 2.2  Log-transform LMM vs. gamma GLMM (Demos 6 and 7)
+### Log-transform LMM vs. gamma GLMM (Demos 6 and 7)
 
 Both Demo 6 (log-transformed Gaussian LMM) and Demo 7 (gamma GLMM with log link) are appropriate for positive, right-skewed outcomes. They differ in what they assume about the error structure:
 
@@ -87,13 +87,13 @@ Both Demo 6 (log-transformed Gaussian LMM) and Demo 7 (gamma GLMM with log link)
 
 In practice, both approaches often give similar conclusions. The gamma GLMM is preferred when the variance–mean relationship is clearly multiplicative; the log-transform LMM is simpler to explain and diagnose. If log-transformed residuals look Gaussian and homoscedastic, either is defensible.
 
-### 2.3  Partial interactions (Demo 8)
+### Partial interactions (Demo 8)
 
 Classical two-way ANOVA always tests all pairwise interactions simultaneously. When a design has three or more factors, it is often scientifically meaningful to include only a subset of interactions — for example, testing N×P but not N×K. In standard ANOVA software this requires manual contrast specification; in kbstatpy it is expressed directly via `options.interaction`.
 
 Including only the theoretically motivated interactions keeps the model parsimonious, preserves degrees of freedom, and avoids inflating the multiple-comparison burden with interactions that are not of interest.
 
-### 2.4  Outlier removal and AIC as a sanity check (Demo 12)
+### Outlier removal and AIC as a sanity check (Demo 12)
 
 Outlier removal should always be justified, not automatic. The two-pass strategy in kbstatpy provides a principled workflow:
 
@@ -106,23 +106,23 @@ Removed observations are retained in the dataset with `is_outlier = True` and sh
 
 ---
 
-## 3  Analytical extensions
+## Analytical extensions
 
 Capabilities that run alongside the core modelling pipeline, and the statistical rationale behind kbstatpy's key modelling choices.
 
-### 3.1  Multiple dependent variables (Demo 9)
+### Multiple dependent variables (Demo 9)
 
 Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
 
 One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 
-### 3.2  Multicollinearity diagnostics — VIF (Demo 11)
+### Multicollinearity diagnostics — VIF (Demo 11)
 
 Demo 11 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
-Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See section 3.6 for the mathematical definition and thresholds.
+Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See the post-hoc section for the mathematical definition and thresholds.
 
-### 3.3  Contrast coding: effects coding (`contr.sum`)
+### Contrast coding: effects coding (`contr.sum`)
 
 Categorical predictors are coded using **effects coding** (sum-to-zero contrasts, `contr.sum` in R).
 
@@ -130,7 +130,7 @@ With effects coding each coefficient represents a deviation from the **grand mea
 
 Effects coding is a prerequisite for Type III sums of squares to be well-defined (see section 3.4). With treatment coding, Type III main-effect tests change depending on which level is chosen as the reference — a known pathology. With effects coding the tests are invariant.
 
-### 3.4  Sums of squares: Type III
+### Sums of squares: Type III
 
 The ANOVA table uses **Type III sums of squares**. Each effect is tested conditional on all other effects in the model, including higher-order interactions.
 
@@ -142,13 +142,13 @@ Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` use
 
 > **Caution:** when an interaction is significant, marginal main-effect estimates from `emmeans` average over the other factor. Main effects should be interpreted cautiously in that case — the interaction result is the primary finding.
 
-### 3.5  Degrees of freedom: Satterthwaite approximation and `df = Inf`
+### Degrees of freedom: Satterthwaite approximation and `df = Inf`
 
-#### 3.5.1  Linear mixed models (LMMs, `distribution = 'normal'`)
+#### Linear mixed models (LMMs, `distribution = 'normal'`)
 
 For LMMs the **Satterthwaite approximation** is used to estimate the denominator degrees of freedom for each F-test. This accounts for the unbalanced random-effects structure and yields finite, data-adaptive df values. It is implemented via R's `lmerTest` and `emmeans` packages.
 
-#### 3.5.2  Generalised linear mixed models (GLMMs, any other distribution)
+#### Generalised linear mixed models (GLMMs, any other distribution)
 
 The Satterthwaite approximation is **only defined for LMMs**. It relies on the model's Hessian being quadratic in the variance components — an assumption that does not hold for non-Gaussian likelihoods. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests.
 
@@ -156,7 +156,7 @@ This is mathematically correct behaviour, not a software error.
 
 For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because it does not pretend that a GLMM likelihood is quadratic.
 
-### 3.6  Post-hoc comparisons: `emmeans`
+### Post-hoc comparisons: `emmeans`
 
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.
 
@@ -164,7 +164,7 @@ P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction 
 
 For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
-### 3.7  VIF and multicollinearity
+### VIF and multicollinearity
 
 **Variance Inflation Factor (VIF)** measures how much the variance of a regression coefficient is inflated due to collinearity with other predictors. For predictor *j*:
 
@@ -190,11 +190,11 @@ Results are printed to the console and saved to `VIF.xlsx`. A visual summary is 
 
 ---
 
-## 4  Technical aspects
+## Technical aspects
 
 Implementation details and design decisions behind kbstatpy's data handling, visualisation, and output.
 
-### 4.1  Data filtering: `constraints`
+### Data filtering: `constraints`
 
 `options.constraints` accepts a Python expression string that is passed directly to `pandas.DataFrame.query()`. The filter is applied before model fitting and before any correlation or VIF analysis — it is equivalent to manually subsetting the data before passing it to kbstatpy.
 
@@ -208,7 +208,7 @@ Supported operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `|` (
 
 When a categorical column is filtered, kbstatpy removes the excluded level from the column's `Categorical` dtype (via `cat.remove_unused_categories()`). This prevents the excluded level from appearing as a phantom tick on plot axes or as a spurious empty group in post-hoc tables.
 
-### 4.2  Variable display labels: `rename`
+### Variable display labels: `rename`
 
 `options.rename` provides two related but distinct operations in a single option:
 
@@ -228,7 +228,7 @@ Both can be combined in the same string. The separator between variables is `;`;
 
 Display labels propagate to child `Kbstat` instances in multi-y runs, so a single `rename` entry in the parent covers all per-variable subdirectory outputs.
 
-### 4.3  Data plots: violin + jitter scatter
+### Data plots: violin + jitter scatter
 
 The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
@@ -238,13 +238,13 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
    > Seaborn's own `swarmplot` was not used here because seaborn computes beeswarm positions lazily on every redraw event (`tight_layout`, `show`, `savefig`). Any post-hoc modification of dot positions via `set_offsets()` is silently overwritten before the figure is saved. The manual scatter approach avoids this entirely.
 
-3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come from `emmeans` and are always on the original response scale (see section 4.4). If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
+3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come from `emmeans` and are always on the original response scale (see the back-transformation section). If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
 
 4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 
 Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
 
-### 4.4  Back-transformation of EMM and CI
+### Back-transformation of EMM and CI
 
 Estimated marginal means and their confidence intervals are always reported and plotted on the **original response scale**, regardless of model type.
 
@@ -265,7 +265,7 @@ This separation is necessary because requesting `type = 'response'` from `pairs(
 | GLMM, log link | original scale (exp applied by R) | original scale | log scale |
 | GLMM, logit link | original scale (probability) | original scale | logit scale |
 
-### 4.5  Random slopes in GLMMs — pymer4 bug and workaround
+### Random slopes in GLMMs — pymer4 bug and workaround
 
 pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's `broom.tidy()` result-parsing layer, which constructs a `data.frame` from two objects with mismatched row counts when more than one random-effect term is present per grouping factor. lme4 itself fits the model correctly — the failure is entirely in the Python post-processing step.
 
