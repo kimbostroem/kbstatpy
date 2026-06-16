@@ -180,7 +180,7 @@ All files are written to `out_dir`:
 | `Data.csv` | Copy of the input data as loaded and filtered |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
 | `DataPlots.pdf/.png` | Data plots with model 95 % CI bar, EMM marker, and significance brackets. Style depends on `plot_style`: violin + jitter scatter (default for continuous outcomes), or observed mean/proportion bars (default for binary outcomes) |
-| `Diagnostics.pdf/.png` | Six model diagnostic plots (residuals, Q-Q, leverage, …) |
+| `Diagnostics.pdf/.png` | Six model diagnostic plots: histogram of residuals, Q-Q plot, residuals vs. fitted, lagged residuals, fitted vs. response, and Cook's distance. Inspect after every run — visual diagnostics are more reliable than formal tests (Shapiro–Wilk, Levene, Durbin–Watson) because formal tests have too little power at small n and flag trivial deviations at large n. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#diagnostic-plots) for panel-by-panel interpretation |
 | `Correlation.pdf/.png` | Scatter plot grid for `options.correlation` variables |
 | `CorrelationTable.pdf/.png` | Colour-coded lower-triangle correlation table; `n.s.` on non-significant pairs |
 | `Correlation.xlsx` | Pairwise Pearson r, p, significance, and Cohen's r label |
