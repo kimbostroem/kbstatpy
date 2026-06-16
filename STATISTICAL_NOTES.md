@@ -458,7 +458,17 @@ Model-fitted values on the x-axis, actual raw observations on the y-axis, with a
 **6. Cook's distance.**
 A bar chart of Cook's distance for each observation, with a dashed reference line at the conventional threshold 4/n (where n is the number of observations). Cook's D measures how much the vector of all fitted values would change if observation *i* were removed — it combines leverage (how unusual the predictor values are) with residual magnitude into a single influence statistic. Bars coloured red exceed the 4/n threshold and warrant investigation.
 
-A high-leverage observation is one with unusual predictor values; by itself that is not a problem. A large residual is one the model fits poorly; by itself that may just reflect noise. A large Cook's D means both are true simultaneously — the observation sits far from the main predictor cloud *and* the model fits it badly, so it is actively pulling the fitted surface towards itself. These are the observations most likely to distort coefficient estimates and should be examined for data entry errors or considered for removal via `remove_outliers_prefit`.
+A high-leverage observation is one with unusual predictor values; by itself that is not a problem. A large residual is one the model fits poorly; by itself that may just reflect noise. A large Cook's D means both are true simultaneously — the observation sits far from the main predictor cloud *and* the model fits it badly, so it is actively pulling the fitted surface towards itself. These are the observations most likely to distort coefficient estimates and should be examined carefully.
+
+**Influence is not the same as error.** A red bar does not mean the observation should be removed. There are several legitimate reasons for high influence:
+
+- **Extreme but valid data** — a subject who genuinely had an unusually strong response. Removing them would bias the model towards the less extreme majority and misrepresent the true population variability.
+- **High leverage from predictor values** — an observation at the edge of the design space (e.g. the highest dose combined with the lowest response) is naturally influential without being wrong.
+- **Small group sizes** — with few observations per cell, any single point carries more weight. The 4/n threshold can be conservative in mixed models with sparse cells.
+
+The recommended workflow when red bars appear is: (1) identify the flagged observations by index in `Data.csv`; (2) check whether the values are plausible given the measurement context; (3) remove only if there is a concrete justification — a data entry error, a recording artifact, or a known protocol violation. If the value looks extreme but genuine, keep it, or run the model with and without it and report both results.
+
+For this reason, kbstatpy's automatic outlier removal (`remove_outliers_prefit`, `remove_outliers_postfit`) is based on IQR and residual z-scores rather than Cook's D. Automating removal based on influence alone would silently discard valid extreme observations, which is statistically unjustifiable.
 
 ### Back-transformation of EMM and CI
 
