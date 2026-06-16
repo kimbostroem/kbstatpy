@@ -42,6 +42,7 @@ class KbstatOptions:
     color_sat: float = 0.9
     color_alpha: float = 0.5
     font: str = ''
+    plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
 
     # Post-hoc settings
     posthoc_method: str = 'emm'

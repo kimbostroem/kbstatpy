@@ -867,10 +867,13 @@ class Kbstat:
         if self.options.y_transform:
             y_label = f"{y_label}  (original scale)"
 
-        # Detect binary outcome (0/1 only) — violin plots are inappropriate; use proportion plot instead
+        # Determine plot style: 'auto' uses bar for binary outcomes, violin for continuous
         y_vals = plot_data[y_var].dropna()
         is_binary = set(y_vals.unique()).issubset({0, 1, 0.0, 1.0}) and len(y_vals.unique()) <= 2
-        if is_binary:
+        style = self.options.plot_style
+        use_bar = (style == 'bar') or (style == 'auto' and is_binary)
+        use_violin = not use_bar
+        if use_bar and is_binary:
             y_label = f"{self._disp(y_var)} (proportion)"
 
         # Use MATLAB's default color cycle (first N colors from 'tab10')
@@ -923,9 +926,9 @@ class Kbstat:
             panel_healthy = healthy_data[mask_h]
             panel_outlier = outlier_data[mask_o]
 
-            # --- LAYER 1: Violins (skipped for binary outcomes) ---
+            # --- LAYER 1: Violins (skipped in bar style) ---
             violin_colls = []
-            if not is_binary:
+            if use_violin:
                 n_viol_before = len(ax.collections)
                 sns.violinplot(
                     data=panel_healthy, x=x_var, y=y_var, order=x_levels,
@@ -956,7 +959,7 @@ class Kbstat:
                             return (max(xs) - min(xs)) / 2
                 return 0.35  # fallback if violin not found
 
-            # --- LAYER 2: Jittered scatter (continuous) or observed proportion bar (binary) ---
+            # --- LAYER 2: Jittered scatter (violin style) or observed mean/proportion bar (bar style) ---
             n_pts = len(panel_healthy)
             dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
             rng = np.random.default_rng(0)
@@ -966,18 +969,17 @@ class Kbstat:
                 if len(subset) == 0:
                     dot_xy[level] = (np.array([]), np.array([]))
                     continue
-                if is_binary:
-                    # Show observed proportion as a filled bar (no violin, no jitter)
-                    prop = subset.mean()
+                if use_bar:
+                    bar_val = subset.mean()
                     n = len(subset)
                     color = palette[level]
-                    bar_w = 0.4
-                    ax.bar(xi, prop, width=bar_w, color=color,
+                    ax.bar(xi, bar_val, width=0.4, color=color,
                            alpha=self.options.color_alpha,
                            edgecolor=color, linewidth=1.2, zorder=2)
-                    ax.text(xi, prop + 0.02, f'n={n}', ha='center', va='bottom',
+                    ax.text(xi, bar_val * 1.02 if bar_val > 0 else 0.02,
+                            f'n={n}', ha='center', va='bottom',
                             fontsize=8, color='0.4', zorder=7)
-                    dot_xy[level] = (np.array([xi]), np.array([prop]))
+                    dot_xy[level] = (np.array([xi]), np.array([bar_val]))
                 else:
                     jx = np.array([
                         xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
@@ -1075,10 +1077,13 @@ class Kbstat:
                 ax.scatter(i, emm_val, color='white', edgecolors='0.2',
                            s=80, zorder=6, linewidths=1.2)
 
-            # Expand y-limits so violin tops are not clipped and brackets have room
-            if is_binary:
+            # Expand y-limits so tops are not clipped and brackets have room
+            if use_bar and is_binary:
                 ax.set_ylim(bottom=0.0, top=1.15)
                 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
+            elif use_bar:
+                y_lo, y_hi = ax.get_ylim()
+                ax.set_ylim(bottom=0.0, top=y_hi * 1.15)
             else:
                 y_lo, y_hi = ax.get_ylim()
                 y_pad = (y_hi - y_lo) * 0.08
