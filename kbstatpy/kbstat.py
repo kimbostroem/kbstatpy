@@ -867,6 +867,12 @@ class Kbstat:
         if self.options.y_transform:
             y_label = f"{y_label}  (original scale)"
 
+        # Detect binary outcome (0/1 only) — violin plots are inappropriate; use proportion plot instead
+        y_vals = plot_data[y_var].dropna()
+        is_binary = set(y_vals.unique()).issubset({0, 1, 0.0, 1.0}) and len(y_vals.unique()) <= 2
+        if is_binary:
+            y_label = f"{self._disp(y_var)} (proportion)"
+
         # Use MATLAB's default color cycle (first N colors from 'tab10')
         x_levels = plot_data[x_var].cat.categories.tolist() if hasattr(plot_data[x_var], 'cat') else sorted(plot_data[x_var].unique())
         palette = dict(zip(x_levels, sns.color_palette(self.options.color_scheme, len(x_levels))))
@@ -917,17 +923,19 @@ class Kbstat:
             panel_healthy = healthy_data[mask_h]
             panel_outlier = outlier_data[mask_o]
 
-            # --- LAYER 1: Violins (centered on each x-tick, colored per level) ---
-            n_viol_before = len(ax.collections)
-            sns.violinplot(
-                data=panel_healthy, x=x_var, y=y_var, order=x_levels,
-                hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
-                cut=0.3, inner=None, linewidth=1, saturation=self.options.color_sat,
-                ax=ax, legend=False, density_norm='width'
-            )
-            violin_colls = ax.collections[n_viol_before:]
-            for coll in violin_colls:
-                coll.set_alpha(self.options.color_alpha)
+            # --- LAYER 1: Violins (skipped for binary outcomes) ---
+            violin_colls = []
+            if not is_binary:
+                n_viol_before = len(ax.collections)
+                sns.violinplot(
+                    data=panel_healthy, x=x_var, y=y_var, order=x_levels,
+                    hue=x_var, hue_order=x_levels, palette=palette, dodge=False,
+                    cut=0.3, inner=None, linewidth=1, saturation=self.options.color_sat,
+                    ax=ax, legend=False, density_norm='width'
+                )
+                violin_colls = ax.collections[n_viol_before:]
+                for coll in violin_colls:
+                    coll.set_alpha(self.options.color_alpha)
 
             def _violin_hw(xi, y_val):
                 """Half-width of the violin for group xi at height y_val."""
@@ -948,7 +956,7 @@ class Kbstat:
                             return (max(xs) - min(xs)) / 2
                 return 0.35  # fallback if violin not found
 
-            # --- LAYER 2: Jittered scatter, constrained inside violin body ---
+            # --- LAYER 2: Jittered scatter (continuous) or observed proportion bar (binary) ---
             n_pts = len(panel_healthy)
             dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
             rng = np.random.default_rng(0)
@@ -958,13 +966,26 @@ class Kbstat:
                 if len(subset) == 0:
                     dot_xy[level] = (np.array([]), np.array([]))
                     continue
-                jx = np.array([
-                    xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
-                    for y in subset.values
-                ])
-                ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
-                           alpha=0.4, zorder=4, linewidths=0)
-                dot_xy[level] = (jx, subset.values)
+                if is_binary:
+                    # Show observed proportion as a filled bar (no violin, no jitter)
+                    prop = subset.mean()
+                    n = len(subset)
+                    color = palette[level]
+                    bar_w = 0.4
+                    ax.bar(xi, prop, width=bar_w, color=color,
+                           alpha=self.options.color_alpha,
+                           edgecolor=color, linewidth=1.2, zorder=2)
+                    ax.text(xi, prop + 0.02, f'n={n}', ha='center', va='bottom',
+                            fontsize=8, color='0.4', zorder=7)
+                    dot_xy[level] = (np.array([xi]), np.array([prop]))
+                else:
+                    jx = np.array([
+                        xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
+                        for y in subset.values
+                    ])
+                    ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
+                               alpha=0.4, zorder=4, linewidths=0)
+                    dot_xy[level] = (jx, subset.values)
 
             # --- LAYER 2b: Outlier points (red X markers) ---
             if len(panel_outlier) > 0:
@@ -1055,9 +1076,13 @@ class Kbstat:
                            s=80, zorder=6, linewidths=1.2)
 
             # Expand y-limits so violin tops are not clipped and brackets have room
-            y_lo, y_hi = ax.get_ylim()
-            y_pad = (y_hi - y_lo) * 0.08
-            ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
+            if is_binary:
+                ax.set_ylim(bottom=0.0, top=1.15)
+                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
+            else:
+                y_lo, y_hi = ax.get_ylim()
+                y_pad = (y_hi - y_lo) * 0.08
+                ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
 
             # --- LAYER 5: Significance brackets ---
             if self.contrasts_table is not None:
