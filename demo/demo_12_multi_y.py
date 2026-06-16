@@ -1,4 +1,4 @@
-"""Demo 9: Multiple dependent variables combined with correlation analysis.
+"""Demo 12: Multiple dependent variables combined with correlation analysis.
 
 When options.y is a list, kbstat iterates over the variables and runs the full
 analysis pipeline independently for each one. Results are saved into per-variable
@@ -21,7 +21,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file = 'data/iris.csv'                          # input data file
-options.out_dir = 'results/demo_09_multi_y'                # output folder (subfolders per variable)
+options.out_dir = 'results/demo_12_multi_y'                # output folder (subfolders per variable)
 options.y           = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # dependent variables (comma-separated)
 options.y_units     = 'cm'                                                    # unit label for y-axis (same for all variables)
 options.x           = 'Species'                                               # fixed-effect factor

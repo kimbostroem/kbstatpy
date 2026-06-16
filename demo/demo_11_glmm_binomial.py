@@ -1,4 +1,4 @@
-"""Demo 13: Generalised linear mixed model (GLMM) with binomial distribution.
+"""Demo 11: Generalised linear mixed model (GLMM) with binomial distribution.
 
 Binary outcome (bacteria present / absent), repeated measures per child.
 Treatment (placebo / drug / drug+) and week are fixed-effect factors;
@@ -19,7 +19,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/bacteria.csv'
-options.out_dir      = 'results/demo_13_glmm_binomial'
+options.out_dir      = 'results/demo_11_glmm_binomial'
 options.y            = 'present'                   # binary outcome: 1 = bacteria present
 options.x            = 'trt, week'                 # fixed-effect factors
 options.id           = 'ID'                        # random intercept per child

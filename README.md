@@ -213,9 +213,9 @@ python3 demo/demo_01_unpaired.py
 | `demo_08_glmm_gamma.py` | `oats.csv` | GLMM with gamma distribution and log link |
 | `demo_09_lmm_partial_interaction.py` | `npk.csv` | LMM with three factors and a partial interaction |
 | `demo_10_outliers.py` | `stackloss.csv` | Outlier removal: same LM run twice (default vs. pre-fit IQR + post-fit residual removal) to show the effect on fit quality and estimates |
-| `demo_11_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
-| `demo_12_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
-| `demo_13_glmm_binomial.py` | `bacteria.csv` | GLMM with binomial distribution and logit link — binary outcome (bacteria present/absent) with repeated measures per child |
+| `demo_11_glmm_binomial.py` | `bacteria.csv` | GLMM with binomial distribution and logit link — binary outcome (bacteria present/absent) with repeated measures per child |
+| `demo_12_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
+| `demo_13_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 
 **Equivalence to classical tests** (demos 1–4 and 5, all datasets perfectly balanced) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -225,18 +225,18 @@ python3 demo/demo_01_unpaired.py
 - **Demo 4** — identical to a one-way repeated-measures ANOVA under compound symmetry; LMM generalises to missing time points and unbalanced designs
 - **Demo 5** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
 
-**Transcending classical tests** (demos 6–10 and 13) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Transcending classical tests** (demos 6–11) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 6** — no classical equivalent; random slopes capture subject-specific trajectories that RM-ANOVA assumes away
 - **Demo 7 vs. 8** — log-transform LMM and gamma GLMM are both valid for right-skewed positive data; gamma is preferred when variance scales with the mean
 - **Demo 9** — partial interactions keep the model parsimonious; classical ANOVA always tests all pairwise interactions
 - **Demo 10** — data imbalance (unequal cell sizes) can arise by design, through data loss, or through outlier removal; all three cases invalidate classical ANOVA, while GLM fits by maximum likelihood on individual observations and handles any degree of imbalance without modification
-- **Demo 13** — binary dependent variables cannot be modelled with gaussian ANOVA; binomial GLMM with logit link models the probability directly and correctly
+- **Demo 11** — binary dependent variables cannot be modelled with gaussian ANOVA; binomial GLMM with logit link models the probability directly and correctly
 
-**Analytical extensions** (demos 11 and 12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Analytical extensions** (demos 12 and 13) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
-- **Demo 11** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
-- **Demo 12** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
+- **Demo 12** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
+- **Demo 13** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
 
 To regenerate the demo datasets from R (required once before running the demos):
 

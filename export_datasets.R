@@ -43,12 +43,12 @@ cat("Exported oats.csv\n")
 write.csv(npk, "demo/data/npk.csv", row.names = FALSE)
 cat("Exported npk.csv\n")
 
-# --- Demo 11: iris (multi-y GLMM + correlation) ---
+# --- Demo 12: iris (multi-y GLMM + correlation) ---
 # Sepal.Length/Width, Petal.Length/Width (cm); Species: 3 species
 write.csv(iris, "demo/data/iris.csv", row.names = FALSE)
 cat("Exported iris.csv\n")
 
-# --- Demo 12: mtcars (VIF with mixed predictors) ---
+# --- Demo 13: mtcars (VIF with mixed predictors) ---
 # mpg, cyl, hp, wt and other continuous/categorical car performance variables
 write.csv(mtcars, "demo/data/mtcars.csv", row.names = TRUE)
 cat("Exported mtcars.csv\n")
@@ -65,7 +65,7 @@ cat("Exported longley.csv\n")
 write.csv(stackloss, "demo/data/stackloss.csv", row.names = FALSE)
 cat("Exported stackloss.csv\n")
 
-# --- Demo 13: bacteria (GLMM binomial) ---
+# --- Demo 11: bacteria (GLMM binomial) ---
 # present: bacteria presence (1) / absence (0); trt: placebo/drug/drug+
 # week: time point (factor); ID: child ID (random effect)
 bact <- MASS::bacteria

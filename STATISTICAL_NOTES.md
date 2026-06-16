@@ -14,10 +14,10 @@
   - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
   - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
   - [Outlier removal, unbalanced designs and data loss (Demo 10)](#outlier-removal-unbalanced-designs-and-data-loss-demo-10)
-  - [Binomial GLMM — binary outcomes (Demo 13)](#binomial-glmm-binary-outcomes-demo-13)
+  - [Binomial GLMM — binary outcomes (Demo 11)](#binomial-glmm-binary-outcomes-demo-11)
 - [Analytical extensions](#analytical-extensions)
-  - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
-  - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
+  - [Multiple dependent variables (Demo 12)](#multiple-dependent-variables-demo-12)
+  - [Multicollinearity diagnostics — VIF (Demo 13)](#multicollinearity-diagnostics-vif-demo-13)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
@@ -150,7 +150,7 @@ A useful sanity check after outlier removal is whether AIC decreased. A large dr
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
 
-### Binomial GLMM — binary outcomes (Demo 13)
+### Binomial GLMM — binary outcomes (Demo 11)
 
 Classical t-tests and ANOVA have no valid counterpart for binary dependent variables. A binary outcome — bacteria present or absent, treatment succeeded or failed, response correct or incorrect — takes only the values 0 and 1, so the mean is a probability bounded strictly between 0 and 1. Applying a gaussian model to such data is fundamentally wrong: it can predict probabilities below 0 or above 1, it assumes constant variance (whereas binomial variance is `μ(1−μ)`, highest at `μ = 0.5` and zero at the boundaries), and it produces incorrect standard errors and p-values.
 
@@ -162,7 +162,7 @@ logit(μ) = log(μ / (1 − μ)) = x β
 
 maps the linear predictor — which ranges over all real numbers — to a probability between 0 and 1. The model estimates the log-odds of the event for each combination of predictors, and EMMs are back-transformed to the probability scale for reporting.
 
-Demo 13 uses the `bacteria` dataset (MASS package): 50 children with otitis media, measured at up to five time points (weeks 0, 2, 4, 6, 11), under three treatments (placebo, drug, drug+). The outcome is presence or absence of *H. influenzae* bacteria. A random intercept per child accounts for the within-subject correlation across time points.
+Demo 11 uses the `bacteria` dataset (MASS package): 50 children with otitis media, measured at up to five time points (weeks 0, 2, 4, 6, 11), under three treatments (placebo, drug, drug+). The outcome is presence or absence of *H. influenzae* bacteria. A random intercept per child accounts for the within-subject correlation across time points.
 
 ---
 
@@ -170,15 +170,15 @@ Demo 13 uses the `bacteria` dataset (MASS package): 50 children with otitis medi
 
 Capabilities that run alongside the core modelling pipeline, and the statistical rationale behind kbstatpy's key modelling choices.
 
-### Multiple dependent variables (Demo 11)
+### Multiple dependent variables (Demo 12)
 
 Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
 
 One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 
-### Multicollinearity diagnostics — VIF (Demo 12)
+### Multicollinearity diagnostics — VIF (Demo 13)
 
-Demo 12 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
+Demo 13 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
 Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See the post-hoc section for the mathematical definition and thresholds.
 
