@@ -1645,12 +1645,36 @@ class Kbstat:
     def _build_statistics_table(self, factors: list) -> pd.DataFrame:
         """Build descriptive statistics table per group."""
         y = self.options.y
+        inv = getattr(self, '_inverse_fn', None)
+
+        # Prefer full interaction EMM grid; fall back to single-factor grid
+        _full = getattr(self, '_emm_df_full', None)
+        emm_src = _full if (_full is not None and not _full.empty) else getattr(self, '_emm_df', None)
+
+        def _lookup_emm(keys_dict):
+            if emm_src is None or emm_src.empty:
+                return None
+            mask = pd.Series(True, index=emm_src.index)
+            for col, val in keys_dict.items():
+                if col in emm_src.columns:
+                    mask = mask & (emm_src[col].astype(str) == str(val))
+            if not mask.any():
+                return None
+            row = emm_src[mask].iloc[0]
+            emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
+                            if c in emm_src.columns), None)
+            if emm_col is None:
+                return None
+            val = float(row[emm_col])
+            return float(inv(np.array([val]))[0]) if inv is not None else val
+
         rows = []
         groups = self.data.groupby(factors)
         for keys, group in groups:
             if not isinstance(keys, tuple):
                 keys = (keys,)
-            row = dict(zip(factors, keys))
+            keys_dict = dict(zip(factors, keys))
+            row = dict(keys_dict)
             vals = group[y].dropna()
             row['N'] = len(vals)
             row['mean'] = vals.mean()
@@ -1659,6 +1683,7 @@ class Kbstat:
             row['median'] = vals.median()
             row['q25'] = vals.quantile(0.25)
             row['q75'] = vals.quantile(0.75)
+            row['emm'] = _lookup_emm(keys_dict)
             ci = 1.96 * vals.sem()
             row['CI95_lower'] = vals.mean() - ci
             row['CI95_upper'] = vals.mean() + ci
