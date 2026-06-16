@@ -50,7 +50,7 @@ Because `μ_i` is a fixed constant, this is equivalent to saying that the respon
 
 A linear model (`lm`) and its mixed-model extension (`lmer`) make the same distributional assumption, but remove several structural constraints of the classical tests:
 
-- **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so missing data, dropout, and outlier removal do not invalidate the analysis.
+- **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so unequal cell sizes do not invalidate the analysis the way they do for classical ANOVA. Missing data and dropout are handled correctly *provided they are missing at random* (MAR); data missing for reasons related to the unobserved outcome (MNAR) bias the estimates regardless of how the model is fit.
 - **Multiple predictors and interactions** — fixed effects, partial interactions, and numeric covariates are all accommodated in the same formula.
 - **Repeated measures and nested data** — the "mixed" in LMM refers to the combination of *fixed effects* (the population-level factor effects of scientific interest, shared across all observations) and *random effects* (individual-level deviations, e.g. each subject's personal baseline or slope). Random effects account for the correlation structure within subjects or clusters, giving correct standard errors without requiring compound symmetry.
 
@@ -58,12 +58,12 @@ A linear model (`lm`) and its mixed-model extension (`lmer`) make the same distr
 
 ```
 y_i ~ p(μ_i, φ)           [response distribution from the exponential family]
-g(μ_i) = x_i β            [linear predictor linked to the mean via link function g]
+g(μ_i) = x_i β + z_i b   [linear predictor (fixed + random) linked to the mean via g]
 ```
 
 The response distribution `p` can be gaussian (recovering the LMM case), gamma (positive right-skewed outcomes), binomial (binary or proportion outcomes), Poisson (counts), or others. The link function `g` maps the linear predictor — which ranges over all real numbers — to the natural scale of the mean (e.g. the log link constrains the mean to be positive for a gamma model; the logit link maps the predictor to a probability between 0 and 1 for a binomial model). When `p` is gaussian and `g` is the identity, GLMM reduces exactly to LMM.
 
-Binary and other discrete outcomes deserve special mention. A binary dependent variable — treatment success vs. failure, presence vs. absence, correct vs. incorrect — has a mean that is a probability, bounded strictly between 0 and 1. Applying a gaussian model to such data is not merely suboptimal: it can predict probabilities below 0 or above 1, violates the variance-mean relationship (binomial variance is `μ(1−μ)`, not constant), and produces incorrect standard errors and p-values. Classical t-tests and ANOVA have no principled solution for this case. A binomial GLMM with logit link handles it directly and correctly.
+Binary and other discrete outcomes deserve special mention. A binary dependent variable has a mean that is a probability, bounded strictly between 0 and 1 — something a gaussian model cannot respect. Classical t-tests and ANOVA have no principled solution for this case, whereas a binomial GLMM with logit link handles it directly and correctly (see [Demo 11](#binomial-glmm-binary-outcomes-demo-11) for the full argument).
 
 **Why the choice of distribution matters.** Real data routinely violate the normality assumption. Reaction times and many physical measurements are strictly positive and right-skewed. Proportions are bounded between 0 and 1. Count data are discrete and cannot be negative. Fitting a gaussian model to such outcomes produces biased estimates, incorrect standard errors, and meaningless predictions (e.g. negative reaction times). The principled solution is to choose a distribution that matches the data-generating process — which is exactly what GLMM allows and what classical tests and plain LMMs cannot do.
 
@@ -77,7 +77,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Independent-samples t-test (Demo 1)
 
-`lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test — and unlike the ANOVA equivalence in Demo 3, this holds regardless of whether the two groups are balanced. The Student's t-test uses a pooled variance weighted by `1/n₁ + 1/n₂`, which naturally accommodates unequal group sizes; `lm` does exactly the same. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
+`lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test — and unlike the ANOVA equivalence in Demo 3, this holds regardless of whether the two groups are balanced. The Student's t-test uses a pooled variance and a standard error that scales with `√(1/n₁ + 1/n₂)`, which naturally accommodates unequal group sizes; `lm` does exactly the same. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
 
 ### Paired t-test (Demo 2)
 
@@ -95,7 +95,7 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 1. The design is balanced (same number of observations per subject per condition), and
 2. The compound symmetry assumption holds (equal variances and equal pairwise correlations across all time points).
 
-Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
+Both conditions are met in the data used in Demo 4 (5 observations per subject per period, two periods): the design is balanced, and with only two repeated levels compound symmetry is satisfied automatically — there is a single within-subject correlation, so there is nothing for it to be unequal to. The F-statistic and p-value therefore match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
 ### Pearson and partial correlation (Demo 5)
 
@@ -122,6 +122,8 @@ Both Demo 7 (log-transformed Gaussian LMM) and Demo 8 (gamma GLMM with log link)
 - **Log-transform LMM** (Demo 7): takes `log(y)` before fitting a Gaussian model. Assumes the *log-scale* residuals are normally distributed with constant variance. Back-transforms EMMs and CIs via `exp()`.
 - **Gamma GLMM** (Demo 8): models `y` directly with a gamma distribution and log link. Assumes the *response-scale* variance is proportional to the mean squared (coefficient of variation is constant). More natural for data with multiplicative noise.
 
+They also differ in what they estimate on the original scale: back-transforming the log-LMM mean via `exp()` yields a geometric mean — the median on the original scale — whereas the gamma GLMM with log link targets the arithmetic mean, so the two back-transformed EMMs can differ even on identical data.
+
 In practice, both approaches often give similar conclusions. The gamma GLMM is preferred when the variance–mean relationship is clearly multiplicative; the log-transform LMM is simpler to explain and diagnose. If log-transformed residuals look Gaussian and homoscedastic, either is defensible.
 
 ### Partial interactions (Demo 9)
@@ -142,14 +144,14 @@ Including only the theoretically motivated interactions keeps the model parsimon
 
 All three produce the same consequence for classical ANOVA. The distinction matters because data loss and outlier removal can introduce imbalance without any deliberate choice in the study design, and researchers may not recognise that their previously balanced dataset has become unbalanced.
 
-**GLM handles imbalance without modification.** GLM estimates model parameters directly by maximum likelihood, fitting the model to individual observations rather than to cell means. The likelihood function is well-defined for any pattern of cell sizes — balanced, partially unbalanced, or severely unbalanced — so no special treatment is needed. There is no requirement for imputation, no correction factor, and no need to drop entire groups to restore balance. kbstatpy exploits this directly: after outlier removal, the model is simply refit on whatever observations remain, and the reported estimates, standard errors, and p-values are correct regardless of the resulting imbalance.
+**GLM handles imbalance without modification.** GLM estimates model parameters directly by maximum likelihood, fitting the model to individual observations rather than to cell means. The likelihood function is well-defined for any pattern of cell sizes — balanced, partially unbalanced, or severely unbalanced — so no special treatment is needed. There is no requirement for imputation, no correction factor, and no need to drop entire groups to restore balance. kbstatpy exploits this directly: after outlier removal, the model is simply refit on whatever observations remain, and the estimates and standard errors remain valid regardless of the resulting imbalance.
 
 **Two-pass outlier removal in kbstatpy.** Outlier removal should always be principled, not automatic. kbstatpy provides a two-pass strategy controlled by `remove_outliers_prefit` and `remove_outliers_postfit`:
 
 1. **Pre-fit IQR pass** (`remove_outliers_prefit`): flags observations more than 1.5 × IQR beyond Q1 or Q3 within each group. This uses only the raw data, requires no model, and protects the initial fit from being distorted by extreme values.
-2. **Post-fit residual pass** (`remove_outliers_postfit`): flags observations with Pearson residual z > 3 after the first fit, then refits. These are points that look unremarkable in isolation but deviate strongly from the model's predictions — a subtler form of influence.
+2. **Post-fit residual pass** (`remove_outliers_postfit`): flags observations with Pearson residual z > 3 after the first fit, then refits. These are points that look unremarkable in isolation but deviate strongly from the model's predictions — a subtler form of influence. Note that because this pass selects points using the model's own residuals and then reports inference from the refit on the same data, the resulting p-values are mildly anti-conservative (a form of post-selection inference); treat them as descriptive rather than exactly calibrated.
 
-A useful sanity check after outlier removal is whether AIC decreased. A large drop (as in Demo 10: 108.8 → 74.5) confirms the removed observations were genuinely influential. A negligible drop suggests the flagged points were not actually distorting the model and removal was unnecessary.
+A useful sanity check after outlier removal is whether the fixed-effect estimates and their standard errors shift materially: a substantial change confirms the removed observations were genuinely influential, while a negligible change suggests the flagged points were not actually distorting the model and removal was unnecessary. Note that AIC cannot be used for this comparison — AIC is only comparable between models fit to the *same* observations. After removing points the likelihood is evaluated on a smaller set, so the AIC will almost always drop (as in Demo 10: 108.8 → 74.5) whether or not removal was justified; the decrease therefore confirms nothing on its own.
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
 
@@ -183,7 +185,7 @@ One caveat: testing k outcomes multiplies the family-wise type I error rate. kbs
 
 Demo 13 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
-Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See the post-hoc section for the mathematical definition and thresholds.
+Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See [VIF and multicollinearity](#vif-and-multicollinearity) for the mathematical definition and thresholds.
 
 ### Contrast coding: effects coding (`contr.sum`)
 
@@ -191,7 +193,7 @@ Categorical predictors are coded using **effects coding** (sum-to-zero contrasts
 
 With effects coding each coefficient represents a deviation from the **grand mean** across all levels. The alternative — treatment coding (`contr.treatment`, R's default) — codes each level as a deviation from a chosen reference level, making all coefficients dependent on that arbitrary choice.
 
-Effects coding is a prerequisite for Type III sums of squares to be well-defined (see section 3.4). With treatment coding, Type III main-effect tests change depending on which level is chosen as the reference — a known pathology. With effects coding the tests are invariant.
+Effects coding is a prerequisite for Type III sums of squares to be well-defined (see [Sums of squares: Type III](#sums-of-squares-type-iii)). With treatment coding, Type III main-effect tests change depending on which level is chosen as the reference — a known pathology. With effects coding the tests are invariant.
 
 ### Sums of squares: Type III
 
@@ -199,7 +201,7 @@ The ANOVA table uses **Type III sums of squares**. Each effect is tested conditi
 
 **Type II** tests each main effect after all other main effects but ignoring interactions that contain it. This gives slightly more power when interactions are truly absent, but it becomes inconsistent when interactions are present: the main-effect test no longer corresponds to a meaningful hypothesis.
 
-**Type III** is the correct choice whenever interactions are included in the model (which is the default in kbstatpy). If a model has no interactions, Types II and III give identical results with effects coding and balanced data — so there is no scenario where switching to Type II would be an improvement.
+**Type III** is the correct choice whenever interactions are included in the model (which is the default in kbstatpy). If a model has no interaction terms, Types II and III are identical for every effect — regardless of coding or balance, since each main effect is then tested against the same set of remaining terms either way — so there is no scenario where switching to Type II would be an improvement.
 
 Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` uses the same combination.
 
@@ -213,11 +215,11 @@ For LMMs the **Satterthwaite approximation** is used to estimate the denominator
 
 #### Generalised linear mixed models (GLMMs, any other distribution)
 
-The Satterthwaite approximation is **only defined for LMMs**. It relies on the model's Hessian being quadratic in the variance components — an assumption that does not hold for non-Gaussian likelihoods. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests.
+The Satterthwaite approximation is **only defined for LMMs**. The Satterthwaite (and Kenward–Roger) machinery is derived for the Gaussian LMM, where an exact t-reference distribution for fixed-effect contrasts is available; GLMMs have no exact small-sample t-distribution for their contrasts. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests.
 
 This is mathematically correct behaviour, not a software error.
 
-For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because it does not pretend that a GLMM likelihood is quadratic.
+For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because the Wald statistic for a GLMM contrast is asymptotically chi-square — its natural reference distribution — whereas `n − p` is a finite-sample fudge factor with no exact justification for non-Gaussian likelihoods.
 
 ### Post-hoc comparisons: `emmeans`
 
@@ -231,7 +233,7 @@ For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For 
 
 A **raw group mean** is the arithmetic average of all observations in that group. It is easy to compute and straightforward to interpret — but it is sensitive to every source of variation in the data, including imbalances that have nothing to do with the factor of interest.
 
-An **estimated marginal mean (EMM)** is the group mean as predicted by the fitted model, after marginalising over (averaging out) all other terms in the model. Concretely, it is the model-predicted response for a given level of the factor of interest, evaluated at the mean of all covariates and averaged over the random-effect distribution.
+An **estimated marginal mean (EMM)** is the group mean as predicted by the fitted model, after marginalising over (averaging out) all other terms in the model. Concretely, it is the model-predicted response for a given level of the factor of interest, evaluated at the mean of all covariates and with the random effects held at their mean (zero).
 
 **When EMMs equal raw means.** In the simplest case — a balanced design, no covariates, no random effects, no transformation, identity link — the EMM for each group equals the raw group mean exactly. This is why Demos 1–4, which use fully balanced datasets with no covariates, show the EMM dot sitting in the centre of the violin.
 
@@ -239,11 +241,11 @@ An **estimated marginal mean (EMM)** is the group mean as predicted by the fitte
 
 - **Unbalanced cell sizes.** If one group has more observations than another, the raw grand mean is dominated by the larger group. The EMM weights each group equally regardless of sample size, giving the estimate that represents the population contrast rather than the sample composition.
 - **Covariates.** If a numeric covariate is in the model and its distribution differs across groups, raw group means conflate the factor effect with the covariate effect. The EMM is evaluated at the covariate mean, isolating the factor effect at a common reference point.
-- **Random effects.** The random-intercept (or random-slope) distribution is integrated out, pulling the EMM towards the population mean rather than the specific sample of subjects measured.
-- **Non-linear link functions (GLMMs).** With a log link, the model works on the log scale. Back-transforming `exp(mean of log-scale estimates)` is not the same as taking the mean on the response scale — Jensen's inequality guarantees they differ whenever the transformation is non-linear. The EMM correctly applies the inverse link after marginalising, whereas the raw mean ignores the transformation entirely.
+- **Random effects.** The random effects are held at their mean (zero), so the EMM is the population-level fixed-effect prediction rather than a value tied to the particular subjects sampled. For an identity link this coincides with the marginal mean; for a non-linear link (see below) it is the value for a *typical* subject, not the population-averaged mean — `emmeans` does not integrate over the random-effect distribution unless bias adjustment is explicitly requested.
+- **Non-linear link functions (GLMMs).** With a log link, the model works on the log scale. Back-transforming `exp(mean of log-scale estimates)` is not the same as taking the mean on the response scale — Jensen's inequality guarantees they differ whenever the transformation is non-linear. The EMM applies the inverse link to the model's linear prediction, whereas the raw mean ignores the transformation entirely; note that the back-transformed value is a typical-subject (median-like) quantity rather than the population-averaged mean.
 - **Data transformation (`y_transform`).** Analogous to the link function case: the EMM is computed in the transformed space and then back-transformed, whereas the raw mean is computed directly on the original values.
 
-**Why this matters for inference.** Post-hoc pairwise tests compare EMMs, not raw means, for exactly these reasons: EMMs represent the factor contrast that the model is actually testing, unconfounded by covariate distribution, imbalance, or link-function non-linearity. Reporting raw group means alongside model-derived p-values is internally inconsistent — the p-value corresponds to the EMM contrast, not the raw mean difference.
+**Why this matters for inference.** Post-hoc pairwise tests compare EMMs, not raw means, for exactly these reasons: EMMs represent the factor contrast that the model is actually testing, unconfounded by covariate distribution, imbalance, or link-function non-linearity. Reporting raw group means alongside model-derived p-values is potentially misleading — the p-value corresponds to the EMM contrast, not the raw mean difference.
 
 **Visible in the data plots.** The white dot and CI bar in each panel show the EMM; the violin (or bar) shows the raw data distribution. A visible gap between the two is not an error — it signals that the model is adjusting for structure in the data that a simple group mean would ignore. See the [data plots section](#data-plots-violin-or-bar-plot) for the layer-by-layer description.
 
