@@ -67,6 +67,8 @@ fi
 echo ""
 echo "[2/4] Installing Python packages..."
 
+pip3 install --upgrade pip --quiet
+
 # great_tables >= 0.15.0 depends on multimark which requires compilation.
 # Fall back to 0.14.0 if the Xcode CLT are absent or mismatched.
 if [[ "$XCODE_ARCH_OK" == "true" ]]; then
