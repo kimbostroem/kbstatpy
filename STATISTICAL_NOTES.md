@@ -77,7 +77,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Independent-samples t-test (Demo 1)
 
-`lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
+`lm(y ~ group)` with effects coding and two levels is algebraically identical to an independent-samples t-test — and unlike the ANOVA equivalence in Demo 3, this holds regardless of whether the two groups are balanced. The Student's t-test uses a pooled variance weighted by `1/n₁ + 1/n₂`, which naturally accommodates unequal group sizes; `lm` does exactly the same. The F-statistic from the ANOVA table equals t², and the p-value is the same. Degrees of freedom are n − 2 in both cases.
 
 ### Paired t-test (Demo 2)
 
