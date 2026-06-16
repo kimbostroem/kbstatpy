@@ -971,14 +971,10 @@ class Kbstat:
                     continue
                 if use_bar:
                     bar_val = subset.mean()
-                    n = len(subset)
                     color = palette[level]
                     ax.bar(xi, bar_val, width=0.4, color=color,
                            alpha=self.options.color_alpha,
                            edgecolor='black', linewidth=1.0, zorder=2)
-                    ax.text(xi, bar_val * 1.02 if bar_val > 0 else 0.02,
-                            f'n={n}', ha='center', va='bottom',
-                            fontsize=8, color='0.4', zorder=7)
                     dot_xy[level] = (np.array([xi]), np.array([bar_val]))
                 else:
                     jx = np.array([
@@ -1076,6 +1072,11 @@ class Kbstat:
                 # EMM dot
                 ax.scatter(i, emm_val, color='white', edgecolors='0.2',
                            s=80, zorder=6, linewidths=1.2)
+                # n= label above CI top (bar style only)
+                if use_bar:
+                    n = len(subset)
+                    ax.text(i, ci_hi, f'n={n}', ha='center', va='bottom',
+                            fontsize=8, color='0.4', zorder=7)
 
             # Expand y-limits so tops are not clipped and brackets have room
             if use_bar and is_binary:
