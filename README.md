@@ -89,7 +89,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
 | `color_sat` | float | `0.9` | Violin colour saturation (0–1) |
 | `color_alpha` | float | `0.5` | Violin fill transparency (0 = transparent, 1 = opaque) |
-| `font` | str | `''` | Matplotlib font family for all plots. Empty string uses matplotlib's default (`'DejaVu Sans'`). Common choices: `'Arial'`, `'Helvetica'`, `'Times New Roman'`, `'Georgia'`, `'Palatino'`, `'Verdana'`, `'Calibri'`, `'Roboto'`, `'Liberation Sans'` (Arial substitute, always available on Linux). Sans-serif fonts (`'Arial'`, `'Helvetica'`) are standard for scientific figures; serif fonts (`'Times New Roman'`, `'Georgia'`) match journal body text |
+| `font` | str | `''` | Matplotlib font family for all plots. Empty string uses matplotlib's default (`'DejaVu Sans'`). Sans-serif (standard for scientific figures): `'Arial'`, `'Helvetica'`, `'Verdana'`, `'Calibri'`, `'Roboto'`, `'Liberation Sans'` (Arial substitute, always available on Linux). Serif (matches journal body text): `'Times New Roman'`, `'Georgia'`, `'Palatino'` |
 
 ### Supported distributions
 
