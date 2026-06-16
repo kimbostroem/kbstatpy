@@ -22,12 +22,14 @@
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
   - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
+  - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
 - [Technical aspects](#technical-aspects)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
   - [Data plots: violin or bar plot](#data-plots-violin-or-bar-plot)
+  - [Diagnostic plots](#diagnostic-plots)
   - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
   - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
 
@@ -224,6 +226,26 @@ P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction 
 
 For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
+### Why estimated marginal means?
+
+A **raw group mean** is the arithmetic average of all observations in that group. It is easy to compute and straightforward to interpret — but it is sensitive to every source of variation in the data, including imbalances that have nothing to do with the factor of interest.
+
+An **estimated marginal mean (EMM)** is the group mean as predicted by the fitted model, after marginalising over (averaging out) all other terms in the model. Concretely, it is the model-predicted response for a given level of the factor of interest, evaluated at the mean of all covariates and averaged over the random-effect distribution.
+
+**When EMMs equal raw means.** In the simplest case — a balanced design, no covariates, no random effects, no transformation, identity link — the EMM for each group equals the raw group mean exactly. This is why Demos 1–4, which use fully balanced datasets with no covariates, show the EMM dot sitting in the centre of the violin.
+
+**When EMMs diverge from raw means.** Any of the following causes a divergence:
+
+- **Unbalanced cell sizes.** If one group has more observations than another, the raw grand mean is dominated by the larger group. The EMM weights each group equally regardless of sample size, giving the estimate that represents the population contrast rather than the sample composition.
+- **Covariates.** If a numeric covariate is in the model and its distribution differs across groups, raw group means conflate the factor effect with the covariate effect. The EMM is evaluated at the covariate mean, isolating the factor effect at a common reference point.
+- **Random effects.** The random-intercept (or random-slope) distribution is integrated out, pulling the EMM towards the population mean rather than the specific sample of subjects measured.
+- **Non-linear link functions (GLMMs).** With a log link, the model works on the log scale. Back-transforming `exp(mean of log-scale estimates)` is not the same as taking the mean on the response scale — Jensen's inequality guarantees they differ whenever the transformation is non-linear. The EMM correctly applies the inverse link after marginalising, whereas the raw mean ignores the transformation entirely.
+- **Data transformation (`y_transform`).** Analogous to the link function case: the EMM is computed in the transformed space and then back-transformed, whereas the raw mean is computed directly on the original values.
+
+**Why this matters for inference.** Post-hoc pairwise tests compare EMMs, not raw means, for exactly these reasons: EMMs represent the factor contrast that the model is actually testing, unconfounded by covariate distribution, imbalance, or link-function non-linearity. Reporting raw group means alongside model-derived p-values is internally inconsistent — the p-value corresponds to the EMM contrast, not the raw mean difference.
+
+**Visible in the data plots.** The white dot and CI bar in each panel show the EMM; the violin (or bar) shows the raw data distribution. A visible gap between the two is not an error — it signals that the model is adjusting for structure in the data that a simple group mean would ignore. See the [data plots section](#data-plots-violin-or-bar-plot) for the layer-by-layer description.
+
 ### VIF and multicollinearity
 
 **Variance Inflation Factor (VIF)** measures how much the variance of a regression coefficient is inflated due to collinearity with other predictors. For predictor *j*:
@@ -335,15 +357,37 @@ The plot style is selected via `options.plot_style` (`'violin'`, `'bar'`, or `'a
 
 3. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 
-**Why the EMM dot may not align with the centre of the violin or bar.** The violin and jitter scatter show the *raw data distribution* — where the actual observations are. The EMM dot and CI bar show the *model's estimate* — the group mean as inferred by the fitted model, after accounting for covariates, random effects, and the link function. These two quantities are the same only in the simplest case: a balanced, covariate-free LM with no random effects. In all other situations they can diverge:
-
-- **Covariates** shift the EMM to the value the model predicts at the covariate mean, whereas the raw data reflects whatever covariate values happened to occur in that group.
-- **Random effects** marginalise over the subject-level variance, pulling the EMM towards the population mean rather than the sample mean.
-- **Non-linear link functions** (log, logit) mean that back-transforming the mean on the link scale does not equal the arithmetic mean on the response scale. For a binomial GLMM, for example, the model estimates the log-odds per group, marginalises over the random-intercept distribution, and then back-transforms — a result that can differ noticeably from the naive proportion of 1s in the raw data.
-
-This gap is informative: a visible discrepancy between the violin centre and the EMM dot signals that the model is doing real work — adjusting for structure in the data that a simple group mean would ignore. In a simple balanced LM the two coincide, which is why Demos 1–4 show the dot sitting neatly in the middle of the violin.
+**Why the EMM dot may not align with the centre of the violin or bar.** The violin/bar shows the *raw data distribution*; the EMM dot and CI bar show the *model's estimate* after adjusting for covariates, random effects, and the link function. A visible gap is informative — it signals the model is doing real work. See [Why estimated marginal means?](#why-estimated-marginal-means) for the full explanation.
 
 Significance brackets are drawn above the panel using the post-hoc p-values (Holm-corrected).
+
+### Diagnostic plots
+
+`Diagnostics.pdf/.png` contains six panels that together check the key assumptions of the fitted model. They should be inspected after every run before drawing conclusions from the ANOVA or post-hoc tables.
+
+**1. Residuals vs. fitted values.**
+Plots Pearson residuals against the model's fitted values. Look for a flat, horizontal band of roughly constant width centred on zero. A U-shape or arc indicates a missing non-linear term; a funnel (variance increasing with the fitted value) indicates heteroscedasticity — if present for a Gaussian model, consider a log transform or a gamma GLMM.
+
+**2. Q-Q plot of residuals.**
+Quantiles of the standardised residuals are plotted against the theoretical quantiles of the standard normal. Points should fall close to the diagonal reference line. Systematic deviation in the tails indicates that the residual distribution is heavier-tailed (S-curve curling outward) or lighter-tailed (S-curve curling inward) than assumed. For GLMMs the residuals are Pearson residuals, not raw residuals, so moderate tail deviations are often acceptable.
+
+**3. Scale–location plot (sqrt|residuals| vs. fitted).**
+The square root of the absolute residuals is plotted against fitted values. A flat smoother line indicates homoscedasticity; an upward slope indicates variance increasing with the mean. This plot is more sensitive to heteroscedasticity than panel 1 because squaring the residuals amplifies large deviations.
+
+**4. Residuals vs. leverage (Cook's distance).**
+Each observation is plotted at its leverage (how unusual its predictor values are) on the x-axis and its standardised residual on the y-axis. Contours of Cook's distance are overlaid. Points in the upper- or lower-right corner — high leverage *and* large residual — are influential: they pull the regression line towards themselves and may distort the estimates substantially. A general rule of thumb is Cook's D > 1 (or > 4/n for a more sensitive threshold) as a flag for investigation.
+
+**5. Residuals vs. observation order (index plot).**
+Residuals are plotted in the order they appear in the dataset. For cross-sectional data with no natural ordering this plot carries limited information. For time-series or repeated-measures data it reveals whether residuals drift or cycle over time — a sign that a time trend or autoregressive structure is missing from the model.
+
+**6. Lagged residuals (residual autocorrelation).**
+Residual at observation *i* is plotted against residual at observation *i+1*. This directly tests for serial autocorrelation: if consecutive residuals are independent, the cloud should be an **unstructured, isotropic scatter centred at (0, 0)** — no tilt, no pattern. A circular cloud is the typical appearance of this.
+
+- **Positive slope (tilted up-right):** positive autocorrelation — consecutive residuals tend to have the same sign. Common in repeated-measures designs where the random intercept does not fully absorb within-subject correlation. Consider adding a random slope or an explicit AR(1) correlation structure.
+- **Negative slope (tilted down-right):** negative autocorrelation — residuals alternate sign. Less common; can occur with oscillatory processes.
+- **Fan or funnel along the diagonal:** the variance of consecutive-residual pairs grows, suggesting heteroscedasticity in the time domain.
+
+This plot is only informative when observations have a natural ordering (time series, repeated measures with a defined sequence). For purely cross-sectional data the observation order is arbitrary and any apparent tilt is not a model violation.
 
 ### Back-transformation of EMM and CI
 
