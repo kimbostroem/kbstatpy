@@ -287,8 +287,8 @@ kbstatpy requires input data in **long format** (also called *tidy* format). Und
 
   | Subject | Week_0 | Week_2 | Week_4 |
   |---|---|---|---|
-  | S01 | 1 | 0 | 0 |
-  | S02 | 1 | 1 | 0 |
+  | S01 | 142 | 138 | 125 |
+  | S02 | 155 | 160 | 148 |
 
 - **Experimental conditions or groups** — one column per condition, with each subject measured under all of them:
 
@@ -308,18 +308,18 @@ In every case the structure is the same: what should be a factor level (the time
 
 **Long format** places every observation on its own row, with separate columns for the grouping variables and the response. The first example above becomes:
 
-| Subject | Week | present |
+| Subject | Week | score |
 |---|---|---|
-| S01 | 0 | 1 |
-| S01 | 2 | 0 |
-| S01 | 4 | 0 |
-| S02 | 0 | 1 |
-| S02 | 2 | 1 |
+| S01 | 0 | 142 |
+| S01 | 2 | 138 |
+| S01 | 4 | 125 |
+| S02 | 0 | 155 |
+| S02 | 2 | 160 |
 | … | … | … |
 
-Each row is one observation. The variable `Week` is now an explicit column that can appear in `options.x`, be tested in the ANOVA table, and enter the model formula. The response `present` is a single column that can be assigned to `options.y`. The same transformation applies to any of the wide-format examples above: the column-name factor becomes a value in a new grouping column, and all the measurements collapse into one response column.
+Each row is one observation. The variable `Week` is now an explicit column that can appear in `options.x`, be tested in the ANOVA table, and enter the model formula. The response `score` is a single column that can be assigned to `options.y`. The same transformation applies to any of the wide-format examples above: the column-name factor becomes a value in a new grouping column, and all the measurements collapse into one response column.
 
-**Why the model requires long format.** The statistical model operates on individual observations: each row contributes one likelihood term. The model formula `present ~ trt + week + (1 | Subject)` maps column names to model terms — it has no concept of "spread across columns". Wide format has no single response column and no explicit factor column for the grouping dimension, so there is nothing to assign to `options.y` and `options.x`.
+**Why the model requires long format.** The statistical model operates on individual observations: each row contributes one likelihood term. The model formula `score ~ week + (1 | Subject)` maps column names to model terms — it has no concept of "spread across columns". Wide format has no single response column and no explicit factor column for the grouping dimension, so there is nothing to assign to `options.y` and `options.x`.
 
 **Converting wide to long in Python.** `pandas.melt()` is the standard tool:
 
@@ -331,7 +331,7 @@ df_wide = pd.read_csv('data_wide.csv')   # Subject, Week_0, Week_2, Week_4
 df_long = df_wide.melt(
     id_vars    = 'Subject',
     var_name   = 'Week',
-    value_name = 'present'
+    value_name = 'score'
 )
 df_long['Week'] = df_long['Week'].str.replace('Week_', '').astype(int)
 df_long.to_csv('data_long.csv', index=False)
