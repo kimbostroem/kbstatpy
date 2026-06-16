@@ -43,7 +43,6 @@ class KbstatOptions:
     color_alpha: float = 0.5
     font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
-    interactive: bool = True   # save interactive HTML alongside PDF/PNG
 
     # Post-hoc settings
     posthoc_method: str = 'emm'

@@ -769,7 +769,6 @@ class Kbstat:
         if self.fig_data is not None:
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.png'), dpi=150, bbox_inches='tight')
-            self._save_interactive(self.fig_data, os.path.join(out_dir, 'DataPlots.html'))
             plt.close(self.fig_data)
             self.fig_data = None
             print(f'Saved DataPlots.pdf/.png to {out_dir}')
@@ -777,7 +776,6 @@ class Kbstat:
         if self.fig_diagnostics is not None:
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.png'), dpi=150)
-            self._save_interactive(self.fig_diagnostics, os.path.join(out_dir, 'Diagnostics.html'))
             plt.close(self.fig_diagnostics)
             self.fig_diagnostics = None
             print(f'Saved Diagnostics.pdf/.png to {out_dir}')
@@ -1279,17 +1277,6 @@ class Kbstat:
     # Private helpers
     # ------------------------------------------------------------------
     #
-
-    def _save_interactive(self, fig, path):
-        """Save a matplotlib figure as an interactive HTML file via mpld3."""
-        if not self.options.interactive:
-            return
-        try:
-            import mpld3
-            mpld3.save_html(fig, path)
-            print(f'Saved interactive HTML to {path}')
-        except Exception as e:
-            print(f'Warning: interactive HTML export failed ({e})')
 
     def _calculate_z_score(self, data):
         # We add 1e-9 to prevent Divide By Zero crashes if a group's std is 0

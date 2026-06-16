@@ -91,8 +91,7 @@ pip3 install \
     sympy \
     matplotlib \
     seaborn \
-    openpyxl \
-    mpld3
+    openpyxl
 
 echo "  Python packages installed."
 
