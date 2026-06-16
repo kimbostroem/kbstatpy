@@ -31,7 +31,7 @@ options.id           = 'block'           # random-effect grouping variable (spat
 options.interaction  = 'P, K'            # test only the P×K interaction (not N×P or N×K)
 options.rename       = ('yield -> CropYield; N -> Nitrogen; P -> Phosphate; K -> Potassium; block -> Block; '
                         'N: 0 -> absent, 1 -> applied; P: 0 -> absent, 1 -> applied; K: 0 -> absent, 1 -> applied')
-options.x_order      = 'N: absent, applied; P: absent, applied; K: absent, applied'
+options.x_order      = 'Nitrogen: absent, applied; Phosphate: absent, applied; Potassium: absent, applied'
 # options.formula    = 'yield ~ N + P*K + (1 | block)'  # alternative: Wilkinson formula (overrides y, x, id, interaction above)
 
 kb = Kbstat(options)

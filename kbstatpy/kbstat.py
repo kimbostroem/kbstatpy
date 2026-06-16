@@ -156,6 +156,11 @@ class Kbstat:
                     orig, renamed = part.split('->', 1)
                     self._display_names[orig.strip()] = renamed.strip()
             o.rename = level_renames
+        # Remap x_order keys: allow display names as well as original column names.
+        # _display_names maps original → display; invert it to resolve display → original.
+        if isinstance(o.x_order, dict) and self._display_names:
+            inv = {v: k for k, v in self._display_names.items()}
+            o.x_order = {inv.get(k, k): v for k, v in o.x_order.items()}
 
     def run(self):
         """Run the full analysis pipeline.
