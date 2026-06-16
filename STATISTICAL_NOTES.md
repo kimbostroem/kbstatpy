@@ -30,6 +30,12 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 
 Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
+---
+
+## Transcending classical tests
+
+From Demo 5 onwards the models go beyond what classical ANOVA and t-tests can express. The linear mixed model framework — and its generalisation to non-Gaussian outcomes — offers a unified language for designs that classical methods either cannot handle at all or handle only through awkward workarounds. The subsections below highlight what each demo achieves that would be impossible or impractical with classical tools.
+
 ### Random slopes — subject-specific trajectories (Demo 5)
 
 Adding random slopes (`(1 + time | subject)`) allows each subject's response to change at a different rate across time, not just shift vertically. This has no classical equivalent: RM-ANOVA assumes a single fixed time effect shared by all subjects. When individual trajectories differ substantially — as in the sleep deprivation data, where some subjects are much more sensitive to sleep loss than others — a random-slopes model is more realistic and yields better-calibrated estimates and standard errors.
