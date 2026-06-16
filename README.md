@@ -179,7 +179,7 @@ All files are written to `out_dir`:
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
-| `DataPlots.pdf/.png` | Violin plots with jittered data points (constrained inside violin body), model 95 % CI bar, EMM marker, and significance brackets |
+| `DataPlots.pdf/.png` | Data plots with model 95 % CI bar, EMM marker, and significance brackets. Style depends on `plot_style`: violin + jitter scatter (default for continuous outcomes), or observed mean/proportion bars (default for binary outcomes) |
 | `Diagnostics.pdf/.png` | Six model diagnostic plots (residuals, Q-Q, leverage, …) |
 | `Correlation.pdf/.png` | Scatter plot grid for `options.correlation` variables |
 | `CorrelationTable.pdf/.png` | Colour-coded lower-triangle correlation table; `n.s.` on non-significant pairs |
