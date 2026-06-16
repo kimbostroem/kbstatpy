@@ -1076,7 +1076,7 @@ class Kbstat:
                 if use_bar:
                     n = len(subset)
                     y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
-                    ax.text(i, ci_hi + y_range * 0.03, f'n={n}', ha='center', va='bottom',
+                    ax.text(i, ci_hi + y_range * 0.02, f'n={n}', ha='center', va='bottom',
                             fontsize=8, color='0.4', zorder=7)
 
             # Expand y-limits so tops are not clipped and brackets have room
