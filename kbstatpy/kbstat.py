@@ -1081,8 +1081,10 @@ class Kbstat:
                 # CI bar
                 ax.plot([i, i], [ci_lo, ci_hi], color='0.2', linewidth=4, zorder=5)
                 # EMM dot
-                ax.scatter(i, emm_val, color='white', edgecolors='0.2',
-                           s=80, zorder=6, linewidths=1.2)
+                emm_sc = ax.scatter(i, emm_val, color='white', edgecolors='0.2',
+                                    s=80, zorder=6, linewidths=1.2)
+                self._tooltip(ax, emm_sc,
+                              [f'EMM: {self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'])
                 # n= label above CI top (bar style only)
                 if use_bar:
                     n = len(subset)
@@ -1316,8 +1318,6 @@ class Kbstat:
 
     def _save_interactive(self, fig, path):
         """Save a matplotlib figure as interactive HTML with hover tooltips via mpld3."""
-        if not self.options.interactive:
-            return
         try:
             import mpld3
             mpld3.save_html(fig, path)
