@@ -81,7 +81,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Paired t-test (Demo 2)
 
-`lmer(y ~ group + (1 | id))` is algebraically identical to a paired t-test for balanced, complete data: same point estimate, same standard error, df = n − 1 = 9, and the same p-value. The LMM arrives there differently — by estimating a random-intercept variance and applying Satterthwaite degrees of freedom — but the numerical result is the same. Differences arise only when the data are unbalanced or incomplete, or when the model has multiple random effects or a crossed structure; in those cases Satterthwaite df become non-integer and the LMM and paired t-test diverge. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
+`lmer(y ~ group + (1 | id))` is algebraically identical to a paired t-test for balanced data: same point estimate, same standard error, df = n − 1 = 9, and the same p-value. The LMM arrives there differently — by estimating a random-intercept variance and applying Satterthwaite degrees of freedom — but the numerical result is the same. Differences arise only when the data are unbalanced, or when the model has multiple random effects or a crossed structure; in those cases Satterthwaite df become non-integer and the LMM and paired t-test diverge. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
 
 ### Two-way ANOVA (Demo 3)
 
