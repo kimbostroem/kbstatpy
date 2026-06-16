@@ -1084,8 +1084,8 @@ class Kbstat:
                 emm_sc = ax.scatter(i, emm_val, color='white', edgecolors='0.2',
                                     s=80, zorder=6, linewidths=1.2)
                 self._tooltip(ax, emm_sc,
-                              [f'EMM: {self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'
-                               f', 95% CI [{ci_lo:.3f}, {ci_hi:.3f}]'])
+                              [f'{self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'
+                               f' [{ci_lo:.3f}, {ci_hi:.3f}]'])
                 # n= label above CI top (bar style only)
                 if use_bar:
                     n = len(subset)
