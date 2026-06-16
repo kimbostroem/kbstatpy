@@ -229,7 +229,7 @@ python3 demo/demo_01_unpaired.py
 - **Demo 6** — no classical equivalent; random slopes capture subject-specific trajectories that RM-ANOVA assumes away
 - **Demo 7 vs. 8** — log-transform LMM and gamma GLMM are both valid for right-skewed positive data; gamma is preferred when variance scales with the mean
 - **Demo 9** — partial interactions keep the model parsimonious; classical ANOVA always tests all pairwise interactions
-- **Demo 10** — outlier removal creates an unbalanced design (unequal cell sizes), which invalidates classical ANOVA; GLM fits by maximum likelihood on individual observations and handles any degree of imbalance without imputation or correction
+- **Demo 10** — outlier removal produces unbalanced data (unequal cell sizes), which invalidates classical ANOVA even when the original study design was balanced; GLM fits by maximum likelihood on individual observations and handles any degree of imbalance without imputation or correction
 
 **Analytical extensions** (demos 11 and 12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 

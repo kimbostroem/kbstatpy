@@ -16,7 +16,7 @@ Design decisions and their rationale for the kbstatpy library.
   - [Random slopes — subject-specific trajectories (Demo 6)](#random-slopes-subject-specific-trajectories-demo-6)
   - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
   - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
-  - [Outlier removal and AIC as a sanity check (Demo 10)](#outlier-removal-and-aic-as-a-sanity-check-demo-10)
+  - [Outlier removal and unbalanced designs (Demo 10)](#outlier-removal-and-unbalanced-designs-demo-10)
 - [Analytical extensions](#analytical-extensions)
   - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
   - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
@@ -93,7 +93,7 @@ Classical two-way ANOVA always tests all pairwise interactions simultaneously. W
 
 Including only the theoretically motivated interactions keeps the model parsimonious, preserves degrees of freedom, and avoids inflating the multiple-comparison burden with interactions that are not of interest.
 
-### Outlier removal and AIC as a sanity check (Demo 10)
+### Outlier removal and unbalanced designs (Demo 10)
 
 Outlier removal should always be justified, not automatic. The two-pass strategy in kbstatpy provides a principled workflow:
 
@@ -104,9 +104,9 @@ A useful sanity check after outlier removal is whether AIC decreased. A large dr
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
 
-**Outlier removal creates unbalanced data — and that is fine with GLM.** A balanced design has the same number of observations in every cell of the factorial table (e.g. exactly 5 measurements per group in a two-group experiment). Classical ANOVA relies on this balance: with equal cell sizes the group means are orthogonal and sums of squares partition cleanly without ambiguity. Remove even a single observation from one cell and the design becomes unbalanced — the group means are no longer independent, the Type I and Type III sums of squares diverge, and standard ANOVA formulas give incorrect F-statistics.
+**Unbalanced designs and unbalanced data.** It is useful to distinguish two sources of cell-size inequality. An *unbalanced design* arises by intention: the study was planned with unequal group sizes from the outset, for example because one condition is harder to recruit for. *Unbalanced data* arise when a nominally balanced design loses observations during the study — through dropout, measurement failure, or, as here, post-hoc outlier removal. Both situations produce the same statistical problem for classical ANOVA: with unequal cell sizes the group means are no longer orthogonal, the Type I and Type III sums of squares diverge, and standard ANOVA formulas give incorrect F-statistics. The distinction matters practically because unbalanced data can come as a surprise even when the original protocol was perfectly balanced.
 
-GLM avoids this entirely. It estimates model parameters directly by maximum likelihood, treating each observation individually rather than working with cell means. The likelihood function is well-defined for any pattern of missingness, so an unbalanced design is handled exactly the same way as a balanced one — no imputation, no correction, no special-casing required. kbstatpy therefore applies outlier removal freely: once the flagged observations are dropped, the model is simply refit on whatever data remain, and the reported estimates, standard errors, and p-values are all correct regardless of how many observations were removed or from which groups they came.
+**GLM handles both cases without modification.** GLM estimates model parameters directly by maximum likelihood, treating each observation individually rather than working with cell means. The likelihood function is well-defined for any pattern of cell sizes, so an unbalanced design or unbalanced data are handled exactly the same way as a balanced one — no imputation, no correction, no special-casing required. kbstatpy therefore applies outlier removal freely: once flagged observations are dropped, the model is simply refit on whatever data remain, and the reported estimates, standard errors, and p-values are correct regardless of the resulting imbalance.
 
 ---
 
