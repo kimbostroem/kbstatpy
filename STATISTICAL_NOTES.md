@@ -11,15 +11,15 @@ Design decisions and their rationale for the kbstatpy library.
   - [Paired t-test (Demo 2)](#paired-t-test-demo-2)
   - [Two-way ANOVA (Demo 3)](#two-way-anova-demo-3)
   - [Repeated-measures ANOVA (Demo 4)](#repeated-measures-anova-demo-4)
-  - [Pearson and partial correlation (Demo 10)](#pearson-and-partial-correlation-demo-10)
+  - [Pearson and partial correlation (Demo 5)](#pearson-and-partial-correlation-demo-5)
 - [Transcending classical tests](#transcending-classical-tests)
-  - [Random slopes — subject-specific trajectories (Demo 5)](#random-slopes-subject-specific-trajectories-demo-5)
-  - [Log-transform LMM vs. gamma GLMM (Demos 6 and 7)](#log-transform-lmm-vs-gamma-glmm-demos-6-and-7)
-  - [Partial interactions (Demo 8)](#partial-interactions-demo-8)
-  - [Outlier removal and AIC as a sanity check (Demo 12)](#outlier-removal-and-aic-as-a-sanity-check-demo-12)
+  - [Random slopes — subject-specific trajectories (Demo 6)](#random-slopes-subject-specific-trajectories-demo-6)
+  - [Log-transform LMM vs. gamma GLMM (Demos 7 and 8)](#log-transform-lmm-vs-gamma-glmm-demos-7-and-8)
+  - [Partial interactions (Demo 9)](#partial-interactions-demo-9)
+  - [Outlier removal and AIC as a sanity check (Demo 10)](#outlier-removal-and-aic-as-a-sanity-check-demo-10)
 - [Analytical extensions](#analytical-extensions)
-  - [Multiple dependent variables (Demo 9)](#multiple-dependent-variables-demo-9)
-  - [Multicollinearity diagnostics — VIF (Demo 11)](#multicollinearity-diagnostics-vif-demo-11)
+  - [Multiple dependent variables (Demo 11)](#multiple-dependent-variables-demo-11)
+  - [Multicollinearity diagnostics — VIF (Demo 12)](#multicollinearity-diagnostics-vif-demo-12)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
@@ -60,11 +60,11 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 
 Both conditions are met in the `sleepstudy` data used in Demo 4 (5 observations per subject per period, two periods), so the F-statistic and p-value match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
-### Pearson and partial correlation (Demo 10)
+### Pearson and partial correlation (Demo 5)
 
 Pearson r between two variables X and Y captures their total linear association, including any portion mediated by or confounded with a third variable Z. This is a classical analysis available in any statistics package.
 
-When three or more variables are correlated simultaneously, kbstatpy additionally computes **partial correlations** — the Pearson r between the residuals of regressing X on all other variables and the residuals of regressing Y on all other variables. This isolates the direct association between X and Y that cannot be explained by the remaining variables, and is particularly valuable when variables co-trend over time or share a common driver (as in the Longley macroeconomic data used in Demo 10).
+When three or more variables are correlated simultaneously, kbstatpy additionally computes **partial correlations** — the Pearson r between the residuals of regressing X on all other variables and the residuals of regressing Y on all other variables. This isolates the direct association between X and Y that cannot be explained by the remaining variables, and is particularly valuable when variables co-trend over time or share a common driver (as in the Longley macroeconomic data used in Demo 5).
 
 ---
 
@@ -72,35 +72,35 @@ When three or more variables are correlated simultaneously, kbstatpy additionall
 
 From Demo 5 onwards the models go beyond what classical ANOVA and t-tests can express. The linear mixed model framework — and its generalisation to non-Gaussian outcomes — offers a unified language for designs that classical methods either cannot handle at all or handle only through awkward workarounds. The subsections below highlight what each demo achieves that would be impossible or impractical with classical tools.
 
-### Random slopes — subject-specific trajectories (Demo 5)
+### Random slopes — subject-specific trajectories (Demo 6)
 
 Adding random slopes (`(1 + time | subject)`) allows each subject's response to change at a different rate across time, not just shift vertically. This has no classical equivalent: RM-ANOVA assumes a single fixed time effect shared by all subjects. When individual trajectories differ substantially — as in the sleep deprivation data, where some subjects are much more sensitive to sleep loss than others — a random-slopes model is more realistic and yields better-calibrated estimates and standard errors.
 
 The cost is additional parameters (one variance and one covariance per random-effect term), which requires sufficient subjects (typically ≥ 20) for stable estimation.
 
-### Log-transform LMM vs. gamma GLMM (Demos 6 and 7)
+### Log-transform LMM vs. gamma GLMM (Demos 7 and 8)
 
-Both Demo 6 (log-transformed Gaussian LMM) and Demo 7 (gamma GLMM with log link) are appropriate for positive, right-skewed outcomes. They differ in what they assume about the error structure:
+Both Demo 7 (log-transformed Gaussian LMM) and Demo 8 (gamma GLMM with log link) are appropriate for positive, right-skewed outcomes. They differ in what they assume about the error structure:
 
-- **Log-transform LMM** (Demo 6): takes `log(y)` before fitting a Gaussian model. Assumes the *log-scale* residuals are normally distributed with constant variance. Back-transforms EMMs and CIs via `exp()`.
-- **Gamma GLMM** (Demo 7): models `y` directly with a gamma distribution and log link. Assumes the *response-scale* variance is proportional to the mean squared (coefficient of variation is constant). More natural for data with multiplicative noise.
+- **Log-transform LMM** (Demo 7): takes `log(y)` before fitting a Gaussian model. Assumes the *log-scale* residuals are normally distributed with constant variance. Back-transforms EMMs and CIs via `exp()`.
+- **Gamma GLMM** (Demo 8): models `y` directly with a gamma distribution and log link. Assumes the *response-scale* variance is proportional to the mean squared (coefficient of variation is constant). More natural for data with multiplicative noise.
 
 In practice, both approaches often give similar conclusions. The gamma GLMM is preferred when the variance–mean relationship is clearly multiplicative; the log-transform LMM is simpler to explain and diagnose. If log-transformed residuals look Gaussian and homoscedastic, either is defensible.
 
-### Partial interactions (Demo 8)
+### Partial interactions (Demo 9)
 
 Classical two-way ANOVA always tests all pairwise interactions simultaneously. When a design has three or more factors, it is often scientifically meaningful to include only a subset of interactions — for example, testing N×P but not N×K. In standard ANOVA software this requires manual contrast specification; in kbstatpy it is expressed directly via `options.interaction`.
 
 Including only the theoretically motivated interactions keeps the model parsimonious, preserves degrees of freedom, and avoids inflating the multiple-comparison burden with interactions that are not of interest.
 
-### Outlier removal and AIC as a sanity check (Demo 12)
+### Outlier removal and AIC as a sanity check (Demo 10)
 
 Outlier removal should always be justified, not automatic. The two-pass strategy in kbstatpy provides a principled workflow:
 
 1. **Pre-fit IQR pass**: flags observations more than 1.5 × IQR from Q1 or Q3 within each group. This uses only the raw data, requires no model, and protects the initial fit from being distorted by extreme values.
 2. **Post-fit residual pass**: flags observations with Pearson residual z > 3 after the first fit. These are points that look unremarkable in isolation but deviate strongly from the model's predictions — a subtler form of influence.
 
-A useful sanity check after outlier removal is whether AIC decreased. A large drop (as in Demo 12: 108.8 → 74.5) confirms the removed observations were genuinely influential. A negligible drop suggests the flagged points were not actually distorting the model and removal was unnecessary.
+A useful sanity check after outlier removal is whether AIC decreased. A large drop (as in Demo 10: 108.8 → 74.5) confirms the removed observations were genuinely influential. A negligible drop suggests the flagged points were not actually distorting the model and removal was unnecessary.
 
 Removed observations are retained in the dataset with `is_outlier = True` and shown as distinct markers in the data plot, making the exclusion transparent and reproducible.
 
@@ -110,15 +110,15 @@ Removed observations are retained in the dataset with `is_outlier = True` and sh
 
 Capabilities that run alongside the core modelling pipeline, and the statistical rationale behind kbstatpy's key modelling choices.
 
-### Multiple dependent variables (Demo 9)
+### Multiple dependent variables (Demo 11)
 
 Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
 
 One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 
-### Multicollinearity diagnostics — VIF (Demo 11)
+### Multicollinearity diagnostics — VIF (Demo 12)
 
-Demo 11 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
+Demo 12 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
 Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See the post-hoc section for the mathematical definition and thresholds.
 

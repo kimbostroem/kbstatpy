@@ -207,14 +207,14 @@ python3 demo/demo_01_unpaired.py
 | `demo_02_paired.py` | `sleep.csv` | Paired t-test equivalent — same data with random intercept per subject |
 | `demo_03_twoway.py` | `toothgrowth.csv` | Two-way ANOVA equivalent — two between-subject factors |
 | `demo_04_lmm.py` | `sleepstudy.csv` | LMM with random intercepts — one within-subject factor |
-| `demo_05_lmm_slopes.py` | `sleepstudy.csv` | LMM with random intercepts and random slopes |
-| `demo_06_lmm_transform.py` | `sleepstudy.csv` | LMM with log-transform; EMMs and CIs back-transformed to original scale |
-| `demo_07_glmm_gamma.py` | `oats.csv` | GLMM with gamma distribution and log link |
-| `demo_08_lmm_partial_interaction.py` | `npk.csv` | LMM with three factors and a partial interaction |
-| `demo_09_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
-| `demo_10_correlation.py` | `longley.csv` | Standalone correlation analysis — no model fitted; `constraints` restricts to post-war years (numeric filter) |
-| `demo_11_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
-| `demo_12_outliers.py` | `stackloss.csv` | Outlier removal: same LM run twice (default vs. pre-fit IQR + post-fit residual removal) to show the effect on fit quality and estimates |
+| `demo_05_correlation.py` | `longley.csv` | Standalone correlation analysis — no model fitted; `constraints` restricts to post-war years (numeric filter) |
+| `demo_06_lmm_slopes.py` | `sleepstudy.csv` | LMM with random intercepts and random slopes |
+| `demo_07_lmm_transform.py` | `sleepstudy.csv` | LMM with log-transform; EMMs and CIs back-transformed to original scale |
+| `demo_08_glmm_gamma.py` | `oats.csv` | GLMM with gamma distribution and log link |
+| `demo_09_lmm_partial_interaction.py` | `npk.csv` | LMM with three factors and a partial interaction |
+| `demo_10_outliers.py` | `stackloss.csv` | Outlier removal: same LM run twice (default vs. pre-fit IQR + post-fit residual removal) to show the effect on fit quality and estimates |
+| `demo_11_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
+| `demo_12_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 
 **Equivalence to classical tests** (demos 1–4 and 10, all datasets perfectly balanced) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -222,19 +222,19 @@ python3 demo/demo_01_unpaired.py
 - **Demo 2** — equivalent to a paired t-test; Satterthwaite df ≈ n − 1, slightly more conservative, generalises to missing data
 - **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
 - **Demo 4** — identical to a one-way repeated-measures ANOVA under compound symmetry; LMM generalises to missing time points and unbalanced designs
-- **Demo 10** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
+- **Demo 5** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
 
-**Transcending classical tests** (demos 5–8 and 12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Transcending classical tests** (demos 6–9 and 10) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
-- **Demo 5** — no classical equivalent; random slopes capture subject-specific trajectories that RM-ANOVA assumes away
-- **Demo 6 vs. 7** — log-transform LMM and gamma GLMM are both valid for right-skewed positive data; gamma is preferred when variance scales with the mean
-- **Demo 8** — partial interactions keep the model parsimonious; classical ANOVA always tests all pairwise interactions
-- **Demo 12** — outlier removal makes the design unbalanced; LMM handles this naturally whereas classical ANOVA would require imputation or listwise deletion
+- **Demo 6** — no classical equivalent; random slopes capture subject-specific trajectories that RM-ANOVA assumes away
+- **Demo 7 vs. 8** — log-transform LMM and gamma GLMM are both valid for right-skewed positive data; gamma is preferred when variance scales with the mean
+- **Demo 9** — partial interactions keep the model parsimonious; classical ANOVA always tests all pairwise interactions
+- **Demo 10** — outlier removal makes the design unbalanced; LMM handles this naturally whereas classical ANOVA would require imputation or listwise deletion
 
-**Analytical extensions** (demos 9 and 11) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Analytical extensions** (demos 11 and 12) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
-- **Demo 9** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
-- **Demo 11** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
+- **Demo 11** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
+- **Demo 12** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
 
 To regenerate the demo datasets from R (required once before running the demos):
 
