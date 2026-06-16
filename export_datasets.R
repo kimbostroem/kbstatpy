@@ -59,4 +59,10 @@ cat("Exported mtcars.csv\n")
 write.csv(longley, "demo/data/longley.csv", row.names = FALSE)
 cat("Exported longley.csv\n")
 
+# --- Demo 12: stackloss (LM with outliers) ---
+# stack.loss: percentage of ammonia lost; Air.Flow, Water.Temp, Acid.Conc: process variables
+# Observations 1, 3, 4, 21 are documented outliers (Brownlee, 1965)
+write.csv(stackloss, "demo/data/stackloss.csv", row.names = FALSE)
+cat("Exported stackloss.csv\n")
+
 cat("\nDone. All datasets written to demo/data/\n")
