@@ -8,6 +8,7 @@ Fitting is done via R's `lme4` and `emmeans` packages (through `pymer4` and `rpy
 
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Data format](#data-format)
 - [Quick start](#quick-start)
 - [Options reference](#options-reference)
 - [Multi-y](#multi-y)
@@ -41,6 +42,19 @@ The installer:
 1. Installs all required Python packages (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …)
 2. Installs all required R packages (`lme4`, `lmerTest`, `emmeans`, …)
 3. On macOS: automatically fixes the `rpy2` / R version symlink if needed
+
+---
+
+## Data format
+
+kbstatpy requires input data in **long format**: one row per observation, with separate columns for the response variable and each grouping factor. Wide-format data — where repeated measurements are spread across columns (e.g. `Week_0`, `Week_2`, `Week_4`) — must be reshaped before use.
+
+```python
+# Convert wide → long with pandas
+df_long = df_wide.melt(id_vars='Subject', var_name='Week', value_name='score')
+```
+
+See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#long-vs-wide-data-format) for a full explanation with examples and the R equivalent (`tidyr::pivot_longer()`).
 
 ---
 

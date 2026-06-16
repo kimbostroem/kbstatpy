@@ -25,6 +25,7 @@
   - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
 - [Technical aspects](#technical-aspects)
+  - [Long vs. wide data format](#long-vs-wide-data-format)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
@@ -275,6 +276,53 @@ Results are printed to the console and saved to `VIF.xlsx`. A visual summary is 
 ## Technical aspects
 
 Implementation details and design decisions behind kbstatpy's data handling, visualisation, and output.
+
+### Long vs. wide data format
+
+kbstatpy requires input data in **long format** (also called *tidy* format). Understanding the distinction is important because research data are often collected or stored in wide format, and importing wide-format data without reshaping it is a common source of errors.
+
+**Wide format** organises repeated measurements as separate columns — one column per condition, time point, or variable. This mirrors how data entry often looks in a spreadsheet:
+
+| Subject | Week_0 | Week_2 | Week_4 |
+|---|---|---|---|
+| S01 | 1 | 0 | 0 |
+| S02 | 1 | 1 | 0 |
+| S03 | 0 | 0 | 0 |
+
+Each row is a subject; each measurement occasion occupies its own column. This is compact and easy to read at a glance, but it encodes the time variable implicitly in the column names rather than explicitly in the data.
+
+**Long format** places every observation on its own row, with separate columns for the grouping variables and the response:
+
+| Subject | Week | present |
+|---|---|---|
+| S01 | 0 | 1 |
+| S01 | 2 | 0 |
+| S01 | 4 | 0 |
+| S02 | 0 | 1 |
+| S02 | 2 | 1 |
+| … | … | … |
+
+Each row is one observation. The variable `Week` is now an explicit column that can appear in `options.x`, be tested in the ANOVA table, and enter the model formula. The response `present` is a single column that can be assigned to `options.y`.
+
+**Why the model requires long format.** The statistical model operates on individual observations: each row contributes one likelihood term. The model formula `present ~ trt + week + (1 | Subject)` maps column names to model terms — it has no concept of "spread across columns". Wide format has no single response column and no explicit factor column for the repeated dimension, so there is nothing to assign to `options.y` and `options.x`.
+
+**Converting wide to long in Python.** `pandas.melt()` is the standard tool:
+
+```python
+import pandas as pd
+
+df_wide = pd.read_csv('data_wide.csv')   # Subject, Week_0, Week_2, Week_4
+
+df_long = df_wide.melt(
+    id_vars    = 'Subject',
+    var_name   = 'Week',
+    value_name = 'present'
+)
+df_long['Week'] = df_long['Week'].str.replace('Week_', '').astype(int)
+df_long.to_csv('data_long.csv', index=False)
+```
+
+In R the equivalent is `tidyr::pivot_longer()`.
 
 ### Wilkinson notation for model formulae
 
