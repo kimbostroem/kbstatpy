@@ -81,7 +81,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Paired t-test (Demo 2)
 
-`lmer(y ~ group + (1 | id))` is equivalent to a paired t-test for balanced, complete data, but not algebraically identical. The paired t-test operates directly on pairwise differences (df = n − 1 = 9 for the sleep data). The LMM estimates a random-intercept variance and uses Satterthwaite degrees of freedom, which will be close but not necessarily integer. For balanced data the p-values are very similar; the LMM is slightly more conservative. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
+`lmer(y ~ group + (1 | id))` is equivalent to a paired t-test for balanced, complete data, but not algebraically identical. The paired t-test operates directly on pairwise differences (df = n − 1 = 9 for the sleep data). The LMM estimates a random-intercept variance and uses Satterthwaite degrees of freedom. For this specific design — perfectly balanced, two groups, one random intercept — Satterthwaite converges to exactly n − 1 = 9, matching the paired t-test. In general (unbalanced data, multiple random effects, crossed structures) Satterthwaite df are non-integer. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
 
 ### Two-way ANOVA (Demo 3)
 
