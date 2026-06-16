@@ -1,33 +1,35 @@
 # Statistical Notes
 
-## Why GLM?
+## Why linear mixed models — and why GLM?
 
-**The classical model and its distributional assumption.** A t-test or ANOVA decomposes each observation into a group mean and a residual:
+The classical statistical toolkit — t-tests, one-way ANOVA, repeated-measures ANOVA — was designed for narrow, idealised conditions: a single factor, perfectly balanced cell sizes, independent observations, and normally distributed response outcomes within each group. Real experimental data routinely violate several of these conditions at once, motivating two successive generalisations.
+
+**From classical tests to linear models (LM / LMM).** A t-test or ANOVA decomposes each observation into a group mean and a residual:
 
 ```
 y_ij = μ_i + ε_ij,    ε_ij ~ Normal(0, σ²)
 ```
 
-Because `μ_i` is a fixed constant, this is equivalent to saying that the response outcomes within each group are normally distributed: `y_ij ~ Normal(μ_i, σ²)`. Both phrasings describe the same assumption — you will encounter both in textbooks. The "residuals" framing is more useful in practice because it is what can actually be checked after fitting. A plain linear model (`lm` / `lmer`) makes exactly the same assumption; it is computationally equivalent to ANOVA, not a relaxation of it.
+Because `μ_i` is a fixed constant, this is equivalent to saying that the response outcomes within each group are normally distributed: `y_ij ~ Normal(μ_i, σ²)`. Both phrasings describe the same assumption — you will encounter both in textbooks. The "residuals" framing is more useful in practice because it is what can actually be checked after fitting.
 
-**The GLM generalisation.** A generalised linear model replaces the fixed gaussian assumption with two explicit choices:
+A linear model (`lm`) and its mixed-model extension (`lmer`) make the same distributional assumption, but remove several structural constraints of the classical tests:
+
+- **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so missing data, dropout, and outlier removal do not invalidate the analysis.
+- **Multiple predictors and interactions** — fixed effects, partial interactions, and numeric covariates are all accommodated in the same formula.
+- **Repeated measures and nested data** — random effects (the "mixed" in LMM) account for the correlation structure within subjects or clusters, giving correct standard errors without requiring compound symmetry.
+
+**From LMM to GLMM — the generalisation step.** The specific contribution of the *generalised* linear model is the ability to replace the fixed gaussian assumption with an explicit choice of response distribution and link function:
 
 ```
 y_i ~ p(μ_i, φ)           [response distribution from the exponential family]
 g(μ_i) = x_i β            [linear predictor linked to the mean via link function g]
 ```
 
-The response distribution `p` can be gaussian (recovering the classical case), gamma (positive right-skewed outcomes), binomial (proportions), Poisson (counts), or others. The link function `g` maps the linear predictor — which ranges over all real numbers — to the natural scale of the mean (e.g. the log link ensures positive means for a gamma model). Crucially, the scatter of individual observations around the mean is governed entirely by `p`, not by a normality assumption on the residuals. This makes GLM a strict generalisation: when `p` is gaussian and `g` is the identity, GLM reduces to ordinary linear regression.
+The response distribution `p` can be gaussian (recovering the LMM case), gamma (positive right-skewed outcomes), binomial (proportions), Poisson (counts), or others. The link function `g` maps the linear predictor — which ranges over all real numbers — to the natural scale of the mean (e.g. the log link constrains the mean to be positive for a gamma model). When `p` is gaussian and `g` is the identity, GLMM reduces exactly to LMM.
 
-**Why this matters in practice.** Real data routinely violate the normality assumption. Reaction times and physical measurements are strictly positive and right-skewed. Proportions are bounded between 0 and 1. Count data are discrete and cannot be negative. Fitting a gaussian model to such outcomes produces biased estimates, incorrect standard errors, and meaningless predictions (e.g. negative reaction times). The principled solution is to choose a distribution that matches the data-generating process, which is exactly what GLM allows.
+**Why the choice of distribution matters.** Real data routinely violate the normality assumption. Reaction times and many physical measurements are strictly positive and right-skewed. Proportions are bounded between 0 and 1. Count data are discrete and cannot be negative. Fitting a gaussian model to such outcomes produces biased estimates, incorrect standard errors, and meaningless predictions (e.g. negative reaction times). The principled solution is to choose a distribution that matches the data-generating process — which is exactly what GLMM allows and what classical tests and plain LMMs cannot do.
 
-Beyond the distributional assumption, GLM also removes several other constraints of the classical toolkit:
-
-- **Repeated measures and nested data** — random effects (the "mixed" in GLMM) account for the correlation structure within subjects or clusters, giving correct standard errors without requiring compound symmetry.
-- **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so missing data, dropout, and outlier removal do not invalidate the analysis.
-- **Multiple predictors and interactions** — fixed effects, random slopes, partial interactions, and numeric covariates are all first-class citizens in the same model formula.
-
-Crucially, when the classical assumptions *are* met, GLM gives exactly the same answer as the classical test. The sections below document this equivalence and then demonstrate where GLM goes further.
+When the classical assumptions *are* met, the full GLMM reduces to its classical equivalent and gives the same answer. The sections below document this equivalence and then demonstrate where the generalisation becomes necessary.
 
 ---
 
