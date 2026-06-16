@@ -91,11 +91,13 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 
 ### Repeated-measures ANOVA (Demo 4)
 
-`lmer(y ~ time + (1 | subject))` is equivalent to a one-way repeated-measures ANOVA when:
-1. The design is balanced (same number of observations per subject per condition), and
-2. The compound symmetry assumption holds (equal variances and equal pairwise correlations across all time points).
+`lmer(y ~ condition + (1 | subject))` is equivalent to a one-way repeated-measures ANOVA when:
+1. The design is balanced (one observation per subject per condition), and
+2. The compound symmetry assumption holds (equal variances and equal pairwise correlations across all conditions).
 
-Both conditions are met in the data used in Demo 4 (5 observations per subject per period, two periods): the design is balanced, and with only two repeated levels compound symmetry is satisfied automatically — there is a single within-subject correlation, so there is nothing for it to be unequal to. The F-statistic and p-value therefore match a classical RM-ANOVA exactly. The LMM again generalises gracefully: it handles missing time points, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
+Demo 4 uses the `ergoStool` data (nlme): 9 subjects each rate the perceived effort (Borg scale) of arising from 4 stool types, exactly one rating per subject per type. The design is balanced, and because the four stool types have no natural ordering there is no serial trend to make adjacent conditions correlate more strongly than distant ones — so compound symmetry is a reasonable assumption rather than a fiction. The random intercept reproduces exactly that covariance structure, and the Type III F-test matches the classical RM-ANOVA to the displayed precision: `F(3, 24) = 22.36, p = 3.9 × 10⁻⁷` from both `lmer` (with Satterthwaite df) and `aov(effort ~ Type + Error(Subject/Type))`. The LMM again generalises gracefully: it handles missing cells, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
+
+A four-level within-subject factor is also a more honest demonstration than a two-level one: a repeated-measures ANOVA with only two conditions is just a paired t-test (`F = t²`), already covered in Demo 2.
 
 ### Pearson and partial correlation (Demo 5)
 

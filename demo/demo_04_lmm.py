@@ -1,11 +1,14 @@
-"""Demo 4: Linear mixed model (LMM) with random intercepts.
+"""Demo 4: Linear mixed model (LMM) as a one-way repeated-measures ANOVA.
 
-One within-subject factor (Period: rested vs deprived), random intercept per
-subject to account for individual baseline differences in reaction time.
+One within-subject factor (stool Type, 4 levels) with a random intercept per
+subject to account for individual baseline differences. Because the design is
+balanced with exactly one observation per subject per level and no within-cell
+trend, the model is an exact equivalent of a classical one-way repeated-measures
+ANOVA: the Type III F-test for Type matches the RM-ANOVA F, and the random
+intercept reproduces the compound-symmetry covariance that RM-ANOVA assumes.
 
-Dataset: sleepstudy (lme4). Reaction times (ms) of 18 subjects over 10 days of
-sleep deprivation (Belenky et al., 2003). Days 0-4 are labelled 'rested',
-days 5-9 are labelled 'deprived'.
+Dataset: ergoStool (nlme). Perceived effort (Borg scale) required for 9 subjects
+to arise from each of 4 stool types (Wretenberg, Arborelius & Lindberg, 1993).
 """
 
 import sys, os
@@ -13,14 +16,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = 'data/sleepstudy.csv'               # input data file
-options.out_dir      = 'results/demo_04_lmm'               # output folder
-options.y            = 'Reaction'        # dependent variable
-options.y_units      = 'ms'             # unit label for y-axis
-options.x            = 'Period'          # fixed-effect factor(s)
+options.in_file      = 'data/ergostool.csv'               # input data file
+options.out_dir      = 'results/demo_04_lmm'              # output folder
+options.y            = 'effort'          # dependent variable
+options.y_units      = 'Borg'           # unit label for y-axis
+options.x            = 'Type'            # fixed-effect factor(s)
 options.id           = 'Subject'         # random-effect grouping variable (subject ID)
-options.rename       = 'Reaction -> ReactionTime; Period -> Day'
-# options.formula    = 'Reaction ~ Period + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
+options.rename       = 'effort -> Effort; Type -> Stool type'
+# options.formula    = 'effort ~ Type + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)
 kb.run()

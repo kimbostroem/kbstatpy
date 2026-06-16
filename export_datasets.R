@@ -19,7 +19,15 @@ tg$dose <- factor(tg$dose, levels = c(0.5, 1, 2), labels = c("low", "medium", "h
 write.csv(tg, "demo/data/toothgrowth.csv", row.names = FALSE)
 cat("Exported toothgrowth.csv\n")
 
-# --- Demos 4, 5 & 6: sleepstudy (LMM with random intercepts and slopes, log-transform) ---
+# --- Demo 4: ergoStool (one-way repeated-measures ANOVA via LMM) ---
+# effort: perceived effort to arise (Borg scale); Type: stool type T1-T4 (within-subject factor);
+# Subject: 9 subjects, exactly one measurement per subject per stool type (balanced, no replication)
+es <- as.data.frame(ergoStool)
+es$Subject <- factor(as.character(es$Subject))   # drop the ordered-factor ordering
+write.csv(es, "demo/data/ergostool.csv", row.names = FALSE)
+cat("Exported ergostool.csv\n")
+
+# --- Demos 6 & 7: sleepstudy (random slopes; log-transformed LMM) ---
 # Reaction: reaction time (ms); Days binned into Period factor; Subject: ID
 ss <- as.data.frame(sleepstudy)
 ss$Period <- factor(ifelse(ss$Days < 5, "rested", "deprived"),

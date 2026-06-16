@@ -10,7 +10,7 @@ Compare with demo 8 (oats, gamma GLMM): both approaches address right-skewed
 positive outcomes, but an explicit data transform combined with a normal LMM is
 often more interpretable and easier to communicate.
 
-Dataset: sleepstudy (lme4), same as demos 4 and 5.
+Dataset: sleepstudy (lme4), shared with demo 6.
 """
 
 import sys, os

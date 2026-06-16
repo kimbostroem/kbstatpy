@@ -236,7 +236,7 @@ python3 demo/demo_01_unpaired.py
 | `demo_01_unpaired.py` | `sleep.csv` | Unpaired t-test equivalent — two independent groups, plain LM |
 | `demo_02_paired.py` | `sleep.csv` | Paired t-test equivalent — same data with random intercept per subject |
 | `demo_03_twoway.py` | `toothgrowth.csv` | Two-way ANOVA equivalent — two between-subject factors |
-| `demo_04_lmm.py` | `sleepstudy.csv` | LMM with random intercepts — one within-subject factor |
+| `demo_04_lmm.py` | `ergostool.csv` | LMM with random intercepts — one within-subject factor (one-way RM-ANOVA equivalent) |
 | `demo_05_correlation.py` | `longley.csv` | Standalone correlation analysis — no model fitted; `constraints` restricts to post-war years (numeric filter) |
 | `demo_06_lmm_slopes.py` | `sleepstudy.csv` | LMM with random intercepts and random slopes |
 | `demo_07_lmm_transform.py` | `sleepstudy.csv` | LMM with log-transform; EMMs and CIs back-transformed to original scale |
@@ -252,7 +252,7 @@ python3 demo/demo_01_unpaired.py
 - **Demo 1** — identical to an independent-samples t-test (F = t², same df and p-value)
 - **Demo 2** — equivalent to a paired t-test; Satterthwaite df ≈ n − 1, slightly more conservative, generalises to missing data
 - **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
-- **Demo 4** — identical to a one-way repeated-measures ANOVA under compound symmetry; LMM generalises to missing time points and unbalanced designs
+- **Demo 4** — identical to a one-way repeated-measures ANOVA (4-level within-subject factor) under compound symmetry; LMM generalises to missing cells and unbalanced designs
 - **Demo 5** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
 
 **Transcending classical tests** (demos 6–11) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):

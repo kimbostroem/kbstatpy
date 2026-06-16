@@ -1,13 +1,12 @@
 """Demo 6: LMM with random intercepts and random slopes.
 
-Same as demo 4 but each subject is now allowed their own slope for Period,
-i.e. subjects differ not only in baseline reaction time but also in how strongly
-sleep deprivation affects them.
+Each subject is allowed their own slope for Period, i.e. subjects differ not only
+in baseline reaction time but also in how strongly sleep deprivation affects them.
 
-Compare the random-effects variance table with demo 4 to see the additional
-slope variance and intercept-slope correlation estimated by the model.
+Compared with a random-intercept-only model, the random-effects variance table
+now carries an additional slope variance and an intercept-slope correlation.
 
-Dataset: sleepstudy (lme4), same as demo 4.
+Dataset: sleepstudy (lme4), shared with demo 7.
 """
 
 import sys, os
