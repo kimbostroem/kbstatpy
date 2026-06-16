@@ -1,10 +1,10 @@
-"""Demo 7: Generalised linear mixed model (GLMM) with gamma distribution.
+"""Demo 8: Generalised linear mixed model (GLMM) with gamma distribution.
 
 Two crossed fixed-effect factors (Variety × Nitrogen), random intercept per
 block. Oat yield is positive and right-skewed — gamma distribution with log
 link is more appropriate than a normal LMM.
 
-Compare with demo 6 (sleepstudy, log-transformed LMM): both approaches handle
+Compare with demo 7 (sleepstudy, log-transformed LMM): both approaches handle
 right-skewed positive outcomes; the gamma GLMM models the variance structure
 directly rather than transforming the data.
 
@@ -19,7 +19,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/oats.csv'                     # input data file
-options.out_dir      = 'results/demo_06_glmm_gamma'        # output folder
+options.out_dir      = 'results/demo_08_glmm_gamma'        # output folder
 options.y            = 'yield'                    # dependent variable
 options.y_units      = 'qt/plot'                  # unit label for y-axis (quarter-pounds per plot)
 options.x            = 'Variety, Nitrogen'         # fixed-effect factors

@@ -1,4 +1,4 @@
-"""Demo 10: Standalone pairwise correlation analysis.
+"""Demo 5: Standalone pairwise correlation analysis.
 
 Computes Pearson correlations for all pairs of selected variables and displays
 a scatter plot grid. No model is fitted — this is purely exploratory.
@@ -21,7 +21,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file     = 'data/longley.csv'                   # input data file
-options.out_dir     = 'results/demo_10_correlation'        # output folder
+options.out_dir     = 'results/demo_05_correlation'        # output folder
 options.correlation  = 'GNP.deflator, GNP, Unemployed, Population, Year'         # variables to correlate (must be numerical)
 options.constraints  = 'Year > 1950'                                              # restrict to post-war growth period (1951–1962)
 options.rename       = 'GNP.deflator -> GNP_Deflator; Unemployed -> Unemployment'

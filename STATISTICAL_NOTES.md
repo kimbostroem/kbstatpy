@@ -27,7 +27,7 @@
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
-  - [Data plots: violin + jitter scatter](#data-plots-violin-jitter-scatter)
+  - [Data plots: violin or bar plot](#data-plots-violin-or-bar-plot)
   - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
   - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
 
@@ -313,9 +313,11 @@ Both can be combined in the same string. The separator between variables is `;`;
 
 Display labels propagate to child `Kbstat` instances in multi-y runs, so a single `rename` entry in the parent covers all per-variable subdirectory outputs.
 
-### Data plots: violin + jitter scatter
+### Data plots: violin or bar plot
 
-The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
+The plot style is selected via `options.plot_style` (`'violin'`, `'bar'`, or `'auto'`). Both styles share the same model-based overlay layers; they differ in how the raw data are summarised.
+
+**Violin style** (default for continuous outcomes):
 
 1. **Violin** — kernel density estimate of the marginal distribution, drawn with `seaborn.violinplot`. `cut=0.3` extends the KDE slightly beyond the data range to avoid hard edges. Alpha is set to 0.5 to keep the violin from obscuring the individual points behind it.
 
@@ -323,9 +325,15 @@ The data plot (`DataPlots.pdf/.png`) renders four visual layers per panel:
 
    > Seaborn's own `swarmplot` was not used here because seaborn computes beeswarm positions lazily on every redraw event (`tight_layout`, `show`, `savefig`). Any post-hoc modification of dot positions via `set_offsets()` is silently overwritten before the figure is saved. The manual scatter approach avoids this entirely.
 
-3. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come from `emmeans` and are always on the original response scale (see the back-transformation section). If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
+**Bar style** (default for binary outcomes):
 
-4. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
+1. **Observed mean bar** — a filled bar whose height is the arithmetic mean of the raw data in that group (i.e. the observed proportion for binary outcomes). The bar colour matches the group colour; a thin black border improves legibility. An `n=` label is placed just above the CI bar top.
+
+**Shared overlay layers** (both styles):
+
+2. **95 % CI bar** — a thick vertical line (linewidth 4) from the lower to the upper 95 % confidence limit of the model's estimated marginal mean, drawn in dark grey (`'0.2'`). CIs come from `emmeans` and are always on the original response scale (see the back-transformation section). If no model has been fitted (correlation-only runs), this falls back to the raw IQR.
+
+3. **Estimated marginal mean (EMM)** — a white dot with a dark grey edge, placed at the model's back-transformed EMM. For simple models this is close to the arithmetic mean; for GLMMs or transformed models it reflects the model-estimated central tendency on the original scale.
 
 **Why the EMM dot may not align with the centre of the violin or bar.** The violin and jitter scatter show the *raw data distribution* — where the actual observations are. The EMM dot and CI bar show the *model's estimate* — the group mean as inferred by the fitted model, after accounting for covariates, random effects, and the link function. These two quantities are the same only in the simplest case: a balanced, covariate-free LM with no random effects. In all other situations they can diverge:
 

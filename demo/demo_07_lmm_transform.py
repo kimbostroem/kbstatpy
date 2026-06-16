@@ -1,4 +1,4 @@
-"""Demo 6: LMM with log-transformed dependent variable.
+"""Demo 7: LMM with log-transformed dependent variable.
 
 Reaction times are strictly positive and typically right-skewed, making a
 log-transformation appropriate before fitting a normal LMM. The model is fit
@@ -6,7 +6,7 @@ in log-space; estimated marginal means, confidence intervals, and pairwise
 differences in the post-hoc table are automatically back-transformed to the
 original millisecond scale.
 
-Compare with demo 7 (oats, gamma GLMM): both approaches address right-skewed
+Compare with demo 8 (oats, gamma GLMM): both approaches address right-skewed
 positive outcomes, but an explicit data transform combined with a normal LMM is
 often more interpretable and easier to communicate.
 
@@ -19,7 +19,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleepstudy.csv'               # input data file
-options.out_dir      = 'results/demo_06_lmm_transform'     # output folder
+options.out_dir      = 'results/demo_07_lmm_transform'     # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.y_transform  = 'log(y)'         # log-transform before fitting; back-transformed for plots and tables

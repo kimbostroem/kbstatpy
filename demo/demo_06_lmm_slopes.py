@@ -1,4 +1,4 @@
-"""Demo 5: LMM with random intercepts and random slopes.
+"""Demo 6: LMM with random intercepts and random slopes.
 
 Same as demo 4 but each subject is now allowed their own slope for Period,
 i.e. subjects differ not only in baseline reaction time but also in how strongly
@@ -16,7 +16,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = 'data/sleepstudy.csv'               # input data file
-options.out_dir      = 'results/demo_05_lmm_slopes'        # output folder
+options.out_dir      = 'results/demo_06_lmm_slopes'        # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.x            = 'Period'          # fixed-effect factor(s)

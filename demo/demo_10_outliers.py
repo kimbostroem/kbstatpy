@@ -1,4 +1,4 @@
-"""Demo 12: Outlier removal before and after fitting.
+"""Demo 10: Outlier removal before and after fitting.
 
 The stackloss dataset (Brownlee, 1965) records the percentage of ammonia
 lost (stack.loss) during an industrial oxidation process across 21 plant
@@ -39,10 +39,10 @@ def make_options(out_dir, remove_pre=False, remove_post=False):
     return options
 
 print("=== Run 1: no outlier removal ===")
-kb_default = Kbstat(make_options('results/demo_12_outliers/default'))
+kb_default = Kbstat(make_options('results/demo_10_outliers/default'))
 kb_default.run()
 
 print("\n=== Run 2: pre-fit IQR + post-fit residual removal ===")
-kb_clean = Kbstat(make_options('results/demo_12_outliers/clean',
+kb_clean = Kbstat(make_options('results/demo_10_outliers/clean',
                                remove_pre=True, remove_post=True))
 kb_clean.run()
