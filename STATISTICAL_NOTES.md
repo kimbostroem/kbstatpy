@@ -1,6 +1,17 @@
 # Statistical Notes
 
-Design decisions and their rationale for the kbstatpy library.
+## Why GLM?
+
+The classical statistical toolkit — t-tests, ANOVA, Pearson correlation — covers a useful but narrow set of conditions: normally distributed residuals, equal variances across groups, balanced cell sizes, and independence of observations. Real data routinely violate one or more of these assumptions. Subjects are measured repeatedly. Group sizes become unequal through dropout or outlier removal. Outcomes are strictly positive, right-skewed, or bounded. Predictors co-vary in ways that inflate variance estimates.
+
+The generalised linear (mixed) model (GLM/GLMM) is a principled extension that relaxes all of these constraints simultaneously:
+
+- **Non-normal outcomes** — the response distribution is explicitly modelled (gamma for positive skewed data, binomial for proportions, Poisson for counts) rather than assumed to be gaussian after some ad-hoc transformation.
+- **Repeated measures and nested data** — random effects account for the correlation structure within subjects or clusters, giving correct standard errors and p-values without requiring compound symmetry.
+- **Unbalanced data** — maximum-likelihood estimation operates on individual observations, not cell means, so missing data, dropout, and outlier removal do not invalidate the analysis.
+- **Multiple predictors and interactions** — fixed effects, random slopes, partial interactions, and numeric covariates are all first-class citizens in the same model formula.
+
+Crucially, when the classical assumptions *are* met, GLM gives exactly the same answer as the classical test — it is a strict generalisation, not a replacement. The sections below document this equivalence and then demonstrate where GLM goes further.
 
 ---
 
