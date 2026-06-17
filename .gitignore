@@ -11,3 +11,6 @@ demos/**/results/
 
 # macOS
 .DS_Store
+
+# Editors
+.vscode/
