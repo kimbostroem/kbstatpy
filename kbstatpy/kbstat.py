@@ -212,8 +212,8 @@ class Kbstat:
         self.posthoc()
         self.plot_diagnostics()
         self.plot_data()
-        if self.options.out_dir:
-            self.save()
+        self.print_summary()
+        self.save()   # writes files only if out_dir is set (see save())
 
     def fit(self):
         """Load data and fit the LMM or GLMM depending on distribution."""
@@ -727,14 +727,14 @@ class Kbstat:
         same demo runs inline-only (notebooks, out_dir unset) or writes files
         (scripts, out_dir set) with no other change.
         """
-        if self.model is None:
-            raise RuntimeError('Call fit() before save()')
         out_dir = self.options.out_dir
         if not out_dir:
             print('out_dir is empty — results shown inline only, nothing written. '
                   'Set options.out_dir to save tables and figures.')
             return
         os.makedirs(out_dir, exist_ok=True)
+        # Each artifact below is written only if it was produced, so save() works
+        # for any partial state (e.g. a correlation-only run has no model tables).
 
         if self.anova_table is not None:
             anova_df = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
@@ -769,8 +769,9 @@ class Kbstat:
             self.data.to_csv(os.path.join(out_dir, 'Data.csv'), index=False)
             print(f'Saved Data.csv to {out_dir}')
 
-        self._write_summary(out_dir)
-        print(f'Saved Summary.txt to {out_dir}')
+        if self.model is not None:
+            self._write_summary(out_dir)
+            print(f'Saved Summary.txt to {out_dir}')
 
         if self.fig_data is not None:
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
@@ -1706,8 +1707,8 @@ class Kbstat:
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
 
-    def _write_summary(self, out_dir: str):
-        """Write Summary.txt with model info, fit statistics, ANOVA table, and explanatory notes."""
+    def _summary_text(self) -> str:
+        """Build the human-readable analysis summary (formula, fit stats, ANOVA, post-hoc, notes)."""
         lines = []
 
         sep = '=' * 70
@@ -1809,9 +1810,17 @@ class Kbstat:
             sep,
         ]
 
-        out_path = os.path.join(out_dir, 'Summary.txt')
-        with open(out_path, 'w', encoding='utf-8') as fh:
-            fh.write('\n'.join(lines) + '\n')
+        return '\n'.join(lines)
+
+    def _write_summary(self, out_dir: str):
+        """Write the analysis summary to Summary.txt."""
+        with open(os.path.join(out_dir, 'Summary.txt'), 'w', encoding='utf-8') as fh:
+            fh.write(self._summary_text() + '\n')
+
+    def print_summary(self):
+        """Print the analysis summary to stdout (no-op if no model has been fitted)."""
+        if self.model is not None:
+            print(self._summary_text())
 
     def _build_statistics_table(self, factors: list) -> pd.DataFrame:
         """Build descriptive statistics table per group."""
