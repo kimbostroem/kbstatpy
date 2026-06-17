@@ -1143,7 +1143,7 @@ class Kbstat:
                 y_lo, y_hi = ref_ax.get_ylim()
                 y_range = y_hi - y_lo
                 bracket_step = y_range * 0.07
-                bracket_y_start = y_hi + bracket_step * 0.3
+                bracket_y_start = y_hi + bracket_step * 0.05
 
                 def _contrast_positions(contrast_str, x_var, x_levels):
                     parts = [p.strip() for p in contrast_str.split(' - ')]
