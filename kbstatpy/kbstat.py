@@ -1142,7 +1142,42 @@ class Kbstat:
             ct = self.contrasts_table
             if 'p.value' in ct.columns:
                 bracket_step = y_range * 0.07
-                bracket_y_start = y_hi + bracket_step * 0.15
+
+                # Visual top of a panel: the highest point of any violin polygon,
+                # data point, bar, or CI bar. seaborn's violins do NOT update
+                # ax.dataLim, so the KDE tail (cut=0.3) and the CI bar sit above
+                # dataLim.y1 — we therefore introspect the rendered artists.
+                from matplotlib.collections import PolyCollection
+
+                def _panel_top(ax):
+                    top = -np.inf
+                    for coll in ax.collections:
+                        if isinstance(coll, PolyCollection):          # violins
+                            for path in coll.get_paths():
+                                v = path.vertices
+                                if len(v):
+                                    top = max(top, float(np.nanmax(v[:, 1])))
+                        else:                                         # scatter
+                            off = np.asarray(coll.get_offsets())
+                            if off.size:
+                                top = max(top, float(np.nanmax(off[:, 1])))
+                    for patch in ax.patches:                          # bars
+                        top = max(top, patch.get_y() + patch.get_height())
+                    for line in ax.lines:                             # CI bars
+                        yd = np.asarray(line.get_ydata(), dtype=float)
+                        if yd.size:
+                            top = max(top, float(np.nanmax(yd)))
+                    return top if np.isfinite(top) else ax.dataLim.y1
+
+                # sharey=True and the same contrasts are drawn in every panel, so
+                # all panels share one bracket baseline placed just above the
+                # tallest panel's content. This keeps bracket heights consistent
+                # across panels instead of staircasing with each panel's data.
+                global_top = max(_panel_top(axes[r][c])
+                                 for r in range(n_rows) for c in range(n_cols))
+                if not np.isfinite(global_top):
+                    global_top = y_hi
+                bracket_y_start = global_top + bracket_step * 0.5
 
                 def _contrast_positions(contrast_str, x_var, x_levels):
                     parts = [p.strip() for p in contrast_str.split(' - ')]
@@ -1161,11 +1196,7 @@ class Kbstat:
                 for row_idx, row_val in enumerate(row_levels):
                     for col_idx, facet_val in enumerate(facet_levels):
                         ax = axes[row_idx][col_idx]
-                        # Per-panel bracket anchor: just above the highest rendered artist
-                        # (ax.dataLim.y1 captures violin KDE and CI bar extents, unlike raw data max)
-                        panel_top = ax.dataLim.y1 if np.isfinite(ax.dataLim.y1) else y_hi
-                        panel_bracket_start = panel_top + bracket_step * 0.15
-                        bracket_y = panel_bracket_start
+                        bracket_y = bracket_y_start          # same height in every panel
                         tick_h = bracket_step * 0.3
                         for _, crow in ct.iterrows():
                             p_val = crow['p.value']
@@ -1174,7 +1205,7 @@ class Kbstat:
                             label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
                             xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
                             if xi is None:
-                                xi, xj = 0, len(x_levels_panel) - 1
+                                xi, xj = 0, len(x_levels) - 1
                             ax.plot([xi, xi, xj, xj],
                                     [bracket_y - tick_h, bracket_y, bracket_y, bracket_y - tick_h],
                                     color='black', linewidth=1.5)
@@ -1184,7 +1215,8 @@ class Kbstat:
                             self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
                             bracket_y += bracket_step * 1.4
                         bracket_y_max = max(bracket_y_max, bracket_y)
-                ref_ax.set_ylim(top=bracket_y_max)
+                # headroom so the topmost bracket label isn't jammed against the frame
+                ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
 
         fig.tight_layout()
 
