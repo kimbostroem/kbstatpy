@@ -1,0 +1,42 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+Sepal.Length ~ Species
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 100
+  Distribution           : normal
+  Link function          : default
+  Fit method             : MPL
+  Contrast coding        : effects (contr.sum)
+
+FIT STATISTICS
+--------------
+  AIC                     : 178.521
+  BIC                     : 186.336
+  logLik                  : -86.260
+
+ANOVA (Type III)
+----------------
+   Term  DF1  DF2      F            p  etaSqp      SMD effectSize significance
+Species  1.0 98.0 31.688 1.724856e-07 0.24434 1.137272      large          ***
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+ Species_1 Species_2                emm_1                emm_2   diff         t   df            p        pCorr      SMD effectSize significance
+versicolor virginica 5.936 (5.773, 6.099) 6.588 (6.425, 6.751) -0.652 -5.629165 98.0 1.724856e-07 1.724856e-07 1.137263 very large          ***
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================

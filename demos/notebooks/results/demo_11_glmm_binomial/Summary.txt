@@ -1,0 +1,62 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+present ~ trt + week + (1 | ID)
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 220
+  Distribution           : binomial
+  Link function          : logit
+  Fit method             : MPL
+  Random grouping factor : ID
+  Contrast coding        : effects (contr.sum)
+
+FIT STATISTICS
+--------------
+  AIC                     : 207.771
+  BIC                     : 224.739
+  logLik                  : -98.885
+
+ANOVA (Type III)
+----------------
+Term  DF1  DF2    F  Chisq        p   etaSqp      SMD effectSize significance
+ trt  2.0  inf 2.14   4.28 0.117628 0.019083 0.278959      small         n.s.
+week  1.0  inf 7.94   7.94 0.004835 0.034834 0.379952      small           **
+
+NOTE: df = Inf in ANOVA table
+------------------------------
+The Satterthwaite approximation for degrees of freedom is only defined
+for linear mixed models (LMMs, distribution = normal). For generalised
+linear mixed models (GLMMs) the likelihood is not quadratic and the
+Satterthwaite formula does not apply. R's emmeans therefore falls back
+to asymptotic inference, yielding df = Inf and Wald chi-square tests.
+
+This is mathematically correct behaviour — not a software error.
+
+For comparison: MATLAB's fitglme also does not support Satterthwaite
+for GLMMs. Instead it uses the finite approximation df2 = n - p, where
+n is the number of observations and p is the number of fixed-effect
+columns. Both approaches are approximations; the asymptotic (df = Inf)
+method used here is the more principled one.
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+  trt_1   trt_2                emm_1                emm_2      diff         t  df        p    pCorr  SMD effectSize significance
+   drug (drug+) 0.766 (0.563, 0.892)                            NaN -0.804363 inf 0.421187 0.444904  0.0 very small         n.s.
+   drug placebo 0.766 (0.563, 0.892) 0.924 (0.815, 0.971) -0.158795 -2.054995 inf 0.039879 0.119638  0.0 very small         n.s.
+(drug+) placebo                      0.924 (0.815, 0.971)       NaN -1.220033 inf 0.222452 0.444904  0.0 very small         n.s.
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================

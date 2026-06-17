@@ -1,0 +1,48 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+effort ~ Type + (1 | Subject)
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 36
+  Distribution           : normal
+  Link function          : default
+  Fit method             : MPL
+  Random grouping factor : Subject
+  Contrast coding        : effects (contr.sum)
+
+FIT STATISTICS
+--------------
+  AIC                     : 135.903
+  BIC                     : 145.404
+  logLik                  : -61.952
+
+ANOVA (Type III)
+----------------
+Term  DF1  DF2      F            p   etaSqp      SMD effectSize significance
+Type  3.0 24.0 22.356 3.934564e-07 0.736461 3.343352 very large          ***
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+Type_1 Type_2                   emm_1                   emm_2      diff         t   df            p        pCorr      SMD effectSize significance
+    T1     T2    8.556 (7.331, 9.780) 12.444 (11.220, 13.669) -3.888889 -7.497610 24.0 9.753420e-08 5.852052e-07 3.060886 very large          ***
+    T1     T3    8.556 (7.331, 9.780)  10.778 (9.554, 12.002) -2.222222 -4.284348 24.0 2.562927e-04 1.025171e-03 1.749078 very large           **
+    T1     T4    8.556 (7.331, 9.780)   9.222 (7.998, 10.446) -0.666667 -1.285304 24.0 2.109512e-01 2.109512e-01 0.524723     medium         n.s.
+    T2     T3 12.444 (11.220, 13.669)  10.778 (9.554, 12.002)  1.666667  3.213261 24.0 3.719276e-03 1.115783e-02 1.311808 very large            *
+    T2     T4 12.444 (11.220, 13.669)   9.222 (7.998, 10.446)  3.222222  6.212305 24.0 2.026276e-06 1.013138e-05 2.536163 very large          ***
+    T3     T4  10.778 (9.554, 12.002)   9.222 (7.998, 10.446)  1.555556  2.999044 24.0 6.219850e-03 1.243970e-02 1.224355 very large            *
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================

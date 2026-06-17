@@ -1,0 +1,44 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+len ~ supp * dose
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 60
+  Distribution           : normal
+  Link function          : default
+  Fit method             : MPL
+  Contrast coding        : effects (contr.sum)
+
+FIT STATISTICS
+--------------
+  AIC                     : 332.706
+  BIC                     : 347.366
+  logLik                  : -159.353
+
+ANOVA (Type III)
+----------------
+     Term  DF1  DF2      F            p   etaSqp      SMD effectSize significance
+     supp  1.0 54.0 15.572 2.311828e-04 0.223826 1.074003      large          ***
+     dose  2.0 54.0 92.000 4.046291e-18 0.773109 3.691833 very large          ***
+supp:dose  2.0 54.0  4.107 2.186027e-02 0.132028 0.780028     medium            *
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+supp_1 supp_2                   emm_1                   emm_2  diff        t   df        p    pCorr      SMD effectSize significance
+    OJ     VC 20.663 (19.334, 21.993) 16.963 (15.634, 18.293)   3.7 3.946135 54.0 0.000231 0.000231 1.074002 very large          ***
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================

@@ -1,0 +1,46 @@
+======================================================================
+kbstatpy — Analysis Summary
+======================================================================
+
+FORMULA
+-------
+yield ~ P * K + N + (1 | block)
+
+MODEL INFORMATION
+-----------------
+  Number of observations : 24
+  Distribution           : normal
+  Link function          : default
+  Fit method             : MPL
+  Random grouping factor : block
+  Contrast coding        : effects (contr.sum)
+
+FIT STATISTICS
+--------------
+  AIC                     : 137.789
+  BIC                     : 146.035
+  logLik                  : -61.895
+
+ANOVA (Type III)
+----------------
+Term  DF1  DF2      F        p   etaSqp      SMD effectSize significance
+   P  1.0 14.0  0.491 0.495091 0.033883 0.374547      small         n.s.
+   K  1.0 14.0  5.560 0.033447 0.284254 1.260385      large            *
+   N  1.0 14.0 11.055 0.005008 0.441229 1.777237 very large           **
+ P:K  1.0 14.0  0.028 0.869198 0.001996 0.089443 negligible         n.s.
+
+POST-HOC PAIRWISE COMPARISONS
+-----------------------------
+  Correction: holm
+
+N_1 N_2                   emm_1                   emm_2      diff        t   df        p    pCorr      SMD effectSize significance
+  0   1 52.067 (47.671, 56.463) 57.683 (53.287, 62.079) -5.616667 -3.32492 14.0 0.005008 0.005008 1.777245 very large           **
+
+SIGNIFICANCE
+------------
+  *** p < 0.001
+  **  p < 0.01
+  *   p < 0.05
+  n.s. not significant
+
+======================================================================
