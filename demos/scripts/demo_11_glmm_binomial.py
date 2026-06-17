@@ -1,18 +1,20 @@
-"""Demo 11: Generalised linear mixed model (GLMM) with binomial distribution.
+"""Demo 11 — GLMM with binomial distribution
 
-Binary outcome (bacteria present / absent), repeated measures per child.
-Treatment (placebo / drug / drug+) and week are fixed-effect factors;
-random intercept per child accounts for the within-subject correlation.
+This demo uses the `bacteria` dataset (MASS), which tracks the presence or absence
+of H. influenzae in 50 children with otitis media, measured at five time points
+(weeks 0, 2, 4, 6, 11) under three treatments (placebo, drug, drug+) — 220
+observations in all. It asks whether treatment and time affect the probability
+that bacteria are still present.
 
-A gaussian model cannot be used here: the outcome is binary (0/1), so the
-mean is a probability bounded between 0 and 1. A binomial GLMM with logit
-link models this correctly without any transformation.
+The outcome is binary, so its mean is a probability bounded between 0 and 1 and a
+gaussian model is invalid. A binomial GLMM with a logit link, plus a random
+intercept per child for the repeated measures, models it correctly:
 
-Model: `present ~ trt + week + (1 | ID)` (binomial family, logit link)
+    present ~ trt + week + (1 | ID)
 
-Dataset: bacteria (MASS). Presence/absence of H. influenzae bacteria in
-children with otitis media, under three treatments across five time points
-(weeks 0, 2, 4, 6, 11). 50 children, 220 observations total.
+The log-odds are estimated on the logit scale and the estimated marginal means are
+back-transformed to probabilities — exactly the kind of binary outcome that
+classical t-tests and ANOVA cannot handle at all.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

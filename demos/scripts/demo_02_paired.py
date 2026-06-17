@@ -1,14 +1,16 @@
-"""Demo 2: Paired t-test equivalent.
+"""Demo 2 — Paired t-test equivalent
 
-Same data as demo 1 but now accounting for the fact that both drugs were tested
-on the same 10 patients. A random intercept per patient captures between-subject
-baseline differences, equivalent to a paired t-test.
+This demo reuses the `sleep` dataset (R base; Cushny & Peebles 1905 / Student
+1908), but now takes account of the fact that both drugs were measured on the
+same 10 patients. It asks the same question as demo 1 — does sleep gain differ
+between the drugs — while respecting the within-patient pairing.
 
-Compare the post-hoc p-value with demo 1 to see how pairing increases power.
+A random intercept per patient absorbs each person's baseline sleep tendency:
 
-Model: `extra ~ group + (1 | ID)`
+    extra ~ group + (1 | ID)
 
-Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
+This is equivalent to a paired t-test (degrees of freedom n − 1), and comparing
+its p-value with demo 1 shows how accounting for the pairing increases power.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

@@ -1,16 +1,21 @@
-"""Demo 4: Linear mixed model (LMM) as a one-way repeated-measures ANOVA.
+"""Demo 4 — One-way repeated-measures ANOVA (LMM)
 
-One within-subject factor (stool Type, 4 levels) with a random intercept per
-subject to account for individual baseline differences. Because the design is
-balanced with exactly one observation per subject per level and no within-cell
-trend, the model is an exact equivalent of a classical one-way repeated-measures
-ANOVA: the Type III F-test for Type matches the RM-ANOVA F, and the random
-intercept reproduces the compound-symmetry covariance that RM-ANOVA assumes.
+This demo uses the `ergoStool` dataset (nlme; Wretenberg, Arborelius & Lindberg
+1993), in which 9 subjects each rated the perceived effort (on the Borg scale) of
+rising from four different stool types — one rating per subject per stool, a
+balanced design with no replication. It asks whether the stool type affects the
+effort required.
 
-Model: `effort ~ Type + (1 | Subject)`
+A random intercept per subject captures individual baseline differences:
 
-Dataset: ergoStool (nlme). Perceived effort (Borg scale) required for 9 subjects
-to arise from each of 4 stool types (Wretenberg, Arborelius & Lindberg, 1993).
+    effort ~ Type + (1 | Subject)
+
+Because the design is balanced and the four stools have no natural ordering, this
+is an exact one-way repeated-measures ANOVA: the Type III F-test matches
+`aov(effort ~ Type + Error(Subject/Type))`, with the random intercept reproducing
+the compound-symmetry covariance that RM-ANOVA assumes. A four-level
+within-subject factor is also a more honest RM-ANOVA than a two-level one, which
+would merely be the paired t-test of demo 2.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

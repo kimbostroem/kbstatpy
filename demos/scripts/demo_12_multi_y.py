@@ -1,20 +1,18 @@
-"""Demo 12: Multiple dependent variables combined with correlation analysis.
+"""Demo 12 — Multiple dependent variables + correlation
 
-When options.y is a list, kbstat iterates over the variables and runs the full
-analysis pipeline independently for each one. Results are saved into per-variable
-subdirectories under out_dir.
+This demo uses the `iris` dataset (R base; Fisher 1936), the four flower
+measurements of 150 plants across three species, with `setosa` excluded so that
+only versicolor and virginica are compared. It illustrates analysing several
+outcomes in a single run.
 
-Setting options.correlation runs a pairwise Pearson correlation independently
-of the GLMM — both analyses share the same options block and input file.
+Passing a list to `options.y` runs the full pipeline once per measurement:
 
-Here all four iris measurements are analysed against species (four separate LMs)
-and also correlated with each other in a single run. The setosa species is excluded
-via options.constraints to illustrate categorical filtering — only versicolor and
-virginica are compared.
+    {Sepal.Length, Sepal.Width, Petal.Length, Petal.Width} ~ Species
 
-Model: `<measurement> ~ Species`, one LM per outcome
-
-Dataset: iris (R base / Fisher, 1936). 150 observations, 3 species × 50 plants.
+with results saved into per-variable subdirectories, and a shared pairwise
+correlation among the four measurements computed in the same call. The
+`constraints = 'Species != "setosa"'` filter demonstrates categorical row
+selection.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

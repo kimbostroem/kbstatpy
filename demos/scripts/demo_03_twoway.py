@@ -1,13 +1,19 @@
-"""Demo 3: Two-way ANOVA equivalent.
+"""Demo 3 — Two-way ANOVA equivalent
 
-Two between-subject factors (supplement type × dose), no repeated measures.
-Plain linear model — equivalent to a classical two-way ANOVA.
+This demo uses the `ToothGrowth` dataset (R base), in which the tooth
+(odontoblast) length of 60 guinea pigs was measured after vitamin C
+supplementation given by two delivery methods — orange juice (`OJ`) and ascorbic
+acid (`VC`) — at three dose levels (low, medium, high), with 10 animals in each of
+the six cells. It asks whether length depends on the supplement, the dose, and
+their interaction.
 
-Model: `len ~ supp * dose`
+Both factors enter as crossed between-subject effects:
 
-Dataset: ToothGrowth (R base). Guinea pig tooth length (mm) after vitamin C
-supplementation by two delivery methods (OJ = orange juice, VC = ascorbic acid)
-at three dose levels (low / medium / high).
+    len ~ supp * dose
+
+With effects coding, Type III sums of squares, and a balanced design, the result
+is numerically identical to a classical two-way factorial ANOVA, including the
+interaction term.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

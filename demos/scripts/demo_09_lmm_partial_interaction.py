@@ -1,22 +1,20 @@
-"""Demo 9: LMM with a partial interaction (three fixed-effect factors, one interaction).
+"""Demo 9 — LMM with partial interaction
 
-Three binary treatment factors applied to pea plots: nitrogen (N), phosphate (P),
-and potassium (K). Plots are grouped in 6 blocks — a random intercept per block
-accounts for spatial variation.
+This demo uses the `npk` dataset (R base; Venables & Ripley 2002), a classic
+agricultural experiment measuring pea yield under three binary treatments —
+nitrogen (N), phosphate (P), and potassium (K) — applied across six complete
+blocks (24 plots). It examines the main effect of nitrogen and the
+phosphate–potassium interaction, without assuming that nitrogen interacts with
+either.
 
-The model tests the main effect of N and the P×K interaction separately, without
-assuming that N interacts with either:
+Only the one hypothesised interaction is included:
 
     yield ~ N + P*K + (1 | block)
 
-This contrasts with demo 7 (oats), where all pairwise terms from a two-factor
-interaction were of interest. Here only one of the three possible interactions is
-hypothesised, illustrating the `interaction` option with three fixed-effect factors.
-
-Model: `yield ~ N + P*K + (1 | block)`
-
-Dataset: npk (R base). Nitrogen, phosphate and potassium effects on pea yield
-(pounds per plot). 24 plots in 6 complete blocks (Venables & Ripley, 2002).
+Where classical two-way ANOVA tests all pairwise interactions at once, this fits
+just the theoretically motivated P×K term, keeping the model parsimonious and
+preserving degrees of freedom. A random intercept per block accounts for spatial
+variation across the field.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

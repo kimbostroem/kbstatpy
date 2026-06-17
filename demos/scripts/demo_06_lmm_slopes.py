@@ -1,14 +1,18 @@
-"""Demo 6: LMM with random intercepts and random slopes.
+"""Demo 6 — LMM with random intercepts and random slopes
 
-Each subject is allowed their own slope for Period, i.e. subjects differ not only
-in baseline reaction time but also in how strongly sleep deprivation affects them.
+This demo uses the `sleepstudy` dataset (lme4; Belenky et al. 2003), reaction
+times measured on 18 subjects across a period of sleep deprivation (here
+contrasting a rested block with a deprived one). It asks not just whether
+deprivation slows reactions on average, but whether subjects differ in how
+strongly it affects them.
 
-Compared with a random-intercept-only model, the random-effects variance table
-now carries an additional slope variance and an intercept-slope correlation.
+Allowing each subject their own slope as well as their own intercept gives:
 
-Model: `Reaction ~ Period + (1 + Period | Subject)`
+    Reaction ~ Period + (1 + Period | Subject)
 
-Dataset: sleepstudy (lme4), shared with demo 7.
+This has no classical equivalent — repeated-measures ANOVA assumes a single shared
+time effect. The random-effects table now carries an additional slope variance and
+an intercept–slope correlation.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

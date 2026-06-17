@@ -1,23 +1,21 @@
-"""Demo 10: Outlier removal before and after fitting.
+"""Demo 10 — Outlier removal (before and after fitting)
 
-The stackloss dataset (Brownlee, 1965) records the percentage of ammonia
-lost (stack.loss) during an industrial oxidation process across 21 plant
-runs. Observations 1, 3, 4, and 21 are well-documented influential outliers
-widely used as a benchmark in robust regression literature.
+This demo uses the `stackloss` dataset (R base; Brownlee 1965), which records the
+percentage of ammonia lost during an industrial oxidation process over 21 plant
+runs; observations 1, 3, 4, and 21 are textbook influential outliers used
+throughout the robust-regression literature. It asks how much those points sway
+the conclusions.
 
-This demo runs the same linear model twice to show the effect of outlier
-removal on the estimated marginal means and significance:
+The same linear model is fitted twice — once untouched, once after pre-fit IQR and
+post-fit residual outlier removal:
 
-  run_default:  no outlier removal (standard LM)
-  run_clean:    pre-fit IQR removal + post-fit residual removal, then refit
+    stack.loss ~ Air.Flow + Water.Temp + Acid.Conc.
 
-The x-axis factor is Air.Flow binned into three operating regimes so that
-the violin / data plot is meaningful. The numeric covariates Water.Temp and
-Acid.Conc are included in the model.
-
-Model: `stack.loss ~ Air.Flow + Water.Temp + Acid.Conc.` (fit with and without outlier removal)
-
-Dataset: stackloss (R base / Brownlee, 1965). 21 observations, 4 variables.
+Air.Flow is binned into three operating regimes for the plot, while Water.Temp and
+Acid.Conc. enter as numeric covariates. Comparing the two runs shows how
+kbstatpy's two-pass, principled outlier handling shifts the estimates, while
+keeping the excluded points visible and the analysis valid under the resulting
+imbalance.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

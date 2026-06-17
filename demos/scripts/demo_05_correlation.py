@@ -1,20 +1,16 @@
-"""Demo 5: Standalone pairwise correlation analysis.
+"""Demo 5 — Standalone pairwise correlation analysis
 
-Computes Pearson correlations for all pairs of selected variables and displays
-a scatter plot grid. No model is fitted — this is purely exploratory.
+This demo uses the `longley` dataset (R base; Longley 1967), a classic
+econometrics benchmark built specifically to be severely multicollinear: it holds
+16 annual US macroeconomic observations from 1947–1962 in which GNP, population,
+and the calendar year all trend together. It asks how strongly these variables
+covary.
 
-The Longley dataset is a classic econometrics dataset specifically designed to
-demonstrate high multicollinearity. Five macroeconomic variables from 1947–1962
-are selected here; their pairwise correlations are expected to be very high,
-reflecting that GNP, population, and year all trend together over time.
-
-options.constraints filters rows before the analysis — here restricted to the
-post-war growth period (Year > 1950). Python comparison operators apply:
-== != < > <= >= and & or | for combining conditions.
-
-Model: none — pairwise correlation only (no model fitted)
-
-Dataset: longley (R base / Longley, 1967). 16 annual observations, 7 variables.
+No model is fitted — the analysis is purely exploratory. Alongside ordinary
+Pearson correlations it computes partial correlations (the association between two
+variables after regressing out all the others), which separate direct
+relationships from shared trends. The `constraints = 'Year > 1950'` filter
+restricts the analysis to the post-war growth period, illustrating row filtering.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

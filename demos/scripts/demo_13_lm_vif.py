@@ -1,23 +1,19 @@
-"""Demo 13: Linear model with mixed numeric/categorical predictors and automatic VIF.
+"""Demo 13 — LM with mixed predictors and VIF
 
-When options.x contains numerical variables, kbstat automatically computes VIF
-(Variance Inflation Factor) to check for multicollinearity among the numeric
-predictors. VIF thresholds: < 5 OK, 5–10 concerning, > 10 severe (Cohen, 1988).
+This demo uses the `mtcars` dataset (R base; Henderson & Velleman 1981),
+performance figures for 32 car models. Fuel economy (`mpg`) is modelled from
+engine power (`hp`) and weight (`wt`) — two strongly correlated predictors —
+together with the number of cylinders (`cyl`) as a categorical factor.
 
-Setting options.correlation = options.x produces a pairwise scatter plot grid
-for the predictors; numeric predictors also show their VIF on the diagonal.
+The fitted model combines the categorical and numeric predictors:
 
-Here fuel efficiency (mpg) is modelled from two numeric predictors — power (hp)
-and weight (wt) — and one categorical predictor — number of cylinders (cyl).
-The categorical predictor appears in the violin plot; the numeric predictors
-are checked for multicollinearity via VIF and visualised in the correlation plot.
+    mpg ~ cyl + hp + wt
 
-options.x_order ensures cyl levels are displayed in the natural ascending order
-(4 → 6 → 8 cylinders) regardless of how they appear in the data file.
-
-Model: `mpg ~ cyl + hp + wt`
-
-Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variables.
+Because `options.x` contains numeric predictors, kbstatpy automatically reports
+their Variance Inflation Factors (thresholds: < 5 OK, 5–10 concerning, > 10
+severe), flagging the collinearity between power and weight that would otherwise
+inflate standard errors and destabilise the coefficients. A correlation scatter
+grid with VIF on the diagonal visualises it.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

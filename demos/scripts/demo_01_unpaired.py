@@ -1,11 +1,18 @@
-"""Demo 1: Unpaired t-test equivalent.
+"""Demo 1 — Unpaired t-test equivalent
 
-Two independent groups (drug 1 vs drug 2), continuous outcome (extra sleep hours).
-No repeated measures — plain linear model, equivalent to an unpaired t-test.
+This demo uses the classic `sleep` dataset (R base; Cushny & Peebles 1905, later
+made famous by Student 1908), which records the extra hours of sleep gained by 10
+patients under two different soporific drugs. Treating the two drug groups as
+independent, it asks whether the average sleep gain differs between them.
 
-Model: `extra ~ group`
+The model is a plain linear model with no random effects:
 
-Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
+    extra ~ group
+
+With a two-level factor and effects coding this is algebraically identical to an
+independent-samples (Student) t-test — the ANOVA F equals t², the degrees of
+freedom are n − 2, and the p-value matches exactly — so it reproduces the
+classical result while using the same machinery as every other demo.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

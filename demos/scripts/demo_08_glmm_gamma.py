@@ -1,18 +1,20 @@
-"""Demo 8: Generalised linear mixed model (GLMM) with gamma distribution.
+"""Demo 8 — GLMM with gamma distribution
 
-Two crossed fixed-effect factors (Variety × Nitrogen), random intercept per
-block. Oat yield is positive and right-skewed — gamma distribution with log
-link is more appropriate than a normal LMM.
+This demo uses the `Oats` dataset (nlme; Yates 1935), a split-plot field trial in
+which oat yield was measured for three varieties grown under four nitrogen levels
+across six blocks (72 plots). Yield is strictly positive and right-skewed, so
+rather than force it into a normal model the demo models it directly.
 
-Compare with demo 7 (sleepstudy, log-transformed LMM): both approaches handle
-right-skewed positive outcomes; the gamma GLMM models the variance structure
-directly rather than transforming the data.
+It fits a generalised linear mixed model with a gamma distribution and log link,
+with a random intercept per block:
 
-Model: `yield ~ Variety * Nitrogen + (1 | Block)` (gamma family, log link)
+    yield ~ Variety * Nitrogen + (1 | Block)
 
-Dataset: Oats (nlme). Split-plot experiment on oat varieties and nitrogen
-fertilisation (Yates, 1935). 3 varieties × 4 nitrogen levels × 6 blocks,
-72 observations total.
+There is no classical counterpart here: a gamma GLMM captures the mean–variance
+relationship of skewed positive data directly (a constant coefficient of
+variation), and the log link keeps fitted yields positive — something a t-test or
+ANOVA cannot do. Compare it with demo 7, which targets the same kind of data by
+log-transforming the response of a normal model instead.
 """
 
 from kbstatpy import Kbstat, KbstatOptions
