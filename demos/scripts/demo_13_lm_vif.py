@@ -31,3 +31,4 @@ options.correlation = 'hp, wt'          # correlate the numeric covariates — V
 
 kb = Kbstat(options)
 kb.run()
+kb.save()

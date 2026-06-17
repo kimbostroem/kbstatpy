@@ -24,3 +24,4 @@ options.rename       = 'GNP.deflator -> GNP_Deflator; Unemployed -> Unemployment
 
 kb = Kbstat(options)
 kb.run()
+kb.save()

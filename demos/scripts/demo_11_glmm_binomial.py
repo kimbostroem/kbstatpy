@@ -31,3 +31,4 @@ options.rename       = 'present -> Bacteria present; trt -> Treatment; week -> W
 
 kb = Kbstat(options)
 kb.run()
+kb.save()

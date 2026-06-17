@@ -30,3 +30,4 @@ options.rename      = 'Sepal.Length -> SepalLength; Sepal.Width -> SepalWidth; P
 
 kb = Kbstat(options)
 kb.run()
+kb.save()
