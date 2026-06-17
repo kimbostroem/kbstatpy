@@ -1161,13 +1161,9 @@ class Kbstat:
                 for row_idx, row_val in enumerate(row_levels):
                     for col_idx, facet_val in enumerate(facet_levels):
                         ax = axes[row_idx][col_idx]
-                        # Per-panel bracket anchor: just above this panel's data top
-                        panel_filter = plot_data.copy()
-                        if facet_var is not None and facet_val is not None:
-                            panel_filter = panel_filter[panel_filter[facet_var].astype(str) == str(facet_val)]
-                        if row_var is not None and row_val is not None:
-                            panel_filter = panel_filter[panel_filter[row_var].astype(str) == str(row_val)]
-                        panel_top = panel_filter[y_var].max() if len(panel_filter) > 0 else y_hi
+                        # Per-panel bracket anchor: just above the highest rendered artist
+                        # (ax.dataLim.y1 captures violin KDE and CI bar extents, unlike raw data max)
+                        panel_top = ax.dataLim.y1 if np.isfinite(ax.dataLim.y1) else y_hi
                         panel_bracket_start = panel_top + bracket_step * 0.15
                         bracket_y = panel_bracket_start
                         tick_h = bracket_step * 0.3
