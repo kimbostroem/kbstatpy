@@ -97,7 +97,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `in_file` | str | `''` | Path to input data (.csv or .xlsx) |
-| `out_dir` | str | `''` | Output directory for result files |
+| `out_dir` | str | `''` | Output directory for result files. Leave empty to display results inline only and write nothing to disk (useful in notebooks); set a path to save all tables and figures |
 | `formula` | str | `''` | Full Wilkinson formula (overrides `y`, `x`, `id`, `slope`, `interaction`) |
 | `y` | str or list | `''` | Dependent variable(s). A list (or comma-separated string) runs one analysis per variable |
 | `y_units` | str or list | `''` | Unit label(s) for the y-axis, e.g. `'ms'` or `'kg, N, m'` for multi-y |
