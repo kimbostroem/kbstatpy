@@ -120,6 +120,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
 | `posthoc_correction` | str | `'holm'` | P-value correction (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
 | `plot_style` | str | `'auto'` | Data plot style: `'violin'` (violin + jitter), `'bar'` (observed mean bars with EMM overlay), or `'auto'` (bar for binary outcomes, violin for all others) |
+| `figure_display` | str | `'show_close'` | How figures are shown on screen (all modes still save files): `'save_only'` (don't display — useful for batch/headless runs), `'show_close'` (display briefly, then close), `'show_keep'` (display and leave open — useful in notebooks/interactive sessions) |
 | `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
 | `color_sat` | float | `0.9` | Violin colour saturation (0–1) |
 | `color_alpha` | float | `0.5` | Violin fill transparency (0 = transparent, 1 = opaque) |
