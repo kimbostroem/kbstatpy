@@ -14,13 +14,8 @@ coding, Type III sums of squares, Satterthwaite df, EMMs, diagnostics, …) see
 
 ## Running the demos
 
-First regenerate the datasets once (writes CSVs into `demos/data/`):
-
-```bash
-Rscript export_datasets.R
-```
-
-Then run any script…
+The datasets are already included as CSVs in `demos/data/`, so you can run any
+demo straight away:
 
 ```bash
 python3 demos/scripts/demo_01_unpaired.py
@@ -29,6 +24,9 @@ python3 demos/scripts/demo_01_unpaired.py
 …or open the matching notebook in `demos/notebooks/` and run all cells. Each run
 writes its tables and figures into `demos/scripts/results/demo_NN_*/` (scripts)
 or `demos/notebooks/results/demo_NN_*/` (notebooks).
+
+The CSVs only need regenerating if you change `export_datasets.R` — to do so run
+`Rscript export_datasets.R` (needs R with the lme4, nlme, and MASS packages).
 
 The three groups below mirror the structure of the statistical notes: demos 1–5
 reproduce classical tests exactly, demos 6–11 go beyond them, and demos 12–13

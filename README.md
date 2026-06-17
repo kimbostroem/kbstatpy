@@ -274,7 +274,8 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 12** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, cross-variable correction is the researcher's responsibility
 - **Demo 13** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
 
-To regenerate the demo datasets from R (required once before running the demos):
+The demo datasets are already included as CSVs in `demos/data/`. You only need
+to regenerate them if you change `export_datasets.R`:
 
 ```bash
 Rscript export_datasets.R
