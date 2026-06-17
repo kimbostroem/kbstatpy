@@ -1220,7 +1220,7 @@ class Kbstat:
         # ---------------------------------------------------------
         sns.histplot(self.model.residuals, kde=True, ax=axes[0])
         axes[0].set_title("Histogram of Residuals")
-        axes[0].set_xlabel("Residuals")
+        axes[0].set_xlabel("Residuals", labelpad=4)
         axes[0].set_ylabel("Count", labelpad=4)
         axes[0].get_lines()[0].set_color('red')
 
@@ -1234,6 +1234,8 @@ class Kbstat:
         axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
                                    markeredgecolor='none')
         axes[1].get_lines()[1].set_color('red')
+        axes[1].set_xlabel(axes[1].get_xlabel(), labelpad=4)
+        axes[1].set_ylabel(axes[1].get_ylabel(), labelpad=4)
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
@@ -1241,8 +1243,8 @@ class Kbstat:
         sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2], s=s_diag)
         axes[2].axhline(0, color='red', linestyle='--')
         axes[2].set_title("Residuals vs Fitted")
-        axes[2].set_xlabel("Fitted Values")
-        axes[2].set_ylabel("Residuals")
+        axes[2].set_xlabel("Fitted Values", labelpad=4)
+        axes[2].set_ylabel("Residuals", labelpad=4)
         self._tooltip(axes[2], axes[2].collections[-1],
                       [f'{_group_label(i)}, fitted={self.model.fits[i]:.3f}, resid={self.model.residuals[i]:.3f}'
                        for i in range(n_diag)])
@@ -1252,8 +1254,8 @@ class Kbstat:
         # ---------------------------------------------------------
         sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3], s=s_diag)
         axes[3].set_title("Lagged Residuals")
-        axes[3].set_xlabel("Residual (i)")
-        axes[3].set_ylabel("Residual (i+1)")
+        axes[3].set_xlabel("Residual (i)", labelpad=4)
+        axes[3].set_ylabel("Residual (i+1)", labelpad=4)
         self._tooltip(axes[3], axes[3].collections[-1],
                       [f'{_group_label(i)}, r(i)={self.model.residuals[i]:.3f}, r(i+1)={self.model.residuals[i+1]:.3f}'
                        for i in range(n_diag - 1)])
@@ -1268,14 +1270,14 @@ class Kbstat:
             y_actual = self.data[self.options.y]
 
         sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=s_diag)
-        
+
         min_val = min(self.model.fits.min(), y_actual.min())
         max_val = max(self.model.fits.max(), y_actual.max())
         axes[4].plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--')
-        
+
         axes[4].set_title("Fitted vs Response")
-        axes[4].set_xlabel("Fitted Values")
-        axes[4].set_ylabel("Actual Raw Data")
+        axes[4].set_xlabel("Fitted Values", labelpad=4)
+        axes[4].set_ylabel("Actual Raw Data", labelpad=4)
         self._tooltip(axes[4], axes[4].collections[-1],
                       [f'{_group_label(i)}, actual={float(y_actual.iloc[i]):.3f}, fitted={self.model.fits[i]:.3f}'
                        for i in range(n_diag)])
@@ -1291,8 +1293,8 @@ class Kbstat:
             axes[5].bar(np.arange(n_obs), cooks_d, color=colors, width=1.0)
             axes[5].axhline(threshold, color='red', linestyle='--', linewidth=0.8)
             axes[5].set_title("Cook's Distance")
-            axes[5].set_xlabel("Observation index")
-            axes[5].set_ylabel("Cook's D")
+            axes[5].set_xlabel("Observation index", labelpad=4)
+            axes[5].set_ylabel("Cook's D", labelpad=4)
             axes[5].text(n_obs * 0.98, threshold * 1.05, f'4/n = {threshold:.3f}',
                          ha='right', va='bottom', fontsize=8, color='red')
             # Overlay invisible scatter at bar tops for hover tooltips
