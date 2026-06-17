@@ -1327,12 +1327,16 @@ class Kbstat:
         try:
             import mpld3
             orig_size = fig.get_size_inches()
+            orig_params = dict(fig.subplotpars.__dict__)
             fig.set_size_inches(orig_size * scale)
+            fig.tight_layout()
             try:
                 mpld3.save_html(fig, path)
                 print(f'Saved interactive HTML to {path}')
             finally:
                 fig.set_size_inches(orig_size)
+                fig.subplots_adjust(**{k: v for k, v in orig_params.items()
+                                       if k in ('left', 'right', 'top', 'bottom', 'wspace', 'hspace')})
         except Exception as e:
             print(f'Warning: interactive HTML export failed ({e})')
 
