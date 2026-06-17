@@ -224,11 +224,11 @@ For multi-y runs, `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `DataPlots`, 
 
 ## Demo scripts
 
-Thirteen worked examples are included in the `demo/` folder. Run any demo with:
+Thirteen worked examples are included in the `demos/` folder. Run any demo with:
 
 ```bash
 cd kbstatpy
-python3 demo/demo_01_unpaired.py
+python3 demos/py/demo_01_unpaired.py
 ```
 
 | Script | Dataset | Description |
