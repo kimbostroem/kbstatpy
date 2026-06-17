@@ -1322,12 +1322,17 @@ class Kbstat:
     # ------------------------------------------------------------------
     #
 
-    def _save_interactive(self, fig, path):
+    def _save_interactive(self, fig, path, scale=0.6):
         """Save a matplotlib figure as interactive HTML with hover tooltips via mpld3."""
         try:
             import mpld3
-            mpld3.save_html(fig, path)
-            print(f'Saved interactive HTML to {path}')
+            orig_size = fig.get_size_inches()
+            fig.set_size_inches(orig_size * scale)
+            try:
+                mpld3.save_html(fig, path)
+                print(f'Saved interactive HTML to {path}')
+            finally:
+                fig.set_size_inches(orig_size)
         except Exception as e:
             print(f'Warning: interactive HTML export failed ({e})')
 
