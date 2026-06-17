@@ -628,9 +628,7 @@ class Kbstat:
                             dpi=150, bbox_inches='tight')
             print(f'Saved: {os.path.join(out_dir, f"{stem}.png/.pdf")}')
 
-        plt.show(block=False)
-        plt.pause(3)
-        plt.close(fig)
+        self._show_fig(fig, close=True)
 
     def _plot_corr_table(self, corr_df, vars_, title, out_dir, stem):
         """Colour-coded lower-triangle correlation heatmap table."""
@@ -720,9 +718,7 @@ class Kbstat:
                               dpi=150, bbox_inches='tight')
             print(f'Saved: {os.path.join(out_dir, f"{stem}.png/.pdf")}')
 
-        plt.show(block=False)
-        plt.pause(3)
-        plt.close(fig_t)
+        self._show_fig(fig_t, close=True)
 
     def save(self):
         """Write result tables and summary to out_dir."""
@@ -771,7 +767,8 @@ class Kbstat:
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
             self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.png'), dpi=150, bbox_inches='tight')
             self._save_interactive(self.fig_data, os.path.join(out_dir, 'DataPlots.html'))
-            plt.close(self.fig_data)
+            if self.options.figure_display != 'show_keep':
+                plt.close(self.fig_data)
             self.fig_data = None
             print(f'Saved DataPlots.pdf/.png to {out_dir}')
 
@@ -779,6 +776,8 @@ class Kbstat:
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
             self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.png'), dpi=150)
             self._save_interactive(self.fig_diagnostics, os.path.join(out_dir, 'Diagnostics.html'))
+            if self.options.figure_display != 'show_keep':
+                plt.close(self.fig_diagnostics)
             self.fig_diagnostics = None
             print(f'Saved Diagnostics.pdf/.png to {out_dir}')
 
@@ -825,6 +824,27 @@ class Kbstat:
         if n:
             print(f"Post-fit outlier removal: {n} observation(s) flagged by Pearson residual z > 3.")
 
+
+    def _show_fig(self, fig, close=False):
+        """Display ``fig`` according to ``options.figure_display``.
+
+        Modes (all still save files elsewhere):
+          'save_only'  — do not display
+          'show_close' — display briefly (~3 s); default
+          'show_keep'  — display and leave the window open
+
+        Pass ``close=True`` for figures that are saved in place (the
+        correlation plots) so they are also closed here; figures saved later
+        in :meth:`save` pass ``close=False`` and are closed there instead.
+        'show_keep' never closes.
+        """
+        mode = getattr(self.options, 'figure_display', 'show_close')
+        if mode != 'save_only':
+            plt.show(block=False)
+            if mode == 'show_close':
+                plt.pause(3)
+        if close and mode != 'show_keep':
+            plt.close(fig)
 
     def plot_data(self):
         """Generate publication-ready summary plots matching the MATLAB kbstat style.
@@ -1219,8 +1239,7 @@ class Kbstat:
         fig.tight_layout()
 
         self.fig_data = fig
-        plt.show(block=False)
-        plt.pause(3)
+        self._show_fig(fig)
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
@@ -1362,8 +1381,7 @@ class Kbstat:
             ax.yaxis.set_label_coords(-0.18, 0.5)
 
         self.fig_diagnostics = fig
-        plt.show(block=False)
-        plt.pause(3)
+        self._show_fig(fig)
 
     # ------------------------------------------------------------------
     # Private helpers

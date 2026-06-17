@@ -43,6 +43,7 @@ class KbstatOptions:
     color_alpha: float = 0.5
     font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
+    figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep' — all still save files
 
     # Post-hoc settings
     posthoc_method: str = 'emm'
