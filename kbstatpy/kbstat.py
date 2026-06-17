@@ -1125,7 +1125,8 @@ class Kbstat:
         # sharey=True means a set_ylim on any panel affects all; doing this after
         # all data is drawn avoids compounding expansions across panels.
         ref_ax = axes[0][0]
-        y_lo, y_hi = ref_ax.get_ylim()
+        y_lo, y_hi = ref_ax.get_ylim()   # data-driven limits before any expansion
+        y_range = y_hi - y_lo
         if use_bar and is_binary:
             ref_ax.set_ylim(bottom=0.0, top=1.15)
             for row in axes:
@@ -1134,16 +1135,14 @@ class Kbstat:
         elif use_bar:
             ref_ax.set_ylim(bottom=0.0, top=y_hi * 1.15)
         else:
-            y_pad = (y_hi - y_lo) * 0.08
+            y_pad = y_range * 0.08
             ref_ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
 
         if self.contrasts_table is not None:
             ct = self.contrasts_table
             if 'p.value' in ct.columns:
-                y_lo, y_hi = ref_ax.get_ylim()
-                y_range = y_hi - y_lo
                 bracket_step = y_range * 0.07
-                bracket_y_start = y_hi + bracket_step * 0.05
+                bracket_y_start = y_hi + bracket_step * 0.15
 
                 def _contrast_positions(contrast_str, x_var, x_levels):
                     parts = [p.strip() for p in contrast_str.split(' - ')]
