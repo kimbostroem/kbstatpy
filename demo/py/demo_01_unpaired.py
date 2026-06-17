@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = 'data/sleep.csv'                    # input data file
-options.out_dir      = 'results/demo_01_unpaired'          # output folder
+options.in_file      = '../data/sleep.csv'                    # input data file
+options.out_dir      = '../results/demo_01_unpaired'          # output folder
 options.y            = 'extra'           # dependent variable
 options.y_units      = 'h'              # unit label for y-axis
 options.x            = 'group'           # fixed-effect factor(s)

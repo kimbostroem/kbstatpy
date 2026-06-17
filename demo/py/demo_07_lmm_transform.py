@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file      = 'data/sleepstudy.csv'               # input data file
-options.out_dir      = 'results/demo_07_lmm_transform'     # output folder
+options.in_file      = '../data/sleepstudy.csv'               # input data file
+options.out_dir      = '../results/demo_07_lmm_transform'     # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.y_transform  = 'log(y)'         # log-transform before fitting; back-transformed for plots and tables

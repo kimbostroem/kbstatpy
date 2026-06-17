@@ -20,8 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
-options.in_file = 'data/iris.csv'                          # input data file
-options.out_dir = 'results/demo_12_multi_y'                # output folder (subfolders per variable)
+options.in_file = '../data/iris.csv'                          # input data file
+options.out_dir = '../results/demo_12_multi_y'                # output folder (subfolders per variable)
 options.y           = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # dependent variables (comma-separated)
 options.y_units     = 'cm'                                                    # unit label for y-axis (same for all variables)
 options.x           = 'Species'                                               # fixed-effect factor

@@ -24,7 +24,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 def make_options(out_dir, remove_pre=False, remove_post=False):
     options = KbstatOptions()
-    options.in_file     = 'data/stackloss.csv'
+    options.in_file     = '../data/stackloss.csv'
     options.out_dir     = out_dir
     options.y           = 'stack.loss'
     options.y_units     = '%'
@@ -39,10 +39,10 @@ def make_options(out_dir, remove_pre=False, remove_post=False):
     return options
 
 print("=== Run 1: no outlier removal ===")
-kb_default = Kbstat(make_options('results/demo_10_outliers/default'))
+kb_default = Kbstat(make_options('../results/demo_10_outliers/default'))
 kb_default.run()
 
 print("\n=== Run 2: pre-fit IQR + post-fit residual removal ===")
-kb_clean = Kbstat(make_options('results/demo_10_outliers/clean',
+kb_clean = Kbstat(make_options('../results/demo_10_outliers/clean',
                                remove_pre=True, remove_post=True))
 kb_clean.run()
