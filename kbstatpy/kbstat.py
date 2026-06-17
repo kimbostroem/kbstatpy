@@ -1414,14 +1414,22 @@ class Kbstat:
         try:
             import mpld3
             orig_size = fig.get_size_inches()
+            orig_dpi = fig.get_dpi()
             orig_params = dict(fig.subplotpars.__dict__)
             fig.set_size_inches(orig_size * scale)
+            # mpld3 bakes (inches * fig.dpi) into the HTML pixel size, while fonts
+            # stay fixed in points. Pin the dpi so the HTML looks the same whatever
+            # produced it — otherwise an interactive GUI backend on a Retina display
+            # reports dpi 200 (vs 100 for the notebook inline backend), doubling the
+            # figure and the markers relative to the text.
+            fig.set_dpi(100)
             fig.tight_layout()
             try:
                 mpld3.save_html(fig, path)
                 print(f'Saved interactive HTML to {path}')
             finally:
                 fig.set_size_inches(orig_size)
+                fig.set_dpi(orig_dpi)
                 fig.subplots_adjust(**{k: v for k, v in orig_params.items()
                                        if k in ('left', 'right', 'top', 'bottom', 'wspace', 'hspace')})
         except Exception as e:
