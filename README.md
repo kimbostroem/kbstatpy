@@ -228,9 +228,9 @@ For multi-y runs, `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `DataPlots`, 
 
 ## Demo scripts
 
-Thirteen worked examples are included in the `demos/` folder. For a per-demo
-walkthrough of the statistics and the meaning of each dataset, see
-[README_DEMOS.md](README_DEMOS.md). Run any demo with:
+Thirteen worked examples are included in the `demos/` folder; each demo's script
+docstring and notebook intro cell explain its dataset and statistical content.
+Run any demo with:
 
 ```bash
 cd kbstatpy
