@@ -26,6 +26,7 @@ Fitting is done via R's `lme4` and `emmeans` packages (through `pymer4` and `rpy
 
 - Python 3.10+
 - R 4.4+
+- **Platform:** macOS or Linux. On Windows, use [WSL](https://learn.microsoft.com/windows/wsl/install) (e.g. Ubuntu) and follow the Linux steps — `rpy2`, the R bridge kbstatpy relies on, is not reliably installable on native Windows.
 
 All Python and R package dependencies are handled by the installer (see below).
 
@@ -38,10 +39,12 @@ cd kbstatpy
 bash install.sh
 ```
 
-The installer:
-1. Installs all required Python packages (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …)
+The installer (macOS/Linux):
+1. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
 2. Installs all required R packages (`lme4`, `lmerTest`, `emmeans`, …)
 3. On macOS: automatically fixes the `rpy2` / R version symlink if needed
+
+On Windows, run these same steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell.
 
 ---
 
