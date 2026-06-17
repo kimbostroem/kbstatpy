@@ -13,8 +13,44 @@ import scipy.stats as stats
 ro.r('emmeans::emm_options(msg.interaction = FALSE)')
 ro.r('options(contrasts = c("contr.sum", "contr.poly"))')
 
+from dataclasses import dataclass, field
+
 from .options import KbstatOptions
 from ._glmer_direct import GlmerDirect
+
+
+@dataclass
+class ModelResult:
+    """Results of fitting one dependent variable."""
+    y: str = ''
+    formula: str = ''
+    anova: object = None          # ANOVA table (DataFrame)
+    posthoc: object = None        # post-hoc pairwise table (DataFrame)
+    statistics: object = None     # descriptive statistics table (DataFrame)
+    summary: str = ''             # human-readable summary text
+    data: object = None           # the data the model was fitted on
+    fig_data: object = None       # data plot figure
+    fig_diagnostics: object = None  # diagnostics figure
+
+
+@dataclass
+class CorrelationResult:
+    """Results of a correlation analysis."""
+    correlation_table: object = None
+    partial_table: object = None
+    vif_table: object = None
+    fig_scatter: object = None
+    fig_table: object = None
+    fig_partial_scatter: object = None
+    fig_partial_table: object = None
+
+
+@dataclass
+class Output:
+    """Everything produced by run(): one ModelResult per dependent variable
+    plus an optional CorrelationResult. Read it for results, or pass to save()."""
+    results: list = field(default_factory=list)   # list[ModelResult]
+    correlation: object = None                     # CorrelationResult or None
 
 
 class Kbstat:
@@ -51,6 +87,7 @@ class Kbstat:
         self._inverse_fn   = None             # inverse transform: array → array
         self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
         self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
+        self.output: Output = None            # populated by run(); read or pass to save()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -163,41 +200,60 @@ class Kbstat:
             o.x_order = {inv.get(k, k): v for k, v in o.x_order.items()}
 
     def run(self):
-        """Run the full analysis pipeline.
+        """Compute the full analysis and gather the results into ``self.output``.
 
-        If options.y is a list (or comma-separated string) with more than one
-        variable, runs the pipeline once per variable. Results are saved into
-        per-variable subdirectories under out_dir. If y is a single variable,
-        the behaviour is identical to the single-variable case (no subfolder).
+        run() never writes files — it fits a model for each dependent variable
+        defined (skipped entirely if none is), runs the correlation analysis if
+        ``correlation`` is set, displays each result as it goes, and collects
+        everything into ``self.output`` (an :class:`Output`). Call :meth:`save`
+        afterwards to persist it to ``out_dir``. Returns ``self.output``.
         """
-        import copy, os
+        import copy
 
         self._normalize_options()
+        self.output = Output()
 
         y_list = self._split_csv(self.options.y)
         units_list = self.options.y_units  # already normalized to list
         if len(units_list) == 1:
-            units_list = units_list * len(y_list)
+            units_list = units_list * max(len(y_list), 1)
         multi = len(y_list) > 1
 
         for i, y_var in enumerate(y_list):
-            opts = copy.deepcopy(self.options)
-            opts.y = y_var
-            opts.y_units = units_list[i] if i < len(units_list) else ''
-            if multi and opts.out_dir:
-                opts.out_dir = os.path.join(opts.out_dir, y_var)
-            child = Kbstat(opts)
-            child._display_names = self._display_names.copy()
-            child._run_single()
+            if multi:
+                opts = copy.deepcopy(self.options)
+                opts.y = y_var
+                opts.y_units = units_list[i] if i < len(units_list) else ''
+                worker = Kbstat(opts)
+                worker._display_names = self._display_names.copy()
+            else:
+                self.options.y = y_var
+                self.options.y_units = units_list[i] if i < len(units_list) else ''
+                worker = self
+            worker._compute_single()
+            worker.print_summary()
+            self.output.results.append(ModelResult(
+                y=worker.options.y,
+                formula=worker._build_formula(),
+                anova=worker.anova_table,
+                posthoc=worker.posthoc_table,
+                statistics=worker.statistics_table,
+                summary=worker._summary_text() if worker.model is not None else '',
+                data=worker.data,
+                fig_data=worker.fig_data,
+                fig_diagnostics=worker.fig_diagnostics,
+            ))
 
         if self.options.correlation:
             if self.data is None:
                 self._load_data()
                 self._apply_constraints()
-            self.correlate()
+            self.output.correlation = self.correlate()
 
-    def _run_single(self):
-        """Run the pipeline for a single dependent variable (internal)."""
+        return self.output
+
+    def _compute_single(self):
+        """Compute (but do not save) the pipeline for a single dependent variable."""
         self._load_data()
         self._apply_rename()
         self._apply_categorical()
@@ -212,8 +268,6 @@ class Kbstat:
         self.posthoc()
         self.plot_diagnostics()
         self.plot_data()
-        self.print_summary()
-        self.save()   # writes files only if out_dir is set (see save())
 
     def fit(self):
         """Load data and fit the LMM or GLMM depending on distribution."""
@@ -253,7 +307,6 @@ class Kbstat:
                 self.AIC    = float(ro.r('AIC')(r_obj)[0])
                 self.BIC    = float(ro.r('BIC')(r_obj)[0])
                 self.logLik = float(ro.r('logLik')(r_obj)[0])
-                print(f'AIC = {self.AIC:.3f}  |  BIC = {self.BIC:.3f}  |  logLik = {self.logLik:.3f}')
             except Exception:
                 self.AIC = self.BIC = self.logLik = None
         else:
@@ -516,72 +569,42 @@ class Kbstat:
                 })
             partial_table = pd.DataFrame(part_rows)
 
-        # --- Save xlsx ---
-        if self.options.out_dir:
-            out_dir = self.options.out_dir
-            os.makedirs(out_dir, exist_ok=True)
-
-            def _autofit_xlsx(writer, sheet_name):
-                ws = writer.sheets[sheet_name]
-                for col_cells in ws.columns:
-                    width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85 + 2
-                    ws.column_dimensions[col_cells[0].column_letter].width = width
-
-            corr_path = os.path.join(out_dir, 'Correlation.xlsx')
-            with pd.ExcelWriter(corr_path, engine='openpyxl') as writer:
-                corr_out = self._disp_vals(self._disp_vals(self.correlation_table, 'var_1'), 'var_2')
-                corr_out.to_excel(writer, index=False, sheet_name='Correlation')
-                _autofit_xlsx(writer, 'Correlation')
-
-            if partial_table is not None:
-                pcorr_path = os.path.join(out_dir, 'PartialCorrelation.xlsx')
-                with pd.ExcelWriter(pcorr_path, engine='openpyxl') as writer:
-                    pcorr_out = self._disp_vals(self._disp_vals(partial_table, 'var_1'), 'var_2')
-                    pcorr_out.to_excel(writer, index=False, sheet_name='PartialCorrelation')
-                    _autofit_xlsx(writer, 'PartialCorrelation')
-
-            if vif_table is not None:
-                vif_path = os.path.join(out_dir, 'VIF.xlsx')
-                with pd.ExcelWriter(vif_path, engine='openpyxl') as writer:
-                    vif_table.to_excel(writer, index=False, sheet_name='VIF')
-                    _autofit_xlsx(writer, 'VIF')
-                print(f'Saved: {vif_path}')
-        else:
-            out_dir = None
-
+        # Build the figures for display; persistence is deferred to save().
         n_pairs = len(self.correlation_table)
         corr_title   = 'Correlation'   if n_pairs == 1 else 'Correlations'
         pcorr_title  = 'Partial Correlation'   if n_pairs == 1 else 'Partial Correlations'
 
-        # --- Scatter grids ---
-        self._plot_corr_scatter(
+        fig_scatter = self._plot_corr_scatter(
             self.correlation_table, vars_,
             {v: self.data[v].astype(float).values for v in vars_},
-            corr_title, out_dir, 'Correlation')
+            corr_title)
 
+        fig_partial_scatter = None
         if partial_table is not None:
-            self._plot_corr_scatter(
+            fig_partial_scatter = self._plot_corr_scatter(
                 partial_table, vars_, residuals,
                 pcorr_title + '\n(residuals after removing all other variables)',
-                out_dir, 'PartialCorrelation',
                 xlabel_suffix=' (residual)', ylabel_suffix=' (residual)')
 
-        # --- Heatmap tables ---
-        self._plot_corr_table(
-            self.correlation_table, vars_,
-            corr_title, out_dir, 'CorrelationTable')
+        fig_table = self._plot_corr_table(self.correlation_table, vars_, corr_title)
 
+        fig_partial_table = None
         if partial_table is not None:
-            self._plot_corr_table(
-                partial_table, vars_,
-                pcorr_title, out_dir, 'PartialCorrelationTable')
+            fig_partial_table = self._plot_corr_table(partial_table, vars_, pcorr_title)
 
-        return self.correlation_table
+        return CorrelationResult(
+            correlation_table=self.correlation_table,
+            partial_table=partial_table,
+            vif_table=vif_table,
+            fig_scatter=fig_scatter,
+            fig_table=fig_table,
+            fig_partial_scatter=fig_partial_scatter,
+            fig_partial_table=fig_partial_table,
+        )
 
     def _plot_corr_scatter(self, corr_df, vars_, data_arrays, title,
-                           out_dir, stem,
                            xlabel_suffix='', ylabel_suffix=''):
-        """Scatter plot grid for a correlation table."""
+        """Scatter plot grid for a correlation table. Returns the figure."""
         self._apply_font()
         pairs = [(vars_[i], vars_[j])
                  for i in range(len(vars_)) for j in range(i + 1, len(vars_))]
@@ -621,17 +644,11 @@ class Kbstat:
 
         fig.suptitle(title, fontweight='bold', fontsize=11)
         plt.tight_layout()
+        self._show_fig(fig)
+        return fig
 
-        if out_dir:
-            for ext in ('png', 'pdf'):
-                fig.savefig(os.path.join(out_dir, f'{stem}.{ext}'),
-                            dpi=150, bbox_inches='tight')
-            print(f'Saved: {os.path.join(out_dir, f"{stem}.png/.pdf")}')
-
-        self._show_fig(fig, close=True)
-
-    def _plot_corr_table(self, corr_df, vars_, title, out_dir, stem):
-        """Colour-coded lower-triangle correlation heatmap table."""
+    def _plot_corr_table(self, corr_df, vars_, title):
+        """Colour-coded lower-triangle correlation heatmap table. Returns the figure."""
         self._apply_font()
         import matplotlib.patches as mpatches
         cmap = plt.cm.RdBu_r
@@ -711,85 +728,107 @@ class Kbstat:
         ax_t.set_ylim(-0.15, nr + 0.7)
         ax_t.set_title(title, fontweight='bold', fontsize=13, pad=8)
         plt.tight_layout()
-
-        if out_dir:
-            for ext in ('png', 'pdf'):
-                fig_t.savefig(os.path.join(out_dir, f'{stem}.{ext}'),
-                              dpi=150, bbox_inches='tight')
-            print(f'Saved: {os.path.join(out_dir, f"{stem}.png/.pdf")}')
-
-        self._show_fig(fig_t, close=True)
+        self._show_fig(fig_t)
+        return fig_t
 
     def save(self):
-        """Write result tables, summary, and figures to out_dir.
+        """Persist ``self.output`` (produced by :meth:`run`) to ``out_dir``.
 
-        Saving is gated on out_dir: if it is empty the call is a no-op, so the
-        same demo runs inline-only (notebooks, out_dir unset) or writes files
-        (scripts, out_dir set) with no other change.
+        Writes only what was produced — each artifact is saved only if present,
+        so a correlation-only run writes just the correlation outputs, a model
+        run writes its tables/figures, etc. With several dependent variables,
+        each one's results go into its own subdirectory. No-op (with a notice)
+        when ``out_dir`` is empty.
         """
         out_dir = self.options.out_dir
         if not out_dir:
             print('out_dir is empty — results shown inline only, nothing written. '
                   'Set options.out_dir to save tables and figures.')
             return
+        if self.output is None:
+            print('Nothing to save — call run() first.')
+            return
         os.makedirs(out_dir, exist_ok=True)
-        # Each artifact below is written only if it was produced, so save() works
-        # for any partial state (e.g. a correlation-only run has no model tables).
 
-        if self.anova_table is not None:
-            anova_df = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
-            anova_df = self._disp_vals(anova_df, 'Term')
-            anova_df.to_excel(os.path.join(out_dir, 'Anova.xlsx'), index=False)
-            print(f'Saved Anova.xlsx to {out_dir}')
+        multi = len(self.output.results) > 1
+        for res in self.output.results:
+            d = os.path.join(out_dir, res.y) if multi else out_dir
+            os.makedirs(d, exist_ok=True)
+            if res.anova is not None:
+                anova_df = res.anova.to_pandas() if hasattr(res.anova, 'to_pandas') else res.anova
+                self._disp_vals(anova_df, 'Term').to_excel(os.path.join(d, 'Anova.xlsx'), index=False)
+                print(f'Saved Anova.xlsx to {d}')
+            if res.posthoc is not None:
+                self._write_posthoc_xlsx(res.posthoc, os.path.join(d, 'Posthoc.xlsx'))
+                print(f'Saved Posthoc.xlsx to {d}')
+            if res.statistics is not None:
+                self._disp_cols(res.statistics).to_excel(os.path.join(d, 'Statistics.xlsx'), index=False)
+                print(f'Saved Statistics.xlsx to {d}')
+            if res.data is not None:
+                res.data.to_csv(os.path.join(d, 'Data.csv'), index=False)
+                print(f'Saved Data.csv to {d}')
+            if res.summary:
+                with open(os.path.join(d, 'Summary.txt'), 'w', encoding='utf-8') as fh:
+                    fh.write(res.summary + '\n')
+                print(f'Saved Summary.txt to {d}')
+            if res.fig_data is not None:
+                self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
+            if res.fig_diagnostics is not None:
+                self._write_fig(res.fig_diagnostics, d, 'Diagnostics', html=True, tight=False)
 
-        if self.posthoc_table is not None:
-            ph_df = self.posthoc_table.to_pandas() if hasattr(self.posthoc_table, 'to_pandas') else self.posthoc_table
-            ph_df = self._disp_cols(ph_df)
-            # Round numeric columns for clean display
-            for col in ph_df.columns:
-                if col in ('p', 'pCorr'):
-                    ph_df[col] = ph_df[col].round(4)
-                elif ph_df[col].dtype == float:
-                    ph_df[col] = ph_df[col].round(3)
-            ph_path = os.path.join(out_dir, 'Posthoc.xlsx')
-            with pd.ExcelWriter(ph_path, engine='openpyxl') as writer:
-                ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
-                ws = writer.sheets['Posthoc']
-                for col_cells in ws.columns:
-                    width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85 + 1
-                    ws.column_dimensions[col_cells[0].column_letter].width = width
-            print(f'Saved Posthoc.xlsx to {out_dir}')
+        cr = self.output.correlation
+        if cr is not None:
+            if cr.correlation_table is not None:
+                self._write_corr_xlsx(cr.correlation_table, os.path.join(out_dir, 'Correlation.xlsx'), 'Correlation')
+                print(f'Saved Correlation.xlsx to {out_dir}')
+            if cr.partial_table is not None:
+                self._write_corr_xlsx(cr.partial_table, os.path.join(out_dir, 'PartialCorrelation.xlsx'), 'PartialCorrelation')
+                print(f'Saved PartialCorrelation.xlsx to {out_dir}')
+            if cr.vif_table is not None:
+                self._write_corr_xlsx(cr.vif_table, os.path.join(out_dir, 'VIF.xlsx'), 'VIF', disp_vals=False)
+                print(f'Saved VIF.xlsx to {out_dir}')
+            for fig, stem in [(cr.fig_scatter, 'Correlation'), (cr.fig_table, 'CorrelationTable'),
+                              (cr.fig_partial_scatter, 'PartialCorrelation'),
+                              (cr.fig_partial_table, 'PartialCorrelationTable')]:
+                if fig is not None:
+                    self._write_fig(fig, out_dir, stem, html=False, tight=True)
 
-        if self.statistics_table is not None:
-            stats_df = self._disp_cols(self.statistics_table)
-            stats_df.to_excel(os.path.join(out_dir, 'Statistics.xlsx'), index=False)
-            print(f'Saved Statistics.xlsx to {out_dir}')
+    @staticmethod
+    def _autofit_xlsx(writer, sheet_name):
+        ws = writer.sheets[sheet_name]
+        for col_cells in ws.columns:
+            width = max(len(str(cell.value or '')) for cell in col_cells) * 0.85 + 2
+            ws.column_dimensions[col_cells[0].column_letter].width = width
 
-        if self.data is not None:
-            self.data.to_csv(os.path.join(out_dir, 'Data.csv'), index=False)
-            print(f'Saved Data.csv to {out_dir}')
+    def _write_posthoc_xlsx(self, posthoc, path):
+        ph_df = posthoc.to_pandas() if hasattr(posthoc, 'to_pandas') else posthoc
+        ph_df = self._disp_cols(ph_df)
+        for col in ph_df.columns:
+            if col in ('p', 'pCorr'):
+                ph_df[col] = ph_df[col].round(4)
+            elif ph_df[col].dtype == float:
+                ph_df[col] = ph_df[col].round(3)
+        with pd.ExcelWriter(path, engine='openpyxl') as writer:
+            ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
+            self._autofit_xlsx(writer, 'Posthoc')
 
-        if self.model is not None:
-            self._write_summary(out_dir)
-            print(f'Saved Summary.txt to {out_dir}')
+    def _write_corr_xlsx(self, table, path, sheet, disp_vals=True):
+        out = self._disp_vals(self._disp_vals(table, 'var_1'), 'var_2') if disp_vals else table
+        with pd.ExcelWriter(path, engine='openpyxl') as writer:
+            out.to_excel(writer, index=False, sheet_name=sheet)
+            self._autofit_xlsx(writer, sheet)
 
-        if self.fig_data is not None:
-            self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.pdf'))
-            self.fig_data.savefig(os.path.join(out_dir, 'DataPlots.png'), dpi=150, bbox_inches='tight')
-            self._save_interactive(self.fig_data, os.path.join(out_dir, 'DataPlots.html'))
-            if self.options.figure_display != 'show_keep':
-                plt.close(self.fig_data)
-            self.fig_data = None
-            print(f'Saved DataPlots.pdf/.png to {out_dir}')
-
-        if self.fig_diagnostics is not None:
-            self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.pdf'))
-            self.fig_diagnostics.savefig(os.path.join(out_dir, 'Diagnostics.png'), dpi=150)
-            self._save_interactive(self.fig_diagnostics, os.path.join(out_dir, 'Diagnostics.html'))
-            if self.options.figure_display != 'show_keep':
-                plt.close(self.fig_diagnostics)
-            self.fig_diagnostics = None
-            print(f'Saved Diagnostics.pdf/.png to {out_dir}')
+    def _write_fig(self, fig, d, stem, html=False, tight=True):
+        fig.savefig(os.path.join(d, f'{stem}.pdf'))
+        if tight:
+            fig.savefig(os.path.join(d, f'{stem}.png'), dpi=150, bbox_inches='tight')
+        else:
+            fig.savefig(os.path.join(d, f'{stem}.png'), dpi=150)
+        if html:
+            self._save_interactive(fig, os.path.join(d, f'{stem}.html'))
+        if self.options.figure_display != 'show_keep':
+            plt.close(fig)
+        print(f'Saved {stem}.pdf/.png to {d}')
 
     def remove_outliers_pre(self):
         """Flag outliers per group using the IQR rule (1.5 × IQR beyond Q1/Q3)."""
@@ -1694,7 +1733,6 @@ class Kbstat:
             self.options.interaction = ia[0] if len(ia) == 1 else ia
             ia_str = ', '.join(' * '.join(pair) for pair in self.options.interaction)
             print(f'Detected interactions        : {ia_str}')
-        print(f'Formula                      : {formula}')
 
     def _family(self) -> str:
         """Map options.distribution to an R family name string."""
