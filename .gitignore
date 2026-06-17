@@ -7,8 +7,7 @@ dist/
 build/
 
 # Demo results
-demos/scripts/results/
-demos/notebooks/results/
+demos/**/results/
 
 # macOS
 .DS_Store
