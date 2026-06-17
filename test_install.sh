@@ -31,7 +31,7 @@ bash "$SCRIPT_DIR/install.sh"
 
 echo ""
 echo "[3/4] Running demos ..."
-DEMOS=$(ls "$SCRIPT_DIR/demos/py/demo_"*.py | sort)
+DEMOS=$(ls "$SCRIPT_DIR/demos/scripts/demo_"*.py | sort)
 FAILED=()
 
 for demo in $DEMOS; do

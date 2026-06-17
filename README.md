@@ -228,7 +228,7 @@ Thirteen worked examples are included in the `demos/` folder. Run any demo with:
 
 ```bash
 cd kbstatpy
-python3 demos/py/demo_01_unpaired.py
+python3 demos/scripts/demo_01_unpaired.py
 ```
 
 | Script | Dataset | Description |

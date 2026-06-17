@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 script_dir = Path(__file__).parent
-demos = sorted(script_dir.glob('demos/py/demo_*.py'))
+demos = sorted(script_dir.glob('demos/scripts/demo_*.py'))
 
 print('=== kbstatpy demo runner ===\n')
 
