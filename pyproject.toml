@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kbstatpy"
+version = "0.1.0"
+description = "Generalised linear mixed model (GLMM) analysis with post-hoc comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB kbstat library."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Kim Joris Boström", email = "kim.bostroem@predimo.com" }]
+dependencies = [
+    "pymer4",
+    "polars",
+    "pyarrow",
+    "pandas",
+    "scipy",
+    "rpy2",
+    "scikit-learn",
+    "formulae",
+    "great-tables",
+    "joblib",
+    "numpy",
+    "sympy",
+    "matplotlib",
+    "seaborn",
+    "openpyxl",
+    "mpld3",
+]
+
+[tool.setuptools]
+packages = ["kbstatpy"]

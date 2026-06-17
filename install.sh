@@ -69,34 +69,20 @@ echo "[2/4] Installing Python packages..."
 
 pip3 install --upgrade pip --quiet
 
+# Install kbstatpy and all its Python dependencies (declared in pyproject.toml).
+# Editable (-e) so the install tracks this checkout — users can pull updates
+# without reinstalling. This makes `import kbstatpy` work from any directory,
+# so the demos no longer need sys.path hacks.
+pip3 install -e .
+
 # great_tables >= 0.15.0 depends on multimark which requires compilation.
-# Fall back to 0.14.0 if the Xcode CLT are absent or mismatched.
-if [[ "$XCODE_ARCH_OK" == "true" ]]; then
-    GREAT_TABLES_VERSION="great_tables"
-else
-    GREAT_TABLES_VERSION="great_tables==0.14.0"
-    echo "  (using great_tables==0.14.0 to avoid multimark build failure)"
+# Pin to the last pre-built version if the Xcode CLT are absent or mismatched.
+if [[ "$XCODE_ARCH_OK" != "true" ]]; then
+    echo "  (pinning great_tables==0.14.0 to avoid multimark build failure)"
+    pip3 install --quiet "great_tables==0.14.0"
 fi
 
-pip3 install \
-    pymer4 \
-    polars \
-    pyarrow \
-    pandas \
-    scipy \
-    rpy2 \
-    scikit-learn \
-    formulae \
-    "$GREAT_TABLES_VERSION" \
-    joblib \
-    numpy \
-    sympy \
-    matplotlib \
-    seaborn \
-    openpyxl \
-    mpld3
-
-echo "  Python packages installed."
+echo "  kbstatpy and Python packages installed."
 
 # ------------------------------------------------------------------
 # 3. Install R packages
