@@ -721,10 +721,19 @@ class Kbstat:
         self._show_fig(fig_t, close=True)
 
     def save(self):
-        """Write result tables and summary to out_dir."""
+        """Write result tables, summary, and figures to out_dir.
+
+        Saving is gated on out_dir: if it is empty the call is a no-op, so the
+        same demo runs inline-only (notebooks, out_dir unset) or writes files
+        (scripts, out_dir set) with no other change.
+        """
         if self.model is None:
             raise RuntimeError('Call fit() before save()')
         out_dir = self.options.out_dir
+        if not out_dir:
+            print('out_dir is empty — results shown inline only, nothing written. '
+                  'Set options.out_dir to save tables and figures.')
+            return
         os.makedirs(out_dir, exist_ok=True)
 
         if self.anova_table is not None:
