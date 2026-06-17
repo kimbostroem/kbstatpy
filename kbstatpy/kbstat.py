@@ -219,6 +219,7 @@ class Kbstat:
         """Load data and fit the LMM or GLMM depending on distribution."""
         if self.data is None:
             self._load_data()
+        self._normalize_options()
         formula = self._build_formula()
         self._backfill_options_from_formula(formula)
         self._validate_options_vs_formula(formula)
