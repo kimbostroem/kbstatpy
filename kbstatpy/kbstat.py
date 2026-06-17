@@ -825,6 +825,22 @@ class Kbstat:
             print(f"Post-fit outlier removal: {n} observation(s) flagged by Pearson residual z > 3.")
 
 
+    @staticmethod
+    def _interactive_backend():
+        """True only for interactive GUI backends (MacOSX, Qt, Tk, …).
+
+        False for the Jupyter inline backend and headless Agg, where there is
+        no window to service and ``plt.pause`` would merely stall.
+        """
+        import matplotlib
+        try:
+            from matplotlib.backends import BackendFilter, backend_registry
+            interactive = {b.lower() for b in
+                           backend_registry.list_builtin(BackendFilter.INTERACTIVE)}
+        except Exception:  # pragma: no cover - older matplotlib fallback
+            interactive = {b.lower() for b in getattr(matplotlib.rcsetup, 'interactive_bk', [])}
+        return matplotlib.get_backend().lower() in interactive
+
     def _show_fig(self, fig, close=False):
         """Display ``fig`` according to ``options.figure_display``.
 
@@ -832,6 +848,11 @@ class Kbstat:
           'save_only'  — do not display
           'show_close' — display briefly (~3 s); default
           'show_keep'  — display and leave the window open
+
+        The ~3 s pause only applies to interactive GUI backends. Under the
+        Jupyter inline backend (or headless Agg) there is no window to keep
+        alive, so the pause is skipped and 'show_close'/'show_keep' both just
+        render the figure inline once; 'save_only' still suppresses it.
 
         Pass ``close=True`` for figures that are saved in place (the
         correlation plots) so they are also closed here; figures saved later
@@ -841,7 +862,7 @@ class Kbstat:
         mode = getattr(self.options, 'figure_display', 'show_close')
         if mode != 'save_only':
             plt.show(block=False)
-            if mode == 'show_close':
+            if mode == 'show_close' and self._interactive_backend():
                 plt.pause(3)
         if close and mode != 'show_keep':
             plt.close(fig)
