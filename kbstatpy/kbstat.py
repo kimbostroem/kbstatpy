@@ -1110,9 +1110,14 @@ class Kbstat:
             if self.contrasts_table is not None:
                 ct = self.contrasts_table
                 if 'p.value' in ct.columns:
-                    y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
+                    # sharey=True means set_ylim on one panel affects all; snapshot
+                    # the top ONCE (first panel) so all panels start at the same height.
+                    if col_idx == 0 and row_idx == 0:
+                        _bracket_y_base = ax.get_ylim()[1]
+                        _bracket_y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
+                    y_range = _bracket_y_range
                     bracket_step = y_range * 0.07
-                    bracket_y = ax.get_ylim()[1] + bracket_step * 0.3
+                    bracket_y = _bracket_y_base + bracket_step * 0.3
 
                     def _contrast_positions(contrast_str, x_var, x_levels):
                         """Return (i, j) indices into x_levels for a contrast string."""
