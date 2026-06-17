@@ -1315,6 +1315,8 @@ class Kbstat:
                  fontstyle='italic', color='0.3')
 
         plt.tight_layout(rect=[0, 0.06, 1, 1])
+        for ax in axes:
+            ax.yaxis.set_label_coords(-0.18, 0.5)
 
         self.fig_diagnostics = fig
         plt.show(block=False)
