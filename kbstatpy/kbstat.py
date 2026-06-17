@@ -1169,15 +1169,10 @@ class Kbstat:
                             top = max(top, float(np.nanmax(yd)))
                     return top if np.isfinite(top) else ax.dataLim.y1
 
-                # sharey=True and the same contrasts are drawn in every panel, so
-                # all panels share one bracket baseline placed just above the
-                # tallest panel's content. This keeps bracket heights consistent
-                # across panels instead of staircasing with each panel's data.
-                global_top = max(_panel_top(axes[r][c])
-                                 for r in range(n_rows) for c in range(n_cols))
-                if not np.isfinite(global_top):
-                    global_top = y_hi
-                bracket_y_start = global_top + bracket_step * 0.5
+                # Each panel's brackets are anchored just above THAT panel's own
+                # violins, so they track the data per panel. With sharey=True the
+                # shared y-axis is expanded once afterwards to fit the tallest
+                # panel's bracket stack so nothing is clipped.
 
                 def _contrast_positions(contrast_str, x_var, x_levels):
                     parts = [p.strip() for p in contrast_str.split(' - ')]
@@ -1192,11 +1187,12 @@ class Kbstat:
                                 break
                     return (found[0], found[1]) if len(found) == 2 else (None, None)
 
-                bracket_y_max = bracket_y_start
+                bracket_y_max = -np.inf
                 for row_idx, row_val in enumerate(row_levels):
                     for col_idx, facet_val in enumerate(facet_levels):
                         ax = axes[row_idx][col_idx]
-                        bracket_y = bracket_y_start          # same height in every panel
+                        # anchor just above THIS panel's tallest rendered content
+                        bracket_y = _panel_top(ax) + bracket_step * 0.5
                         tick_h = bracket_step * 0.3
                         for _, crow in ct.iterrows():
                             p_val = crow['p.value']
@@ -1215,8 +1211,10 @@ class Kbstat:
                             self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
                             bracket_y += bracket_step * 1.4
                         bracket_y_max = max(bracket_y_max, bracket_y)
-                # headroom so the topmost bracket label isn't jammed against the frame
-                ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
+                # expand the shared y-axis once to fit the tallest panel's stack
+                # (headroom so the topmost bracket label isn't jammed at the frame)
+                if np.isfinite(bracket_y_max):
+                    ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
 
         fig.tight_layout()
 
