@@ -24,7 +24,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file     = '../data/mtcars.csv'                    # input data file
-options.out_dir     = '../results/demo_13_lm_vif'             # output folder
+options.out_dir     = 'results/demo_13_lm_vif'             # output folder
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot

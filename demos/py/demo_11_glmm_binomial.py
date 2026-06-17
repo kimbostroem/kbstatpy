@@ -19,7 +19,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = '../data/bacteria.csv'
-options.out_dir      = '../results/demo_11_glmm_binomial'
+options.out_dir      = 'results/demo_11_glmm_binomial'
 options.y            = 'present'                   # binary outcome: 1 = bacteria present
 options.x            = 'trt, week'                 # fixed-effect factors
 options.id           = 'ID'                        # random intercept per child

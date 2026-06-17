@@ -14,7 +14,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = '../data/toothgrowth.csv'              # input data file
-options.out_dir      = '../results/demo_03_twoway'            # output folder
+options.out_dir      = 'results/demo_03_twoway'            # output folder
 options.y            = 'len'             # dependent variable
 options.y_units      = 'mm'             # unit label for y-axis
 options.x            = 'supp, dose'      # fixed-effect factors
