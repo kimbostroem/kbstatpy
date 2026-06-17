@@ -11,8 +11,6 @@ Dataset: ergoStool (nlme). Perceived effort (Borg scale) required for 9 subjects
 to arise from each of 4 stool types (Wretenberg, Arborelius & Lindberg, 1993).
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()

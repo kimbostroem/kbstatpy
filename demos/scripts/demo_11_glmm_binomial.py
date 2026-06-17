@@ -13,8 +13,6 @@ children with otitis media, under three treatments across five time points
 (weeks 0, 2, 4, 6, 11). 50 children, 220 observations total.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()

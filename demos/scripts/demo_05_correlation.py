@@ -15,8 +15,6 @@ post-war growth period (Year > 1950). Python comparison operators apply:
 Dataset: longley (R base / Longley, 1967). 16 annual observations, 7 variables.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()

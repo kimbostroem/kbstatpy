@@ -9,8 +9,6 @@ now carries an additional slope variance and an intercept-slope correlation.
 Dataset: sleepstudy (lme4), shared with demo 7.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()

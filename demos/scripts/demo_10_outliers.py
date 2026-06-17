@@ -18,8 +18,6 @@ Acid.Conc are included in the model.
 Dataset: stackloss (R base / Brownlee, 1965). 21 observations, 4 variables.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 def make_options(out_dir, remove_pre=False, remove_post=False):

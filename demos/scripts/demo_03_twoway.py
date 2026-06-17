@@ -8,8 +8,6 @@ supplementation by two delivery methods (OJ = orange juice, VC = ascorbic acid)
 at three dose levels (low / medium / high).
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()

@@ -13,8 +13,6 @@ often more interpretable and easier to communicate.
 Dataset: sleepstudy (lme4), shared with demo 6.
 """
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
