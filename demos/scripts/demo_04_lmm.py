@@ -7,6 +7,8 @@ trend, the model is an exact equivalent of a classical one-way repeated-measures
 ANOVA: the Type III F-test for Type matches the RM-ANOVA F, and the random
 intercept reproduces the compound-symmetry covariance that RM-ANOVA assumes.
 
+Model: `effort ~ Type + (1 | Subject)`
+
 Dataset: ergoStool (nlme). Perceived effort (Borg scale) required for 9 subjects
 to arise from each of 4 stool types (Wretenberg, Arborelius & Lindberg, 1993).
 """

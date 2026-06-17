@@ -15,6 +15,8 @@ are checked for multicollinearity via VIF and visualised in the correlation plot
 options.x_order ensures cyl levels are displayed in the natural ascending order
 (4 → 6 → 8 cylinders) regardless of how they appear in the data file.
 
+Model: `mpg ~ cyl + hp + wt`
+
 Dataset: mtcars (R base / Henderson & Velleman, 1981). 32 car models, 11 variables.
 """
 

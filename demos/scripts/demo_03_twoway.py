@@ -3,6 +3,8 @@
 Two between-subject factors (supplement type × dose), no repeated measures.
 Plain linear model — equivalent to a classical two-way ANOVA.
 
+Model: `len ~ supp * dose`
+
 Dataset: ToothGrowth (R base). Guinea pig tooth length (mm) after vitamin C
 supplementation by two delivery methods (OJ = orange juice, VC = ascorbic acid)
 at three dose levels (low / medium / high).

@@ -10,6 +10,8 @@ Compare with demo 8 (oats, gamma GLMM): both approaches address right-skewed
 positive outcomes, but an explicit data transform combined with a normal LMM is
 often more interpretable and easier to communicate.
 
+Model: `log(Reaction) ~ Period + (1 | Subject)`
+
 Dataset: sleepstudy (lme4), shared with demo 6.
 """
 

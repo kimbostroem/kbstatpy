@@ -6,6 +6,8 @@ baseline differences, equivalent to a paired t-test.
 
 Compare the post-hoc p-value with demo 1 to see how pairing increases power.
 
+Model: `extra ~ group + (1 | ID)`
+
 Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
 """
 

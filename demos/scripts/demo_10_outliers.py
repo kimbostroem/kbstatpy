@@ -15,6 +15,8 @@ The x-axis factor is Air.Flow binned into three operating regimes so that
 the violin / data plot is meaningful. The numeric covariates Water.Temp and
 Acid.Conc are included in the model.
 
+Model: `stack.loss ~ Air.Flow + Water.Temp + Acid.Conc.` (fit with and without outlier removal)
+
 Dataset: stackloss (R base / Brownlee, 1965). 21 observations, 4 variables.
 """
 

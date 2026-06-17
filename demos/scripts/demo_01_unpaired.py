@@ -3,6 +3,8 @@
 Two independent groups (drug 1 vs drug 2), continuous outcome (extra sleep hours).
 No repeated measures — plain linear model, equivalent to an unpaired t-test.
 
+Model: `extra ~ group`
+
 Dataset: sleep (R base), Cushny & Peebles (1905) / Student (1908).
 """
 

@@ -8,6 +8,8 @@ A gaussian model cannot be used here: the outcome is binary (0/1), so the
 mean is a probability bounded between 0 and 1. A binomial GLMM with logit
 link models this correctly without any transformation.
 
+Model: `present ~ trt + week + (1 | ID)` (binomial family, logit link)
+
 Dataset: bacteria (MASS). Presence/absence of H. influenzae bacteria in
 children with otitis media, under three treatments across five time points
 (weeks 0, 2, 4, 6, 11). 50 children, 220 observations total.

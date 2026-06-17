@@ -8,6 +8,8 @@ Compare with demo 7 (sleepstudy, log-transformed LMM): both approaches handle
 right-skewed positive outcomes; the gamma GLMM models the variance structure
 directly rather than transforming the data.
 
+Model: `yield ~ Variety * Nitrogen + (1 | Block)` (gamma family, log link)
+
 Dataset: Oats (nlme). Split-plot experiment on oat varieties and nitrogen
 fertilisation (Yates, 1935). 3 varieties × 4 nitrogen levels × 6 blocks,
 72 observations total.

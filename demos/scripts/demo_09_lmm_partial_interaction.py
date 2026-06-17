@@ -13,6 +13,8 @@ This contrasts with demo 7 (oats), where all pairwise terms from a two-factor
 interaction were of interest. Here only one of the three possible interactions is
 hypothesised, illustrating the `interaction` option with three fixed-effect factors.
 
+Model: `yield ~ N + P*K + (1 | block)`
+
 Dataset: npk (R base). Nitrogen, phosphate and potassium effects on pea yield
 (pounds per plot). 24 plots in 6 complete blocks (Venables & Ripley, 2002).
 """

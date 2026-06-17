@@ -6,6 +6,8 @@ in baseline reaction time but also in how strongly sleep deprivation affects the
 Compared with a random-intercept-only model, the random-effects variance table
 now carries an additional slope variance and an intercept-slope correlation.
 
+Model: `Reaction ~ Period + (1 + Period | Subject)`
+
 Dataset: sleepstudy (lme4), shared with demo 7.
 """
 

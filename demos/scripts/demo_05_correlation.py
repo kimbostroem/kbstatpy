@@ -12,6 +12,8 @@ options.constraints filters rows before the analysis — here restricted to the
 post-war growth period (Year > 1950). Python comparison operators apply:
 == != < > <= >= and & or | for combining conditions.
 
+Model: none — pairwise correlation only (no model fitted)
+
 Dataset: longley (R base / Longley, 1967). 16 annual observations, 7 variables.
 """
 

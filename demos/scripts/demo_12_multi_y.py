@@ -12,6 +12,8 @@ and also correlated with each other in a single run. The setosa species is exclu
 via options.constraints to illustrate categorical filtering — only versicolor and
 virginica are compared.
 
+Model: `<measurement> ~ Species`, one LM per outcome
+
 Dataset: iris (R base / Fisher, 1936). 150 observations, 3 species × 50 plants.
 """
 
