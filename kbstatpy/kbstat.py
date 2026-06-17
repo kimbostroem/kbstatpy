@@ -1094,65 +1094,8 @@ class Kbstat:
                     ax.text(i, ci_hi + y_range * 0.02, f'n={n}', ha='center', va='bottom',
                             fontsize=8, color='0.4', zorder=7)
 
-            # Expand y-limits so tops are not clipped and brackets have room
-            if use_bar and is_binary:
-                ax.set_ylim(bottom=0.0, top=1.15)
-                ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
-            elif use_bar:
-                y_lo, y_hi = ax.get_ylim()
-                ax.set_ylim(bottom=0.0, top=y_hi * 1.15)
-            else:
-                y_lo, y_hi = ax.get_ylim()
-                y_pad = (y_hi - y_lo) * 0.08
-                ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
-
-            # --- LAYER 5: Significance brackets ---
-            if self.contrasts_table is not None:
-                ct = self.contrasts_table
-                if 'p.value' in ct.columns:
-                    # sharey=True means set_ylim on one panel affects all; snapshot
-                    # the top ONCE (first panel) so all panels start at the same height.
-                    if col_idx == 0 and row_idx == 0:
-                        _bracket_y_base = ax.get_ylim()[1]
-                        _bracket_y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
-                    y_range = _bracket_y_range
-                    bracket_step = y_range * 0.07
-                    bracket_y = _bracket_y_base + bracket_step * 0.3
-
-                    def _contrast_positions(contrast_str, x_var, x_levels):
-                        """Return (i, j) indices into x_levels for a contrast string."""
-                        parts = [p.strip() for p in contrast_str.split(' - ')]
-                        if len(parts) != 2:
-                            return None, None
-                        found = []
-                        for part in parts:
-                            for i, lev in enumerate(x_levels):
-                                ls = str(lev)
-                                if part == ls or part.endswith(ls) or part == f'{x_var} {ls}':
-                                    found.append(i)
-                                    break
-                        return (found[0], found[1]) if len(found) == 2 else (None, None)
-
-                    for _, crow in ct.iterrows():
-                        p_val = crow['p.value']
-                        if p_val >= 0.05:
-                            continue
-                        label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
-                        xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
-                        if xi is None:
-                            xi, xj = 0, len(x_levels) - 1
-                        tick_h = bracket_step * 0.3
-                        ax.plot([xi, xi, xj, xj],
-                                [bracket_y - tick_h, bracket_y, bracket_y, bracket_y - tick_h],
-                                color='black', linewidth=1.5)
-                        ax.text((xi + xj) / 2, bracket_y, label,
-                                ha='center', va='bottom', fontsize=12, fontweight='bold')
-                        # Invisible scatter point for hover tooltip on the bracket
-                        bsc = ax.scatter((xi + xj) / 2, bracket_y, s=200, alpha=0, zorder=10)
-                        contrast_lbl = str(crow['contrast'])
-                        self._tooltip(ax, bsc, [f'{contrast_lbl}: p={p_val:.4f} ({label})'])
-                        bracket_y += bracket_step * 1.4
-                    ax.set_ylim(top=bracket_y)
+            # y-limit expansion and bracket drawing are deferred to after the
+            # panel loop so that sharey=True doesn't cause compounding expansions.
 
             # --- Axis formatting ---
             x_units_list = self.options.x_units  # already a list
@@ -1177,6 +1120,68 @@ class Kbstat:
 
         # Super title
         fig.suptitle(self._disp(y_var), fontweight='bold', fontsize=14)
+
+        # --- Post-loop: expand y-limits once, then draw brackets ---
+        # sharey=True means a set_ylim on any panel affects all; doing this after
+        # all data is drawn avoids compounding expansions across panels.
+        ref_ax = axes[0][0]
+        y_lo, y_hi = ref_ax.get_ylim()
+        if use_bar and is_binary:
+            ref_ax.set_ylim(bottom=0.0, top=1.15)
+            for row in axes:
+                for ax in row:
+                    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
+        elif use_bar:
+            ref_ax.set_ylim(bottom=0.0, top=y_hi * 1.15)
+        else:
+            y_pad = (y_hi - y_lo) * 0.08
+            ref_ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
+
+        if self.contrasts_table is not None:
+            ct = self.contrasts_table
+            if 'p.value' in ct.columns:
+                y_lo, y_hi = ref_ax.get_ylim()
+                y_range = y_hi - y_lo
+                bracket_step = y_range * 0.07
+                bracket_y_start = y_hi + bracket_step * 0.3
+
+                def _contrast_positions(contrast_str, x_var, x_levels):
+                    parts = [p.strip() for p in contrast_str.split(' - ')]
+                    if len(parts) != 2:
+                        return None, None
+                    found = []
+                    for part in parts:
+                        for i, lev in enumerate(x_levels):
+                            ls = str(lev)
+                            if part == ls or part.endswith(ls) or part == f'{x_var} {ls}':
+                                found.append(i)
+                                break
+                    return (found[0], found[1]) if len(found) == 2 else (None, None)
+
+                bracket_y_max = bracket_y_start
+                for row_idx, row_val in enumerate(row_levels):
+                    for col_idx, facet_val in enumerate(facet_levels):
+                        ax = axes[row_idx][col_idx]
+                        bracket_y = bracket_y_start
+                        tick_h = bracket_step * 0.3
+                        for _, crow in ct.iterrows():
+                            p_val = crow['p.value']
+                            if p_val >= 0.05:
+                                continue
+                            label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
+                            xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
+                            if xi is None:
+                                xi, xj = 0, len(x_levels_panel) - 1
+                            ax.plot([xi, xi, xj, xj],
+                                    [bracket_y - tick_h, bracket_y, bracket_y, bracket_y - tick_h],
+                                    color='black', linewidth=1.5)
+                            ax.text((xi + xj) / 2, bracket_y, label,
+                                    ha='center', va='bottom', fontsize=12, fontweight='bold')
+                            bsc = ax.scatter((xi + xj) / 2, bracket_y, s=200, alpha=0, zorder=10)
+                            self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
+                            bracket_y += bracket_step * 1.4
+                        bracket_y_max = max(bracket_y_max, bracket_y)
+                ref_ax.set_ylim(top=bracket_y_max)
 
         fig.tight_layout()
 
