@@ -19,11 +19,9 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
 options = KbstatOptions()
-options.in_file      = os.path.join(HERE, '../data/sleepstudy.csv')               # input data file
-options.out_dir      = os.path.join(HERE, 'results/demo_07_lmm_transform')     # output folder
+options.in_file      = os.path.join(options.demo_dir, 'data/sleepstudy.csv')               # input data file
+options.out_dir      = os.path.join(options.working_dir, 'results/demo_07_lmm_transform')     # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.y_transform  = 'log(y)'         # log-transform before fitting; back-transformed for plots and tables

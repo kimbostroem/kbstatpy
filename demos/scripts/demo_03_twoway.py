@@ -19,11 +19,9 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
 options = KbstatOptions()
-options.in_file      = os.path.join(HERE, '../data/toothgrowth.csv')              # input data file
-options.out_dir      = os.path.join(HERE, 'results/demo_03_twoway')            # output folder
+options.in_file      = os.path.join(options.demo_dir, 'data/toothgrowth.csv')              # input data file
+options.out_dir      = os.path.join(options.working_dir, 'results/demo_03_twoway')            # output folder
 options.y            = 'len'             # dependent variable
 options.y_units      = 'mm'             # unit label for y-axis
 options.x            = 'supp, dose'      # fixed-effect factors

@@ -22,11 +22,9 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
 options = KbstatOptions()
-options.in_file      = os.path.join(HERE, '../data/oats.csv')                     # input data file
-options.out_dir      = os.path.join(HERE, 'results/demo_08_glmm_gamma')        # output folder
+options.in_file      = os.path.join(options.demo_dir, 'data/oats.csv')                     # input data file
+options.out_dir      = os.path.join(options.working_dir, 'results/demo_08_glmm_gamma')        # output folder
 options.y            = 'yield'                    # dependent variable
 options.y_units      = 'qt/plot'                  # unit label for y-axis (quarter-pounds per plot)
 options.x            = 'Variety, Nitrogen'         # fixed-effect factors

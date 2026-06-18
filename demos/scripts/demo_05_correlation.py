@@ -17,11 +17,9 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
 options = KbstatOptions()
-options.in_file     = os.path.join(HERE, '../data/longley.csv')                   # input data file
-options.out_dir     = os.path.join(HERE, 'results/demo_05_correlation')        # output folder
+options.in_file     = os.path.join(options.demo_dir, 'data/longley.csv')                   # input data file
+options.out_dir     = os.path.join(options.working_dir, 'results/demo_05_correlation')        # output folder
 options.correlation  = 'GNP.deflator, GNP, Unemployed, Population, Year'         # variables to correlate (must be numerical)
 options.constraints  = 'Year > 1950'                                              # restrict to post-war growth period (1951–1962)
 options.rename       = 'GNP.deflator -> GNP_Deflator; Unemployed -> Unemployment'

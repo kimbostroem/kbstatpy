@@ -22,12 +22,11 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
-def make_options(out_dir, remove_pre=False, remove_post=False):
+def make_options(out_subdir, remove_pre=False, remove_post=False):
     options = KbstatOptions()
-    options.in_file     = os.path.join(HERE, '../data/stackloss.csv')
-    options.out_dir     = out_dir
+    options.in_file     = os.path.join(options.demo_dir, 'data/stackloss.csv')
+    options.out_dir     = os.path.join(options.working_dir,
+                                   f'results/demo_10_outliers/{out_subdir}')
     options.y           = 'stack.loss'
     options.y_units     = '%'
     options.x           = 'Air.Flow'
@@ -41,10 +40,10 @@ def make_options(out_dir, remove_pre=False, remove_post=False):
     return options
 
 print("=== Run 1: no outlier removal ===")
-kb_default = Kbstat(make_options(os.path.join(HERE, 'results/demo_10_outliers/default')))
+kb_default = Kbstat(make_options('default'))
 kb_default.run_save()
 
 print("\n=== Run 2: pre-fit IQR + post-fit residual removal ===")
-kb_clean = Kbstat(make_options(os.path.join(HERE, 'results/demo_10_outliers/clean'),
+kb_clean = Kbstat(make_options('clean',
                                remove_pre=True, remove_post=True))
 kb_clean.run_save()
