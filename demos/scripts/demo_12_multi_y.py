@@ -16,11 +16,15 @@ correlation among the four measurements computed in the same call. The
 selection.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file = '../data/iris.csv'                          # input data file
-options.out_dir = 'results/demo_12_multi_y'                # output folder (subfolders per variable)
+options.in_file = os.path.join(HERE, '../data/iris.csv')                          # input data file
+options.out_dir = os.path.join(HERE, 'results/demo_12_multi_y')                # output folder (subfolders per variable)
 options.y           = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # dependent variables (comma-separated)
 options.y_units     = 'cm'                                                    # unit label for y-axis (same for all variables)
 options.x           = 'Species'                                               # fixed-effect factor

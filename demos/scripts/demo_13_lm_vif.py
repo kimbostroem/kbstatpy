@@ -18,11 +18,15 @@ inflate standard errors and destabilise the coefficients. A correlation scatter
 grid with VIF on the diagonal visualises it.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file     = '../data/mtcars.csv'                    # input data file
-options.out_dir     = 'results/demo_13_lm_vif'             # output folder
+options.in_file     = os.path.join(HERE, '../data/mtcars.csv')                    # input data file
+options.out_dir     = os.path.join(HERE, 'results/demo_13_lm_vif')             # output folder
 options.y           = 'mpg'              # dependent variable
 options.y_units     = 'mpg'             # unit label for y-axis
 options.x           = 'cyl'             # categorical predictor — shown in violin plot

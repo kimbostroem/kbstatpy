@@ -13,11 +13,15 @@ This is equivalent to a paired t-test (degrees of freedom n − 1); comparing it
 p-value with demo 1 shows how accounting for the pairing increases power.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file      = '../data/sleep.csv'                    # input data file
-options.out_dir      = 'results/demo_02_paired'            # output folder
+options.in_file      = os.path.join(HERE, '../data/sleep.csv')                    # input data file
+options.out_dir      = os.path.join(HERE, 'results/demo_02_paired')            # output folder
 options.y            = 'extra'           # dependent variable
 options.y_units      = 'h'              # unit label for y-axis
 options.x            = 'group'           # fixed-effect factor(s)

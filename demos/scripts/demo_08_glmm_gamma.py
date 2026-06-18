@@ -18,11 +18,15 @@ ANOVA cannot. Compare with demo 7, which targets the same data by log-transformi
 a normal model instead.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file      = '../data/oats.csv'                     # input data file
-options.out_dir      = 'results/demo_08_glmm_gamma'        # output folder
+options.in_file      = os.path.join(HERE, '../data/oats.csv')                     # input data file
+options.out_dir      = os.path.join(HERE, 'results/demo_08_glmm_gamma')        # output folder
 options.y            = 'yield'                    # dependent variable
 options.y_units      = 'qt/plot'                  # unit label for y-axis (quarter-pounds per plot)
 options.x            = 'Variety, Nitrogen'         # fixed-effect factors

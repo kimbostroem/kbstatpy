@@ -16,11 +16,15 @@ preserving degrees of freedom. A random intercept per block accounts for spatial
 variation across the field.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file      = '../data/npk.csv'                      # input data file
-options.out_dir      = 'results/demo_09_lmm_partial_interaction'  # output folder
+options.in_file      = os.path.join(HERE, '../data/npk.csv')                      # input data file
+options.out_dir      = os.path.join(HERE, 'results/demo_09_lmm_partial_interaction')  # output folder
 options.y            = 'yield'           # dependent variable
 options.y_units      = 'lb/plot'        # unit label for y-axis
 options.x            = 'N, P, K'         # fixed-effect factors (three binary treatments)

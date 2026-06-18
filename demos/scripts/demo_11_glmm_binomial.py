@@ -16,11 +16,15 @@ back-transformed to probabilities — exactly the kind of binary outcome that
 classical t-tests and ANOVA cannot handle at all.
 """
 
+import os
+
 from kbstatpy import Kbstat, KbstatOptions
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 options = KbstatOptions()
-options.in_file      = '../data/bacteria.csv'
-options.out_dir      = 'results/demo_11_glmm_binomial'
+options.in_file      = os.path.join(HERE, '../data/bacteria.csv')
+options.out_dir      = os.path.join(HERE, 'results/demo_11_glmm_binomial')
 options.y            = 'present'                   # binary outcome: 1 = bacteria present
 options.x            = 'trt, week'                 # fixed-effect factors
 options.id           = 'ID'                        # random intercept per child
