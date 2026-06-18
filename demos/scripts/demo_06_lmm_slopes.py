@@ -21,7 +21,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = os.path.join(options.demo_dir, 'data/sleepstudy.csv')               # input data file
-options.out_dir      = os.path.join(options.working_dir, 'results/demo_06_lmm_slopes')        # output folder
+options.out_dir      = 'results/demo_06_lmm_slopes'        # output folder
 options.y            = 'Reaction'        # dependent variable
 options.y_units      = 'ms'             # unit label for y-axis
 options.x            = 'Period'          # fixed-effect factor(s)

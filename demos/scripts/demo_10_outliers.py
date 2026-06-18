@@ -25,8 +25,7 @@ from kbstatpy import Kbstat, KbstatOptions
 def make_options(out_subdir, remove_pre=False, remove_post=False):
     options = KbstatOptions()
     options.in_file     = os.path.join(options.demo_dir, 'data/stackloss.csv')
-    options.out_dir     = os.path.join(options.working_dir,
-                                   f'results/demo_10_outliers/{out_subdir}')
+    options.out_dir     = f'results/demo_10_outliers/{out_subdir}'
     options.y           = 'stack.loss'
     options.y_units     = '%'
     options.x           = 'Air.Flow'

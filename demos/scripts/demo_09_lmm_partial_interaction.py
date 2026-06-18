@@ -22,7 +22,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = os.path.join(options.demo_dir, 'data/npk.csv')                      # input data file
-options.out_dir      = os.path.join(options.working_dir, 'results/demo_09_lmm_partial_interaction')  # output folder
+options.out_dir      = 'results/demo_09_lmm_partial_interaction'  # output folder
 options.y            = 'yield'           # dependent variable
 options.y_units      = 'lb/plot'        # unit label for y-axis
 options.x            = 'N, P, K'         # fixed-effect factors (three binary treatments)

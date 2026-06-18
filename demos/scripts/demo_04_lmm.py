@@ -24,7 +24,7 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 options.in_file      = os.path.join(options.demo_dir, 'data/ergostool.csv')               # input data file
-options.out_dir      = os.path.join(options.working_dir, 'results/demo_04_lmm')              # output folder
+options.out_dir      = 'results/demo_04_lmm'              # output folder
 options.y            = 'effort'          # dependent variable
 options.y_units      = 'Borg'           # unit label for y-axis
 options.x            = 'Type'            # fixed-effect factor(s)
