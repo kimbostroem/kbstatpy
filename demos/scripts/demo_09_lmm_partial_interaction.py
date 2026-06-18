@@ -1,11 +1,10 @@
 """Demo 9 — LMM with partial interaction
 
-This demo uses the `npk` dataset (R base; Venables & Ripley 2002), a classic
-agricultural experiment measuring pea yield under three binary treatments —
-nitrogen (N), phosphate (P), and potassium (K) — applied across six complete
-blocks (24 plots). It examines the main effect of nitrogen and the
-phosphate–potassium interaction, without assuming that nitrogen interacts with
-either.
+With three or more factors you often want to test one specific interaction without
+assuming the others — a partial interaction. This demo shows that on the `npk`
+dataset (R base; Venables & Ripley 2002), a classic agricultural experiment: pea
+yield under three binary treatments — nitrogen (N), phosphate (P), potassium (K) —
+across six complete blocks (24 plots).
 
 Only the one hypothesised interaction is included:
 

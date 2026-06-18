@@ -1,16 +1,16 @@
 """Demo 5 — Standalone pairwise correlation analysis
 
-This demo uses the `longley` dataset (R base; Longley 1967), a classic
-econometrics benchmark built specifically to be severely multicollinear: it holds
-16 annual US macroeconomic observations from 1947–1962 in which GNP, population,
-and the calendar year all trend together. It asks how strongly these variables
-covary.
+When several variables all trend together, raw correlations cannot separate direct
+association from shared drift — partial correlations can. This demo shows that on
+the `longley` dataset (R base; Longley 1967), a classic econometrics benchmark
+built to be severely multicollinear: 16 annual US macroeconomic observations
+(1947–1962) in which GNP, population, and the calendar year all move together.
 
 No model is fitted — the analysis is purely exploratory. Alongside ordinary
 Pearson correlations it computes partial correlations (the association between two
-variables after regressing out all the others), which separate direct
-relationships from shared trends. The `constraints = 'Year > 1950'` filter
-restricts the analysis to the post-war growth period, illustrating row filtering.
+variables after regressing out all the others), separating direct relationships
+from shared trends. The `constraints = 'Year > 1950'` filter restricts the
+analysis to the post-war growth period, illustrating row filtering.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

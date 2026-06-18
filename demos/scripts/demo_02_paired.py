@@ -1,16 +1,16 @@
 """Demo 2 — Paired t-test equivalent
 
-This demo reuses the `sleep` dataset (R base; Cushny & Peebles 1905 / Student
-1908), but now takes account of the fact that both drugs were measured on the
-same 10 patients. It asks the same question as demo 1 — does sleep gain differ
-between the drugs — while respecting the within-patient pairing.
+When the same subjects are measured under both conditions, accounting for that
+pairing is both more correct and more powerful. This demo shows the paired
+t-test equivalent on the `sleep` dataset (R base; Cushny & Peebles 1905 / Student
+1908), where both drugs were measured on the same 10 patients.
 
 A random intercept per patient absorbs each person's baseline sleep tendency:
 
     extra ~ group + (1 | ID)
 
-This is equivalent to a paired t-test (degrees of freedom n − 1), and comparing
-its p-value with demo 1 shows how accounting for the pairing increases power.
+This is equivalent to a paired t-test (degrees of freedom n − 1); comparing its
+p-value with demo 1 shows how accounting for the pairing increases power.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

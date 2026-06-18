@@ -1,9 +1,10 @@
 """Demo 12 — Multiple dependent variables + correlation
 
-This demo uses the `iris` dataset (R base; Fisher 1936), the four flower
-measurements of 150 plants across three species, with `setosa` excluded so that
-only versicolor and virginica are compared. It illustrates analysing several
-outcomes in a single run.
+Research questions often span several outcomes at once; kbstatpy can run the whole
+pipeline for each in a single call and correlate them together. This demo shows
+that on the `iris` dataset (R base; Fisher 1936): the four flower measurements of
+150 plants across three species, with `setosa` excluded so only versicolor and
+virginica are compared.
 
 Passing a list to `options.y` runs the full pipeline once per measurement:
 

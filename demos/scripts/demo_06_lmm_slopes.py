@@ -1,18 +1,18 @@
 """Demo 6 — LMM with random intercepts and random slopes
 
-This demo uses the `sleepstudy` dataset (lme4; Belenky et al. 2003), reaction
-times measured on 18 subjects across a period of sleep deprivation (here
-contrasting a rested block with a deprived one). It asks not just whether
-deprivation slows reactions on average, but whether subjects differ in how
-strongly it affects them.
+Subjects often differ not just in their baseline but in how strongly a treatment
+affects them — something repeated-measures ANOVA cannot express, but random slopes
+can. This demo shows that on the `sleepstudy` dataset (lme4; Belenky et al. 2003):
+reaction times of 18 subjects across a period of sleep deprivation (here a rested
+block versus a deprived one).
 
 Allowing each subject their own slope as well as their own intercept gives:
 
     Reaction ~ Period + (1 + Period | Subject)
 
-This has no classical equivalent — repeated-measures ANOVA assumes a single shared
-time effect. The random-effects table now carries an additional slope variance and
-an intercept–slope correlation.
+This has no classical equivalent — RM-ANOVA assumes a single shared time effect.
+The random-effects table now carries an additional slope variance and an
+intercept–slope correlation.
 """
 
 from kbstatpy import Kbstat, KbstatOptions

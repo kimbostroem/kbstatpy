@@ -1,9 +1,11 @@
 """Demo 13 — LM with mixed predictors and VIF
 
-This demo uses the `mtcars` dataset (R base; Henderson & Velleman 1981),
-performance figures for 32 car models. Fuel economy (`mpg`) is modelled from
-engine power (`hp`) and weight (`wt`) — two strongly correlated predictors —
-together with the number of cylinders (`cyl`) as a categorical factor.
+Strongly correlated predictors inflate standard errors and destabilise
+coefficients; the Variance Inflation Factor flags this before it bites. This demo
+shows that on the `mtcars` dataset (R base; Henderson & Velleman 1981),
+performance figures for 32 car models: fuel economy (`mpg`) modelled from engine
+power (`hp`) and weight (`wt`) — two strongly correlated predictors — plus the
+number of cylinders (`cyl`) as a categorical factor.
 
 The fitted model combines the categorical and numeric predictors:
 

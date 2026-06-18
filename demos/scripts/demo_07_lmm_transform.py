@@ -1,9 +1,11 @@
 """Demo 7 — LMM with log-transformed dependent variable
 
-This demo uses the `sleepstudy` dataset (lme4), the same reaction-time data as
-demo 6. Reaction times are strictly positive and right-skewed, which strains the
-constant-variance assumption of an ordinary linear model, so the response is
-modelled on the log scale instead.
+Strictly positive, right-skewed outcomes strain the constant-variance assumption
+of an ordinary linear model; one remedy is to model them on the log scale. This
+demo shows that on the `sleepstudy` dataset (lme4) — the same reaction-time data
+as demo 6, which is positive and right-skewed.
+
+The response is modelled on the log scale:
 
     log(Reaction) ~ Period + (1 | Subject)
 

@@ -1,10 +1,10 @@
 """Demo 10 — Outlier removal (before and after fitting)
 
-This demo uses the `stackloss` dataset (R base; Brownlee 1965), which records the
-percentage of ammonia lost during an industrial oxidation process over 21 plant
-runs; observations 1, 3, 4, and 21 are textbook influential outliers used
-throughout the robust-regression literature. It asks how much those points sway
-the conclusions.
+Influential outliers can dominate a fit, so removing them on a principled basis —
+and seeing how much they mattered — is part of a careful analysis. This demo shows
+that on the `stackloss` dataset (R base; Brownlee 1965): the percentage of ammonia
+lost during an industrial oxidation process over 21 plant runs, where observations
+1, 3, 4, and 21 are textbook influential outliers.
 
 The same linear model is fitted twice — once untouched, once after pre-fit IQR and
 post-fit residual outlier removal:
