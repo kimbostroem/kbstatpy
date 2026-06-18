@@ -258,6 +258,29 @@ class Kbstat:
         self.save()
         return self.output
 
+    def download_link(self, path=None, archive_name=None):
+        """Zip a results directory and return an IPython FileLink for one-click
+        download — handy when running on a remote Jupyter server, where save()
+        writes to the server, not your machine.
+
+        Defaults to ``options.out_dir``; pass ``path`` to archive a different
+        folder (e.g. a parent holding several runs). Call after :meth:`save`.
+        Outside a notebook it just prints the archive path.
+        """
+        import shutil
+        target = path or self.options.out_dir
+        if not target or not os.path.isdir(target):
+            print('Nothing to download — set out_dir and call save() first.')
+            return None
+        base = archive_name or os.path.basename(os.path.normpath(target))
+        archive = shutil.make_archive(base, 'zip', target)
+        try:
+            from IPython.display import FileLink
+            return FileLink(os.path.relpath(archive))
+        except Exception:
+            print(f'Results archived to {archive}')
+            return archive
+
     def _gather_output(self):
         """Build an Output from the current state (used by save() when run() was
         not called — e.g. after step-by-step fit()/anova()/... calls)."""
