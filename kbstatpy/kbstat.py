@@ -252,6 +252,17 @@ class Kbstat:
 
         return self.output
 
+    def run_save(self):
+        """Convenience: :meth:`run` then :meth:`save`.
+
+        Computes and displays the analysis, then writes it to ``out_dir`` (a
+        no-op if ``out_dir`` is unset). Equivalent to calling ``run()`` and
+        ``save()`` in sequence. Returns ``self.output``.
+        """
+        self.run()
+        self.save()
+        return self.output
+
     def _compute_single(self):
         """Compute (but do not save) the pipeline for a single dependent variable."""
         self._load_data()
