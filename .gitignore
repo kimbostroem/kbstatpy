@@ -6,8 +6,8 @@ __pycache__/
 dist/
 build/
 
-# Demo results
-demos/**/results/
+# Demo / analysis results (out_dir defaults under the working directory)
+results/
 
 # macOS
 .DS_Store
