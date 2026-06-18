@@ -263,6 +263,24 @@ class Kbstat:
         self.save()
         return self.output
 
+    def _gather_output(self):
+        """Build an Output from the current state (used by save() when run() was
+        not called — e.g. after step-by-step fit()/anova()/... calls)."""
+        out = Output()
+        if self.model is not None:
+            out.results.append(ModelResult(
+                y=self.options.y if isinstance(self.options.y, str) else '',
+                formula=self._build_formula(),
+                anova=self.anova_table,
+                posthoc=self.posthoc_table,
+                statistics=self.statistics_table,
+                summary=self._summary_text(),
+                data=self.data,
+                fig_data=self.fig_data,
+                fig_diagnostics=self.fig_diagnostics,
+            ))
+        return out
+
     def _compute_single(self):
         """Compute (but do not save) the pipeline for a single dependent variable."""
         self._load_data()
@@ -756,13 +774,16 @@ class Kbstat:
             print('out_dir is empty — results shown inline only, nothing written. '
                   'Set options.out_dir to save tables and figures.')
             return
-        if self.output is None:
-            print('Nothing to save — call run() first.')
+        # Prefer the gathered output from run(); fall back to the current state
+        # so a step-by-step fit()/anova()/... then save() still works.
+        output = self.output if self.output is not None else self._gather_output()
+        if output is None or (not output.results and output.correlation is None):
+            print('Nothing to save — run the analysis (run/run_save) or fit it first.')
             return
         os.makedirs(out_dir, exist_ok=True)
 
-        multi = len(self.output.results) > 1
-        for res in self.output.results:
+        multi = len(output.results) > 1
+        for res in output.results:
             d = os.path.join(out_dir, res.y) if multi else out_dir
             os.makedirs(d, exist_ok=True)
             if res.anova is not None:
@@ -787,7 +808,7 @@ class Kbstat:
             if res.fig_diagnostics is not None:
                 self._write_fig(res.fig_diagnostics, d, 'Diagnostics', html=True, tight=False)
 
-        cr = self.output.correlation
+        cr = output.correlation
         if cr is not None:
             if cr.correlation_table is not None:
                 self._write_corr_xlsx(cr.correlation_table, os.path.join(out_dir, 'Correlation.xlsx'), 'Correlation')
