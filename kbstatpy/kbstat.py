@@ -57,16 +57,6 @@ class Kbstat:
     """Generalized linear mixed model analysis with post-hoc pairwise comparisons."""
 
     def __init__(self, options: KbstatOptions):
-        import inspect
-        # Capture the directory of the script that instantiated Kbstat so that
-        # relative paths in in_file / out_dir resolve against the caller, not CWD.
-        self._caller_dir = os.getcwd()
-        for frame in inspect.stack():
-            fname = frame.filename
-            if fname != __file__ and not fname.startswith('<'):
-                self._caller_dir = os.path.dirname(os.path.abspath(fname))
-                break
-
         self.options = options
         self.data: pd.DataFrame = None
         self.model = None
@@ -106,10 +96,15 @@ class Kbstat:
         return list(value)
 
     def _resolve_path(self, path):
-        """Resolve a relative path against the caller's directory."""
+        """Resolve a relative path against the current working directory.
+
+        Standard Python behaviour: a relative in_file/out_dir is taken relative
+        to where the user is working, never the package or script location, so
+        output lands in the user's own (writable) directory.
+        """
         if not path or os.path.isabs(path):
             return path
-        return os.path.join(self._caller_dir, path)
+        return os.path.abspath(path)
 
     def _disp(self, name):
         """Return the display label for an internal column name."""
