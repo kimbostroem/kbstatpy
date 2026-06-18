@@ -27,6 +27,5 @@ options.rename       = 'Reaction -> ReactionTime; Period -> Day'
 # options.formula    = 'log(Reaction) ~ Period + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

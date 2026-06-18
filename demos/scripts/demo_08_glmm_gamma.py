@@ -35,6 +35,5 @@ options.rename       = 'yield -> CropYield; Variety: Golden.rain -> golden_rain'
 # options.formula    = 'yield ~ Variety * Nitrogen + (1 | Block)'  # alternative: Wilkinson formula (overrides y, x, id, interaction above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

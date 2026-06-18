@@ -30,5 +30,4 @@ options.covariate   = 'hp, wt'          # continuous covariates — included in 
 options.correlation = 'hp, wt'          # correlate the numeric covariates — VIF computed automatically
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()

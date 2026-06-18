@@ -31,6 +31,5 @@ options.rename       = 'effort -> Effort; Type -> Stool type'
 # options.formula    = 'effort ~ Type + (1 | Subject)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

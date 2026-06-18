@@ -26,6 +26,5 @@ options.rename       = 'extra -> ExtraSleep; group -> DrugGroup'
 # options.formula    = 'extra ~ group + (1 | ID)'  # alternative: Wilkinson formula (overrides y, x, id above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

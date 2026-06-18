@@ -30,6 +30,5 @@ options.x_order      = 'dose: low, medium, high'
 # options.formula    = 'len ~ supp * dose'  # alternative: Wilkinson formula (overrides y, x, interaction above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

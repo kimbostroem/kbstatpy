@@ -29,5 +29,4 @@ options.rename      = 'Sepal.Length -> SepalLength; Sepal.Width -> SepalWidth; P
 # options.correlation = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'  # equivalent explicit form
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()

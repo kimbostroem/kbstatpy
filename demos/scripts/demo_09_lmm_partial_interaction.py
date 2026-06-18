@@ -33,6 +33,5 @@ options.x_order      = 'Nitrogen: absent, applied; Phosphate: absent, applied; P
 # options.formula    = 'yield ~ N + P*K + (1 | block)'  # alternative: Wilkinson formula (overrides y, x, id, interaction above)
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
 

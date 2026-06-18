@@ -30,5 +30,4 @@ options.link         = 'logit'                     # logit link: maps linear pre
 options.rename       = 'present -> Bacteria present; trt -> Treatment; week -> Week'
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()

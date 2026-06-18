@@ -38,11 +38,9 @@ def make_options(out_dir, remove_pre=False, remove_post=False):
 
 print("=== Run 1: no outlier removal ===")
 kb_default = Kbstat(make_options('results/demo_10_outliers/default'))
-kb_default.run()
-kb_default.save()
+kb_default.run_save()
 
 print("\n=== Run 2: pre-fit IQR + post-fit residual removal ===")
 kb_clean = Kbstat(make_options('results/demo_10_outliers/clean',
                                remove_pre=True, remove_post=True))
-kb_clean.run()
-kb_clean.save()
+kb_clean.run_save()

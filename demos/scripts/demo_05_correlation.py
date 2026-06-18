@@ -23,5 +23,4 @@ options.constraints  = 'Year > 1950'                                            
 options.rename       = 'GNP.deflator -> GNP_Deflator; Unemployed -> Unemployment'
 
 kb = Kbstat(options)
-kb.run()
-kb.save()
+kb.run_save()
