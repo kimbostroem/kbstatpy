@@ -22,27 +22,23 @@ import os
 
 from kbstatpy import Kbstat, KbstatOptions
 
-def make_options(out_subdir, remove_pre=False, remove_post=False):
-    options = KbstatOptions()
-    options.in_file     = os.path.join(options.demo_dir, 'data/stackloss.csv')
-    options.out_dir     = f'results/demo_10_outliers/{out_subdir}'
-    options.y           = 'stack.loss'
-    options.y_units     = '%'
-    options.x           = 'Air.Flow'
-    options.covariate   = 'Water.Temp, Acid.Conc.'
-    options.rename      = ('stack.loss -> StackLoss; '
-                           'Air.Flow -> AirFlow; '
-                           'Water.Temp -> WaterTemp; '
-                           'Acid.Conc. -> AcidConc')
-    options.remove_outliers_prefit  = remove_pre
-    options.remove_outliers_postfit = remove_post
-    return options
+options = KbstatOptions()
+options.in_file   = os.path.join(options.demo_dir, 'data/stackloss.csv')
+options.y         = 'stack.loss'
+options.y_units   = '%'
+options.x         = 'Air.Flow'
+options.covariate = 'Water.Temp, Acid.Conc.'
+options.rename    = ('stack.loss -> StackLoss; Air.Flow -> AirFlow; '
+                     'Water.Temp -> WaterTemp; Acid.Conc. -> AcidConc')
 
 print("=== Run 1: no outlier removal ===")
-kb_default = Kbstat(make_options('default'))
+options.out_dir = 'results/demo_10_outliers/default'
+kb_default = Kbstat(options)
 kb_default.run_save()
 
 print("\n=== Run 2: pre-fit IQR + post-fit residual removal ===")
-kb_clean = Kbstat(make_options('clean',
-                               remove_pre=True, remove_post=True))
+options.out_dir = 'results/demo_10_outliers/clean'
+options.remove_outliers_prefit  = True
+options.remove_outliers_postfit = True
+kb_clean = Kbstat(options)
 kb_clean.run_save()
