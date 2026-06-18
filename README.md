@@ -99,6 +99,15 @@ kb.posthoc()  # pairwise comparisons via emmeans
 kb.save()     # write the results produced so far to out_dir
 ```
 
+On a remote Jupyter server, `save()` writes to the *server*. To pull the results
+to your own machine, `kb.download_link()` zips `out_dir` and returns a clickable
+download link (pass a folder to zip a parent holding several runs):
+
+```python
+kb.save()
+kb.download_link()
+```
+
 All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x_units`, `correlation`) accept either a Python list or a comma-separated string — whichever is more convenient.
 
 ---
