@@ -15,13 +15,11 @@ class KbstatOptions:
     in_file: str = ''
     out_dir: str = ''
 
-    # Convenience path anchors (resolved at instantiation):
-    #   demo_dir    — the bundled demo folder; use for example inputs,
-    #                 e.g. os.path.join(options.demo_dir, 'data/sleep.csv')
-    #   working_dir — the current working directory; use for outputs,
-    #                 e.g. os.path.join(options.working_dir, 'results/my_run')
+    # Absolute path to the bundled demo folder, for example inputs, e.g.
+    #   os.path.join(options.demo_dir, 'data/sleep.csv')
+    # (Outputs need no such anchor: a relative out_dir resolves against the
+    # current working directory, so out_dir='results/my_run' already lands there.)
     demo_dir: str = field(default_factory=lambda: _DEMO_DIR)
-    working_dir: str = field(default_factory=os.getcwd)
 
     # constraints
     constraints: str = ''
