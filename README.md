@@ -76,16 +76,27 @@ options.distribution = 'gamma'
 options.link       = 'log'
 
 kb = Kbstat(options)
-kb.run()   # fit → anova → posthoc → plots → save
+kb.run_save()   # compute, display, and save — all in one call
 ```
 
-`run()` is the one-shot pipeline. You can also call each step individually:
+`run_save()` is the convenience one-liner: it is exactly `run()` followed by
+`save()`, which you can also call separately. `run()` computes the analysis,
+displays it, and gathers the results into `kb.output`; `save()` writes
+`kb.output` to `out_dir` (a no-op if `out_dir` is unset). The split is handy in
+notebooks — run to view inline, then save only when you want files:
+
+```python
+kb.run()      # fit, ANOVA, post-hoc, plots, printed summary → kb.output
+kb.save()     # write kb.output to out_dir
+```
+
+You can also drive the pipeline step by step and then save what was produced:
 
 ```python
 kb.fit()      # fit the LMM / GLMM
-kb.anova()    # compute Type III ANOVA table
+kb.anova()    # Type III ANOVA table
 kb.posthoc()  # pairwise comparisons via emmeans
-kb.save()     # write output files to out_dir
+kb.save()     # write the results produced so far to out_dir
 ```
 
 All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x_units`, `correlation`) accept either a Python list or a comma-separated string — whichever is more convenient.
