@@ -1,4 +1,10 @@
+import os
 from dataclasses import dataclass, field
+
+# Absolute path to the bundled demo folder (a sibling of this package in the
+# source tree). Convenience anchor for the demos; present when running from the
+# repo, which is the only place the demos live.
+_DEMO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'demos')
 
 
 @dataclass
@@ -8,6 +14,14 @@ class KbstatOptions:
     # Data input / output
     in_file: str = ''
     out_dir: str = ''
+
+    # Convenience path anchors (resolved at instantiation):
+    #   demo_dir    — the bundled demo folder; use for example inputs,
+    #                 e.g. os.path.join(options.demo_dir, 'data/sleep.csv')
+    #   working_dir — the current working directory; use for outputs,
+    #                 e.g. os.path.join(options.working_dir, 'results/my_run')
+    demo_dir: str = field(default_factory=lambda: _DEMO_DIR)
+    working_dir: str = field(default_factory=os.getcwd)
 
     # constraints
     constraints: str = ''
