@@ -61,3 +61,12 @@ class KbstatOptions:
     # Post-hoc settings
     posthoc_method: str = 'emm'
     posthoc_correction: str = 'holm'
+
+    # Multiple-comparison correction applied ACROSS the dependent variables of a
+    # multi-y run (one family per model term). Distinct from posthoc_correction,
+    # which corrects pairwise comparisons within a single model. Results are
+    # written to MultipleComparisons.xlsx. Only acts when y has >1 component.
+    #   'none' (default) | 'bonferroni' | 'holm' | 'FDR' (Benjamini-Hochberg)
+    #   | 'FDR_correlated' (Benjamini-Yekutieli, valid under dependence)
+    # Case-insensitive.
+    y_correction: str = 'none'

@@ -51,6 +51,7 @@ class Output:
     plus an optional CorrelationResult. Read it for results, or pass to save()."""
     results: list = field(default_factory=list)   # list[ModelResult]
     correlation: object = None                     # CorrelationResult or None
+    multiple_comparisons: object = None            # across-y correction table or None
 
 
 class Kbstat:
@@ -145,6 +146,15 @@ class Kbstat:
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
+        # y_correction: normalize to lowercase, validate against the allowed set.
+        yc = o.y_correction
+        o.y_correction = (yc or 'none').strip().lower()
+        if o.y_correction in ('', 'none'):
+            o.y_correction = 'none'
+        elif o.y_correction not in _Y_CORRECTION_MAP:
+            raise ValueError(
+                "y_correction must be one of: none, bonferroni, holm, FDR, "
+                f"FDR_correlated (got {yc!r})")
         # interaction: a flat comma-separated string becomes a flat list (single interaction pair)
         if isinstance(o.interaction, str):
             o.interaction = self._split_csv(o.interaction)
@@ -238,6 +248,15 @@ class Kbstat:
                 fig_data=worker.fig_data,
                 fig_diagnostics=worker.fig_diagnostics,
             ))
+
+        # Across-y multiple-comparison correction (one family per model term).
+        # Only meaningful with more than one dependent variable.
+        if self.options.y_correction != 'none' and len(self.output.results) > 1:
+            self.output.multiple_comparisons = _multiple_comparisons_table(
+                self.output.results, self.options.y_correction)
+            print(f"Applied y_correction='{self.options.y_correction}' across "
+                  f"{len(self.output.results)} dependent variables "
+                  f"(per term) -> MultipleComparisons table")
 
         if self.options.correlation:
             if self.data is None:
@@ -828,6 +847,11 @@ class Kbstat:
                 self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
             if res.fig_diagnostics is not None:
                 self._write_fig(res.fig_diagnostics, d, 'Diagnostics', html=True, tight=False)
+
+        if output.multiple_comparisons is not None:
+            mc_path = os.path.join(out_dir, 'MultipleComparisons.xlsx')
+            output.multiple_comparisons.to_excel(mc_path, index=False)
+            print(f'Saved MultipleComparisons.xlsx to {out_dir}')
 
         cr = output.correlation
         if cr is not None:
@@ -2056,6 +2080,8 @@ def _r_label(r):
 
 def _sig_stars(p):
     """Significance stars from p-value."""
+    if pd.isna(p):
+        return ''
     if p < 0.001:
         return '***'
     if p < 0.01:
@@ -2063,6 +2089,55 @@ def _sig_stars(p):
     if p < 0.05:
         return '*'
     return 'n.s.'
+
+
+# User-facing y_correction value -> R p.adjust method name. Keys are lowercase;
+# the option is matched case-insensitively.
+_Y_CORRECTION_MAP = {
+    'bonferroni':     'bonferroni',
+    'holm':           'holm',
+    'fdr':            'BH',   # Benjamini-Hochberg
+    'fdr_correlated': 'BY',   # Benjamini-Yekutieli (valid under dependence)
+}
+
+
+def _adjust_pvalues(pvals, method):
+    """Adjust a vector of p-values with R's p.adjust. `method` is a user-facing
+    y_correction value (lowercased). NaNs are preserved and excluded from the
+    family size n, so the adjustment is over the present p-values only."""
+    p = np.asarray(pvals, dtype=float)
+    out = np.full(p.shape, np.nan)
+    mask = ~np.isnan(p)
+    if not mask.any():
+        return out
+    r_method = _Y_CORRECTION_MAP[method]
+    adjusted = ro.r['p.adjust'](ro.FloatVector(p[mask].tolist()), method=r_method)
+    out[mask] = np.asarray(adjusted, dtype=float)
+    return out
+
+
+def _multiple_comparisons_table(results, method):
+    """Build the across-dependent-variable correction table. For each model term,
+    the per-y p-values form one family and are adjusted together. Returns a long
+    DataFrame (variable, Term, p, p_corrected, significance, method), or None."""
+    recs = []
+    for res in results:
+        anova = res.anova
+        if anova is None:
+            continue
+        adf = anova.to_pandas() if hasattr(anova, 'to_pandas') else anova
+        for _, row in adf.iterrows():
+            recs.append({'variable': res.y, 'Term': str(row['Term']),
+                         'p': float(row['p'])})
+    df = pd.DataFrame(recs)
+    if df.empty:
+        return None
+    df['p_corrected'] = np.nan
+    for _, idx in df.groupby('Term').groups.items():
+        df.loc[idx, 'p_corrected'] = _adjust_pvalues(df.loc[idx, 'p'].values, method)
+    df['significance'] = df['p_corrected'].apply(_sig_stars)
+    df['method'] = method
+    return df.sort_values(['Term', 'p']).reset_index(drop=True)
 
 
 def _d_label(d):

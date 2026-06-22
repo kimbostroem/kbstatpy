@@ -139,7 +139,8 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `remove_outliers_prefit` | bool | `False` | Flag and exclude outliers before fitting using the IQR rule (1.5 × IQR beyond Q1/Q3) per group. Protects the model from extreme raw values |
 | `remove_outliers_postfit` | bool | `False` | Flag and exclude outliers after fitting based on Pearson residuals (z > 3), then refit. Catches observations that become outliers only in relation to the model. Can be combined with `remove_outliers_prefit` |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
-| `posthoc_correction` | str | `'holm'` | P-value correction (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
+| `posthoc_correction` | str | `'holm'` | P-value correction for pairwise comparisons *within* a model (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
+| `y_correction` | str | `'none'` | Multiple-comparison correction applied *across* the dependent variables of a multi-y run, one family per model term: `'none'`, `'bonferroni'`, `'holm'`, `'FDR'` (Benjamini–Hochberg), `'FDR_correlated'` (Benjamini–Yekutieli, valid under dependence). Case-insensitive. Writes `MultipleComparisons.xlsx`. Only acts when `y` has more than one component (see [Multi-y](#multi-y)) |
 | `plot_style` | str | `'auto'` | Data plot style: `'violin'` (violin + jitter), `'bar'` (observed mean bars with EMM overlay), or `'auto'` (bar for binary outcomes, violin for all others) |
 | `figure_display` | str | `'show_close'` | How figures are shown on screen (all modes still save files): `'save_only'` (don't display — useful for batch/headless runs), `'show_close'` (display briefly, then close), `'show_keep'` (display and leave the window open). The brief pause applies only to interactive GUI backends; in a Jupyter notebook `show_close` and `show_keep` both simply render the figure inline once, while `save_only` suppresses inline display |
 | `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
@@ -171,6 +172,8 @@ options.y_units = 'cm'   # single entry expands to all variables
 ```
 
 Results are saved into per-variable subdirectories under `out_dir`. A shared correlation analysis (if `options.correlation` is set) runs once after all models have been fitted.
+
+To correct for multiple comparisons across these dependent variables, set `options.y_correction` (`'bonferroni'`, `'holm'`, `'FDR'`, or `'FDR_correlated'`). Each model term is treated as its own family — e.g. the `Role` p-values across all DVs are adjusted together, the `Age` p-values separately, and so on — and the raw and adjusted p-values are written to `MultipleComparisons.xlsx` in `out_dir`. Note this corrects only within a single run: if your family of tests spans several separate runs (e.g. one per task or condition), apply the correction at that outer level instead.
 
 ---
 
@@ -242,8 +245,9 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `PartialCorrelationTable.pdf/.png` | Colour-coded lower-triangle table for partial correlations |
 | `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
 | `VIF.xlsx` | Variance Inflation Factors for numeric predictors (when applicable) |
+| `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
 
-`Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike. Correlation outputs are shared and written to `out_dir` directly.
+`Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike. Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
 
 ---
 
