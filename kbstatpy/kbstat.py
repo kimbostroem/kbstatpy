@@ -783,9 +783,9 @@ class Kbstat:
 
         Writes only what was produced — each artifact is saved only if present,
         so a correlation-only run writes just the correlation outputs, a model
-        run writes its tables/figures, etc. With several dependent variables,
-        each one's results go into its own subdirectory. No-op (with a notice)
-        when ``out_dir`` is empty.
+        run writes its tables/figures, etc. Each dependent variable's results go
+        into its own subdirectory (named after the variable), whether the run has
+        one DV or many. No-op (with a notice) when ``out_dir`` is empty.
         """
         out_dir = self.options.out_dir
         if not out_dir:
@@ -800,9 +800,12 @@ class Kbstat:
             return
         os.makedirs(out_dir, exist_ok=True)
 
-        multi = len(output.results) > 1
+        # Each dependent variable's results go into their own subdirectory,
+        # named after the variable — consistently, whether the run has one DV
+        # or many. (Previously a single-DV run wrote flat into out_dir, which
+        # made downstream result-collecting code special-case the two layouts.)
         for res in output.results:
-            d = os.path.join(out_dir, res.y) if multi else out_dir
+            d = os.path.join(out_dir, res.y)
             os.makedirs(d, exist_ok=True)
             if res.anova is not None:
                 anova_df = res.anova.to_pandas() if hasattr(res.anova, 'to_pandas') else res.anova

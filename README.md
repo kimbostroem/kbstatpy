@@ -224,7 +224,7 @@ Results are printed to the console and saved to **`VIF.xlsx`**.
 
 ## Output files
 
-All files are written to `out_dir`:
+All files are written into a per-variable subdirectory of `out_dir` (named after the dependent variable):
 
 | File | Contents |
 |---|---|
@@ -243,7 +243,7 @@ All files are written to `out_dir`:
 | `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
 | `VIF.xlsx` | Variance Inflation Factors for numeric predictors (when applicable) |
 
-For multi-y runs, `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `DataPlots`, and `Diagnostics` are written into per-variable subdirectories. Correlation outputs are shared and written to `out_dir` directly.
+`Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike. Correlation outputs are shared and written to `out_dir` directly.
 
 ---
 
