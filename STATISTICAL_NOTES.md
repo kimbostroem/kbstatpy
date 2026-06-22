@@ -17,7 +17,8 @@
   - [Binomial GLMM — binary outcomes (Demo 11)](#binomial-glmm-binary-outcomes-demo-11)
 - [Analytical extensions](#analytical-extensions)
   - [Multiple dependent variables (Demo 12)](#multiple-dependent-variables-demo-12)
-  - [Multicollinearity diagnostics — VIF (Demo 13)](#multicollinearity-diagnostics-vif-demo-13)
+  - [Family-wise correction across dependent variables (Demo 13)](#family-wise-correction-across-dependent-variables-demo-13)
+  - [Multicollinearity diagnostics — VIF (Demo 14)](#multicollinearity-diagnostics-vif-demo-14)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
@@ -181,11 +182,17 @@ Capabilities that run alongside the core modelling pipeline, and the statistical
 
 Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
 
-One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy does not automatically apply a cross-variable correction (e.g. Bonferroni across variables) because the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
+One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy can apply a cross-variable correction across the family of dependent variables via `options.y_correction` (see the next section); the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 
-### Multicollinearity diagnostics — VIF (Demo 13)
+### Family-wise correction across dependent variables (Demo 13)
 
-Demo 13 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
+When several dependent variables are tested in one run, the per-variable omnibus p-values form a family and the family-wise type I error rate grows with the number of outcomes. `options.y_correction` adjusts them together — one family per model term (the `Role` p-values across all outcomes, the `Age` p-values separately, and so on) — and writes the raw and adjusted values to `MultipleComparisons.xlsx`. Choices are `bonferroni` and `holm` (control the family-wise error rate), and `FDR` / `FDR_correlated` (Benjamini–Hochberg / Benjamini–Yekutieli, control the false discovery rate; the latter is valid under arbitrary dependence, appropriate when the outcomes are correlated).
+
+This corrects within a single run. When the family of tests spans several separate runs (e.g. one model per condition or task), those p-values are not visible to a single call and the correction must be applied at that outer level instead.
+
+### Multicollinearity diagnostics — VIF (Demo 14)
+
+Demo 14 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
 Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See [VIF and multicollinearity](#vif-and-multicollinearity) for the mathematical definition and thresholds.
 
