@@ -1406,8 +1406,9 @@ class Kbstat:
         else:
             raise RuntimeError("Unable to find R model, rerun the fit")
 
-        # Create a 2x3 grid of subplots (15 inches wide, 10 inches tall)
-        fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
+        # Create a 2x3 grid of subplots. Keep the window within a typical laptop
+        # screen: 12 x 7.5 in is ~1200 x 750 px at the default 100 dpi.
+        fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 7.5))
         axes = axes.flatten()
 
         n_diag = len(self.model.residuals)
@@ -1524,8 +1525,10 @@ class Kbstat:
                  fontstyle='italic', color='0.3')
 
         plt.tight_layout(rect=[0, 0.06, 1, 1])
-        for ax in axes:
-            ax.yaxis.set_label_coords(-0.18, 0.5)
+        # Align y-labels within each column. (The previous fixed offset of -0.18
+        # axes-units pushed the middle/right columns' labels into the panel to
+        # their left; align_ylabels keeps each label just outside its own panel.)
+        fig.align_ylabels(axes)
 
         self.fig_diagnostics = fig
         self._show_fig(fig)
