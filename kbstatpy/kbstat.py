@@ -1365,6 +1365,13 @@ class Kbstat:
                         return None, None
                     found = []
                     for part in parts:
+                        # emmeans wraps level names containing special characters
+                        # (e.g. the hyphen in 'Med-ADHD') in parentheses or
+                        # backticks; strip one such layer so the name matches the
+                        # categorical level instead of falling back to full width.
+                        part = part.strip().strip('`').strip()
+                        if part.startswith('(') and part.endswith(')'):
+                            part = part[1:-1].strip()
                         for i, lev in enumerate(x_levels):
                             ls = str(lev)
                             if part == ls or part.endswith(ls) or part == f'{x_var} {ls}':
