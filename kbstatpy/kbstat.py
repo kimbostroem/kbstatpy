@@ -1528,26 +1528,38 @@ class Kbstat:
                        for i in range(n_diag)])
 
         # ---------------------------------------------------------
-        # Plot 6: Cook's Distance
+        # Plot 6: Random-effects Q-Q plot
         # ---------------------------------------------------------
-        try:
-            cooks_d = np.array(ro.r('cooks.distance')(r_obj))
-            n_obs = len(cooks_d)
-            threshold = 4 / n_obs
-            colors = ['red' if v > threshold else sns.color_palette()[0] for v in cooks_d]
-            axes[5].bar(np.arange(n_obs), cooks_d, color=colors, width=1.0)
-            axes[5].axhline(threshold, color='red', linestyle='--', linewidth=0.8)
-            axes[5].set_title("Cook's Distance")
-            axes[5].set_xlabel("Observation index", labelpad=4)
-            axes[5].set_ylabel("Cook's D", labelpad=4)
-            axes[5].text(n_obs * 0.98, threshold * 1.05, f'4/n = {threshold:.3f}',
-                         ha='right', va='bottom', fontsize=8, color='red')
-            # Overlay invisible scatter at bar tops for hover tooltips
-            sc = axes[5].scatter(np.arange(n_obs), cooks_d, s=s_diag, alpha=0)
-            self._tooltip(axes[5], sc,
-                          [f'{_group_label(i)}, Cook\'s D={cooks_d[i]:.4f}'
-                           for i in range(n_obs)])
-        except Exception:
+        # Normal Q-Q of the per-group random intercepts (conditional modes /
+        # BLUPs), checking the mixed-model assumption that the random effects are
+        # normally distributed — a check nothing else in this panel covers.
+        # Hidden for models without a random effect (plain linear models).
+        re_vals = None
+        grp = self.options.id
+        if r_obj is not None and grp:
+            try:
+                # ranef() dispatches for both glmmTMB (nested under $cond) and
+                # lme4 merMod (keyed directly by grouping factor).
+                _re_extract = ro.r('''
+                function(m, grp) {
+                    r <- ranef(m)
+                    if (!is.null(r$cond)) r <- r$cond
+                    as.numeric(r[[grp]][["(Intercept)"]])
+                }
+                ''')
+                re_vals = np.asarray(_re_extract(r_obj, grp), dtype=float)
+            except Exception:
+                re_vals = None
+        if re_vals is not None and len(re_vals) >= 3 and np.ptp(re_vals) > 0:
+            stats.probplot(re_vals, dist="norm", plot=axes[5])
+            axes[5].set_title("Random Effects Q-Q Plot")
+            seaborn_color = sns.color_palette()[0]
+            axes[5].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
+                                       markeredgecolor='none')
+            axes[5].get_lines()[1].set_color('red')
+            axes[5].set_xlabel(axes[5].get_xlabel(), labelpad=4)
+            axes[5].set_ylabel(f'Random intercept ({self._disp(grp)})', labelpad=4)
+        else:
             axes[5].set_visible(False)
 
         # Footer row: formula + fit statistics
