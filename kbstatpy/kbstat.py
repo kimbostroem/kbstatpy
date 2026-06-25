@@ -998,6 +998,21 @@ class Kbstat:
         if close and mode != 'show_keep':
             plt.close(fig)
 
+    def _fitted_suptitle(self, fig, text, max_size=14, min_size=8, margin=0.95):
+        """Add a bold figure suptitle, shrinking the font so the title fits the
+        figure width. Long titles on narrow single-column figures would otherwise
+        spill past the frame. Returns the Text object."""
+        st = fig.suptitle(text, fontweight='bold', fontsize=max_size)
+        fig_w_px = fig.get_figwidth() * fig.dpi
+        try:
+            text_w_px = st.get_window_extent(renderer=fig.canvas.get_renderer()).width
+        except Exception:
+            # Fallback estimate: a bold proportional glyph is roughly 0.6 em wide.
+            text_w_px = len(text) * 0.6 * max_size * fig.dpi / 72.0
+        if text_w_px > margin * fig_w_px:
+            st.set_fontsize(max(min_size, max_size * margin * fig_w_px / text_w_px))
+        return st
+
     def plot_data(self):
         """Generate publication-ready summary plots matching the MATLAB kbstat style.
 
@@ -1371,7 +1386,7 @@ class Kbstat:
         # Super title
         plot_title = f'{self.options.title} ({self._disp(y_var)})' \
             if self.options.title else self._disp(y_var)
-        fig.suptitle(plot_title, fontweight='bold', fontsize=14)
+        self._fitted_suptitle(fig, plot_title)
 
         # --- Post-loop: expand y-limits once, then draw brackets ---
         # sharey=True means a set_ylim on any panel affects all; doing this after
@@ -1507,7 +1522,7 @@ class Kbstat:
         _diag_y = self._disp(self.options.y)
         diag_title = (f'Diagnostics of {self.options.title} ({_diag_y})'
                       if self.options.title else f'Diagnostics of {_diag_y}')
-        fig.suptitle(diag_title, fontweight='bold', fontsize=14)
+        self._fitted_suptitle(fig, diag_title)
 
         n_diag = len(self.model.residuals)
         s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
