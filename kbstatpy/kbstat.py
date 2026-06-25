@@ -1558,18 +1558,20 @@ class Kbstat:
                        for i in range(n_diag)])
 
         # ---------------------------------------------------------
-        # Plot 6: Random-effects Q-Q plot
+        # Plot 6: Random-effects Q-Q (if random effects present) else Scale-Location
         # ---------------------------------------------------------
-        # Normal Q-Q of the per-group random intercepts (conditional modes /
-        # BLUPs), checking the mixed-model assumption that the random effects are
-        # normally distributed — a check nothing else in this panel covers.
-        # Hidden for models without a random effect (plain linear models).
+        # When the model has a random effect (any LMM or GLMM), show a normal
+        # Q-Q of the per-group random intercepts (conditional modes / BLUPs),
+        # which checks the mixed-model assumption that the random effects are
+        # normally distributed. When there is no random effect to plot (a plain
+        # linear model), fall back to a Scale-Location plot so the panel is never
+        # empty. Both apply regardless of family.
         re_vals = None
         grp = self.options.id
         if r_obj is not None and grp:
             try:
                 # ranef() dispatches for both glmmTMB (nested under $cond) and
-                # lme4 merMod (keyed directly by grouping factor).
+                # lme4 merMod / lmerModLmerTest (keyed by grouping factor).
                 _re_extract = ro.r('''
                 function(m, grp) {
                     r <- ranef(m)
@@ -1580,17 +1582,39 @@ class Kbstat:
                 re_vals = np.asarray(_re_extract(r_obj, grp), dtype=float)
             except Exception:
                 re_vals = None
+
         if re_vals is not None and len(re_vals) >= 3 and np.ptp(re_vals) > 0:
+            # Random-effects Q-Q plot
             stats.probplot(re_vals, dist="norm", plot=axes[5])
             axes[5].set_title("Random Effects Q-Q Plot")
             seaborn_color = sns.color_palette()[0]
             axes[5].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
                                        markeredgecolor='none')
-            axes[5].get_lines()[1].set_color('red')
+            axes[5].get_lines()[1].set(color='red', linestyle='--')
             axes[5].set_xlabel(axes[5].get_xlabel(), labelpad=4)
             axes[5].set_ylabel(f'Random intercept ({self._disp(grp)})', labelpad=4)
         else:
-            axes[5].set_visible(False)
+            # Scale-Location fallback (no random effect): sqrt(|residual|) vs
+            # fitted. A flat trend confirms homoscedasticity.
+            fitted = np.asarray(self.model.fits, dtype=float)
+            sqrt_abs = np.sqrt(np.abs(np.asarray(self.model.residuals, dtype=float)))
+            sns.scatterplot(x=fitted, y=sqrt_abs, ax=axes[5], s=s_diag)
+            order = np.argsort(fitted)
+            try:  # lowess trend if available, else a linear fit
+                from statsmodels.nonparametric.smoothers_lowess import lowess
+                sm = lowess(sqrt_abs, fitted, frac=0.67, return_sorted=True)
+                axes[5].plot(sm[:, 0], sm[:, 1], color='red', linestyle='--', linewidth=1.2)
+            except Exception:
+                if len(fitted) > 2:
+                    coef = np.polyfit(fitted, sqrt_abs, 1)
+                    axes[5].plot(fitted[order], np.polyval(coef, fitted[order]),
+                                 color='red', linestyle='--', linewidth=1.2)
+            axes[5].set_title("Scale-Location")
+            axes[5].set_xlabel("Fitted Values", labelpad=4)
+            axes[5].set_ylabel(r"$\sqrt{|\mathrm{Residuals}|}$", labelpad=4)
+            self._tooltip(axes[5], axes[5].collections[-1],
+                          [f'{_group_label(i)}, fitted={fitted[i]:.3f}, '
+                           f'sqrt|resid|={sqrt_abs[i]:.3f}' for i in range(n_diag)])
 
         # Footer row: formula + fit statistics
         parts = [f'Formula: {self._build_formula()}']
