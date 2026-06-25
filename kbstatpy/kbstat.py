@@ -1167,9 +1167,9 @@ class Kbstat:
                 n_out = int(panel_outlier[y_var].notna().sum())
                 n_tot = n_out + int(panel_healthy[y_var].notna().sum())
                 pct = 100.0 * n_out / n_tot if n_tot else 0.0
-                ax.text(0.5, 0.02, f'{n_out} outliers ({pct:.1f}%)',
-                        transform=ax.transAxes, ha='center', va='bottom',
-                        fontsize=8, color='red', zorder=7)
+                ax.text(0.02, 0.02, f'{n_out} outliers ({pct:.1f}% of {n_tot})',
+                        transform=ax.transAxes, ha='left', va='bottom',
+                        fontsize=8, color='black', zorder=7)
             elif show_out != 'none' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
