@@ -1031,7 +1031,13 @@ class Kbstat:
         y_var = self.options.y           # Dependent variable        (e.g. Distance)
         facet_var = self.options.x[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
         id_var = self.options.id         # Subject identifier for connecting lines
-        y_units = self.options.y_units if isinstance(self.options.y_units, str) else ''
+        # y_units is a scalar string for this variable, but fit() re-runs
+        # _normalize_options and re-wraps it into a single-element list; accept
+        # either form so the units aren't silently dropped from the axis label.
+        yu = self.options.y_units
+        if isinstance(yu, (list, tuple)):
+            yu = yu[0] if len(yu) == 1 else ''
+        y_units = yu if isinstance(yu, str) else ''
         y_label = f"{self._disp(y_var)} [{y_units}]" if y_units else self._disp(y_var)
         if self.options.y_transform:
             y_label = f"{y_label}  (original scale)"
