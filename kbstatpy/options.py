@@ -60,6 +60,13 @@ class KbstatOptions:
     color_alpha: float = 0.5
     font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
+    # How the x-axis of the data plot labels the first factor's levels:
+    #   'variable_below_levels' (default) level names as tick labels, with the
+    #                           variable name as the axis label below them
+    #   'variable_equals_level' each tick reads '<variable> = <level>'
+    #                           (e.g. 'State = normal'); no separate axis label
+    #   'levels'                only the level names; the variable name is hidden
+    x_label: str = 'variable_below_levels'
     # How outliers (flagged by remove_outliers_prefit/postfit) appear in the data
     # plot. With 'none'/'text' the outlier points are not drawn, so the y-axis
     # autoscales to the non-outlier data — useful when extreme outliers otherwise

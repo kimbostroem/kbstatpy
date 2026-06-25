@@ -1282,10 +1282,20 @@ class Kbstat:
             # --- Axis formatting ---
             x_units_list = self.options.x_units  # already a list
             x_unit = x_units_list[0] if len(x_units_list) > 0 else ''
-            x_label = f"{self._disp(x_var)} [{x_unit}]" if x_unit and x_unit != '1' else self._disp(x_var)
-            ax.set_xlabel(x_label)
+            x_name = f"{self._disp(x_var)} [{x_unit}]" if x_unit and x_unit != '1' else self._disp(x_var)
+            x_style = (self.options.x_label or 'variable_below_levels').lower()
             ax.set_xticks(range(len(x_levels)))
-            ax.set_xticklabels([str(lev) for lev in x_levels])
+            if x_style == 'variable_equals_level':
+                # each tick reads 'Variable = level'; no separate axis label
+                ax.set_xticklabels([f'{self._disp(x_var)} = {lev}' for lev in x_levels])
+                ax.set_xlabel('')
+            elif x_style == 'levels':
+                # only the level names; the variable name is not shown
+                ax.set_xticklabels([str(lev) for lev in x_levels])
+                ax.set_xlabel('')
+            else:  # 'variable_below_levels' (default): levels as ticks, variable name below
+                ax.set_xticklabels([str(lev) for lev in x_levels])
+                ax.set_xlabel(x_name)
             # y-axis label: leftmost column only; row label replaces it when there are multiple rows
             if col_idx == 0:
                 if n_rows > 1:
