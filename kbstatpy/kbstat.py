@@ -1037,8 +1037,18 @@ class Kbstat:
         if isinstance(yu, (list, tuple)):
             yu = yu[0] if len(yu) == 1 else ''
         y_units = yu if isinstance(yu, str) else ''
-        y_label = f"{self._disp(y_var)} [{y_units}]" if y_units else self._disp(y_var)
-        if self.options.y_transform:
+        # options.y_label controls the y-axis label:
+        #   'variable_with_units' (default) variable name plus '[units]'
+        #   'variable_only'                 variable name, no units
+        #   'none'                          no y-axis label at all
+        y_style = (self.options.y_label or 'variable_with_units').lower()
+        if y_style == 'none':
+            y_label = ''
+        elif y_units and y_style != 'variable_only':
+            y_label = f"{self._disp(y_var)} [{y_units}]"
+        else:
+            y_label = self._disp(y_var)
+        if y_label and self.options.y_transform:
             y_label = f"{y_label}  (original scale)"
 
         # Determine plot style: 'auto' uses bar for binary outcomes, violin for continuous
@@ -1047,7 +1057,7 @@ class Kbstat:
         style = self.options.plot_style
         use_bar = (style == 'bar') or (style == 'auto' and is_binary)
         use_violin = not use_bar
-        if use_bar and is_binary:
+        if use_bar and is_binary and y_style != 'none':
             y_label = f"{self._disp(y_var)} (proportion)"
 
         # Use MATLAB's default color cycle (first N colors from 'tab10')
@@ -1285,7 +1295,11 @@ class Kbstat:
             x_name = f"{self._disp(x_var)} [{x_unit}]" if x_unit and x_unit != '1' else self._disp(x_var)
             x_style = (self.options.x_label or 'variable_below_levels').lower()
             ax.set_xticks(range(len(x_levels)))
-            if x_style == 'variable_equals_level':
+            if x_style == 'none':
+                # no x-axis labelling at all: hide both level ticks and variable
+                ax.set_xticklabels([''] * len(x_levels))
+                ax.set_xlabel('')
+            elif x_style == 'variable_equals_level':
                 # each tick reads 'Variable = level'; no separate axis label
                 ax.set_xticklabels([f'{self._disp(x_var)} = {lev}' for lev in x_levels])
                 ax.set_xlabel('')

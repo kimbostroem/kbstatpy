@@ -66,7 +66,14 @@ class KbstatOptions:
     #   'variable_equals_level' each tick reads '<variable> = <level>'
     #                           (e.g. 'State = normal'); no separate axis label
     #   'levels'                only the level names; the variable name is hidden
+    #   'none'                  no x-axis labelling at all (neither level ticks
+    #                           nor variable name)
     x_label: str = 'variable_below_levels'
+    # How the y-axis of the data plot is labelled:
+    #   'variable_with_units' (default) variable name plus '[units]' when units are set
+    #   'variable_only'                 variable name only, no units
+    #   'none'                          no y-axis label at all
+    y_label: str = 'variable_with_units'
     # How outliers (flagged by remove_outliers_prefit/postfit) appear in the data
     # plot. With 'none'/'text' the outlier points are not drawn, so the y-axis
     # autoscales to the non-outlier data — useful when extreme outliers otherwise
