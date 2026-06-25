@@ -1435,6 +1435,12 @@ class Kbstat:
         fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 7.5))
         axes = axes.flatten()
 
+        # Page title mirrors the data-plot title, prefixed with "Diagnostics of".
+        _diag_y = self._disp(self.options.y)
+        diag_title = (f'Diagnostics of {self.options.title} ({_diag_y})'
+                      if self.options.title else f'Diagnostics of {_diag_y}')
+        fig.suptitle(diag_title, fontweight='bold', fontsize=14)
+
         n_diag = len(self.model.residuals)
         s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
 
@@ -1571,7 +1577,7 @@ class Kbstat:
         fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
                  fontstyle='italic', color='0.3')
 
-        plt.tight_layout(rect=[0, 0.06, 1, 1])
+        plt.tight_layout(rect=[0, 0.06, 1, 0.96])  # leave headroom for the suptitle
         # Align y-labels within each column. (The previous fixed offset of -0.18
         # axes-units pushed the middle/right columns' labels into the panel to
         # their left; align_ylabels keeps each label just outside its own panel.)
