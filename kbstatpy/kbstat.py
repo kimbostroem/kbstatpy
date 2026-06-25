@@ -1721,7 +1721,10 @@ class Kbstat:
         fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
                  fontstyle='italic', color='0.3')
 
-        plt.tight_layout(rect=[0, 0.06, 1, 0.96])  # leave headroom for the suptitle
+        # Reserve the bottom band for the footer; let the top auto-fit (as the
+        # data plot does) so the suptitle sits close to the panels rather than
+        # leaving a large fixed gap.
+        plt.tight_layout(rect=[0, 0.06, 1, 1.0])
         # Align y-labels within each column. (The previous fixed offset of -0.18
         # axes-units pushed the middle/right columns' labels into the panel to
         # their left; align_ylabels keeps each label just outside its own panel.)
