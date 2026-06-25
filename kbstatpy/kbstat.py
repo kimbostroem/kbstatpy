@@ -1000,16 +1000,33 @@ class Kbstat:
 
     # Preferred narrow/condensed title fonts, tried in order; the trailing
     # 'sans-serif' guarantees a graceful fallback to the regular font.
-    _CONDENSED_CHAIN = ['Arial Narrow', 'DejaVu Sans Condensed',
-                        'Liberation Sans Narrow', 'Roboto Condensed', 'sans-serif']
+    _CONDENSED_CHAIN = ['DejaVu Sans Condensed', 'Arial Narrow', 'Arial Condensed',
+                        'DejaVu Sans', 'sans-serif']
+
+    _resolved_title_font = None  # class-level cache of the chosen condensed font
+
+    def _title_font_family(self):
+        """Resolve the title font once: options.title_font if set, else the first
+        font from _CONDENSED_CHAIN actually installed (probed quietly so absent
+        families don't emit matplotlib 'font not found' warnings), else
+        'sans-serif'."""
+        if self.options.title_font:
+            return self.options.title_font
+        if Kbstat._resolved_title_font is None:
+            from matplotlib import font_manager as fm
+            available = {f.name for f in fm.fontManager.ttflist}
+            Kbstat._resolved_title_font = next(
+                (fam for fam in self._CONDENSED_CHAIN
+                 if fam == 'sans-serif' or fam in available), 'sans-serif')
+        return Kbstat._resolved_title_font
 
     def _add_suptitle(self, fig, text, max_size=14):
         """Create the bold figure suptitle in a narrow/condensed font (see
         options.title_font). Call :meth:`_fit_suptitle_to_axes` after the layout
         is final to centre it over the plot box and shrink it to that width.
         Returns the Text object."""
-        fam = self.options.title_font or self._CONDENSED_CHAIN
-        return fig.suptitle(text, fontweight='bold', fontsize=max_size, fontfamily=fam)
+        return fig.suptitle(text, fontweight='bold', fontsize=max_size,
+                            fontfamily=self._title_font_family())
 
     def _fit_suptitle_to_axes(self, st, fig, min_size=8, margin=0.98):
         """Centre the suptitle over the axes (plot box) span and shrink its font
