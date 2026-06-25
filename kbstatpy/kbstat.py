@@ -1302,7 +1302,9 @@ class Kbstat:
                 ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
 
         # Super title
-        fig.suptitle(self._disp(y_var), fontweight='bold', fontsize=14)
+        plot_title = f'{self.options.title} ({self._disp(y_var)})' \
+            if self.options.title else self._disp(y_var)
+        fig.suptitle(plot_title, fontweight='bold', fontsize=14)
 
         # --- Post-loop: expand y-limits once, then draw brackets ---
         # sharey=True means a set_ylim on any panel affects all; doing this after

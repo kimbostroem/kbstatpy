@@ -50,6 +50,11 @@ class KbstatOptions:
     covariate: list = field(default_factory=list)
 
     # Plot settings
+    # Data-plot title prefix. When set, the title becomes '<title> (<DV>)',
+    # e.g. title='Static' -> 'Static (Torque Amplitude)'. In a multi-y run each
+    # variable still gets its own display name in the parentheses. Empty (default)
+    # keeps the plain dependent-variable name as the title.
+    title: str = ''
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
     color_alpha: float = 0.5
