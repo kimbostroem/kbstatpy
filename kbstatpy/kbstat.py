@@ -1167,9 +1167,9 @@ class Kbstat:
 
             # --- LAYER 2b: Outliers (red X markers, count text, or hidden) ---
             # Controlled by options.show_outliers: 'plot' (default), 'none', or
-            # 'number'. Unknown values fall back to 'plot'.
+            # 'text'. Unknown values fall back to 'plot'.
             show_out = (self.options.show_outliers or 'plot').lower()
-            if show_out == 'number':
+            if show_out == 'text':
                 n_out = int(panel_outlier[y_var].notna().sum())
                 n_tot = n_out + int(panel_healthy[y_var].notna().sum())
                 pct = 100.0 * n_out / n_tot if n_tot else 0.0
