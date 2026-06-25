@@ -1159,8 +1159,18 @@ class Kbstat:
                     self._tooltip(ax, sc, tip_labels)
                     dot_xy[level] = (jx, subset.values)
 
-            # --- LAYER 2b: Outlier points (red X markers) ---
-            if len(panel_outlier) > 0:
+            # --- LAYER 2b: Outliers (red X markers, count text, or hidden) ---
+            # Controlled by options.show_outliers: 'plot' (default), 'none', or
+            # 'number'. Unknown values fall back to 'plot'.
+            show_out = (self.options.show_outliers or 'plot').lower()
+            if show_out == 'number':
+                n_out = int(panel_outlier[y_var].notna().sum())
+                n_tot = n_out + int(panel_healthy[y_var].notna().sum())
+                pct = 100.0 * n_out / n_tot if n_tot else 0.0
+                ax.text(0.5, 0.02, f'{n_out} outliers ({pct:.1f}%)',
+                        transform=ax.transAxes, ha='center', va='bottom',
+                        fontsize=8, color='red', zorder=7)
+            elif show_out != 'none' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
                     if len(subset) == 0:

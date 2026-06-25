@@ -55,6 +55,15 @@ class KbstatOptions:
     color_alpha: float = 0.5
     font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
+    # How outliers (flagged by remove_outliers_prefit/postfit) appear in the data
+    # plot. With 'none'/'number' the outlier points are not drawn, so the y-axis
+    # autoscales to the non-outlier data — useful when extreme outliers otherwise
+    # squash the plot.
+    #   'plot'   (default) draw each outlier as a red X marker
+    #   'none'   omit outliers entirely
+    #   'number' omit the points but annotate the count and percentage of
+    #            outliers as text at the bottom (south) of each panel
+    show_outliers: str = 'plot'
     figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep'; all save files.
     #                                      In notebooks show_close/show_keep both render inline once.
 
