@@ -1596,7 +1596,7 @@ class Kbstat:
         axes[0].set_title("Histogram of Residuals")
         axes[0].set_xlabel("Residuals", labelpad=4)
         axes[0].set_ylabel("Count", labelpad=4)
-        axes[0].get_lines()[0].set_color('red')
+        axes[0].get_lines()[0].set(color='red', linestyle='--')
 
         # ---------------------------------------------------------
         # Plot 2: Normal Q-Q Plot
@@ -1607,7 +1607,7 @@ class Kbstat:
         seaborn_color = sns.color_palette()[0]
         axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
                                    markeredgecolor='none')
-        axes[1].get_lines()[1].set_color('red')
+        axes[1].get_lines()[1].set(color='red', linestyle='--')
         axes[1].set_xlabel(axes[1].get_xlabel(), labelpad=4)
         axes[1].set_ylabel(axes[1].get_ylabel(), labelpad=4)
 
