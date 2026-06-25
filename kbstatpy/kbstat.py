@@ -4,7 +4,6 @@ import pandas as pd
 import polars as pl
 from pymer4.models import lm as Lm
 from pymer4.models import lmer as Lmer
-from pymer4.models import glmer as Glmer
 import rpy2.robjects as ro
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -16,7 +15,7 @@ ro.r('options(contrasts = c("contr.sum", "contr.poly"))')
 from dataclasses import dataclass, field
 
 from .options import KbstatOptions
-from ._glmer_direct import GlmerDirect
+from ._glmmtmb import GlmmTMB
 
 
 @dataclass
@@ -356,14 +355,14 @@ class Kbstat:
             # Plain linear model — no random effects
             self.model = Lm(formula, data=data_pl)
         elif family == 'gaussian':
+            # LMM via lmer/lmerTest (keeps Satterthwaite degrees of freedom)
             self.model = Lmer(formula, data=data_pl)
-        elif has_slopes:
-            # pymer4 Glmer crashes when random slopes are present (broom.tidy bug).
-            # Use the direct rpy2 wrapper instead — lme4 itself handles slopes correctly.
-            print('Random slopes detected in GLMM — using direct lme4 interface.')
-            self.model = GlmerDirect(formula, data=data_to_use, family=family, link=link)
         else:
-            self.model = Glmer(formula, data=data_pl, family=family, link=link)
+            # All non-Gaussian GLMMs use glmmTMB. lme4::glmer returns mis-scaled
+            # standard errors for the continuous dispersion families (Gamma,
+            # inverse Gaussian); glmmTMB estimates the dispersion explicitly and
+            # gives a correct covariance, and it handles random slopes natively.
+            self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link)
         self.model.fit(summarize=False)
 
         # Extract AIC, BIC, logLik from the R model object

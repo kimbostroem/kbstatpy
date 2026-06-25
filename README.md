@@ -2,7 +2,7 @@
 
 A Python library for generalised linear mixed model (GLMM) analysis with post-hoc pairwise comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB `kbstat` library.
 
-Fitting is done via R's `lme4` and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
+Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
 
 ## Table of contents
 
@@ -158,7 +158,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `'poisson'` | `poisson` | Count data |
 | `'inverse_gaussian'` | `inverse.gaussian` | Positive, heavy right tail |
 
-When `distribution = 'normal'` a linear mixed model (LMM) is fitted via `lmer`. All other distributions produce a GLMM via `glmer`.
+When `distribution = 'normal'` a linear mixed model (LMM) is fitted via `lmer`. All other distributions produce a GLMM via `glmmTMB`. (Earlier versions used `lme4::glmer`, but it returns mis-scaled standard errors for the continuous dispersion families — Gamma and inverse Gaussian — so `glmmTMB`, which estimates the dispersion explicitly, is used instead. See `STATISTICAL_NOTES.md`.)
 
 ---
 
@@ -324,4 +324,4 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 
 ## Known issues and workarounds
 
-- **Random slopes in GLMMs (pymer4 bug):** pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). kbstatpy works around this automatically via a `GlmerDirect` wrapper that calls lme4 and emmeans directly via rpy2, bypassing pymer4 entirely. No action required from the user. Random slopes in LMMs are unaffected. See `STATISTICAL_NOTES.md` for details.
+- **GLMM engine (glmmTMB, not glmer):** all non-Gaussian GLMMs are fitted with `glmmTMB` rather than `lme4::glmer`. glmer fits the correct point estimates and log-likelihood but returns a mis-scaled fixed-effect covariance for the continuous dispersion families (Gamma, inverse Gaussian), which collapses the standard errors and inflates Wald omnibus tests, post-hoc p-values, and EMM confidence intervals. glmmTMB estimates the dispersion as an explicit parameter and computes the covariance from a proper Hessian, so those quantities are reliable and mutually coherent. glmmTMB also handles random slopes natively, which additionally removes the old pymer4 random-slope crash (no `GlmerDirect` workaround needed). No action required from the user. See `STATISTICAL_NOTES.md` for details.

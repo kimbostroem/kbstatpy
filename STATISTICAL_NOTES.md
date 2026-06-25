@@ -230,6 +230,14 @@ This is mathematically correct behaviour, not a software error.
 
 For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because the Wald statistic for a GLMM contrast is asymptotically chi-square — its natural reference distribution — whereas `n − p` is a finite-sample fudge factor with no exact justification for non-Gaussian likelihoods.
 
+### GLMM engine: `glmmTMB` (not `glmer`)
+
+All non-Gaussian GLMMs are fitted with `glmmTMB`, not `lme4::glmer`. This matters because the Wald inference above (and the `emmeans` post-hoc below) are only as good as the model's fixed-effect covariance matrix.
+
+`glmer` is built around binomial and Poisson likelihoods, which have **no free dispersion parameter** (dispersion is fixed at 1). For the continuous families that *do* carry a dispersion — **Gamma and inverse Gaussian** — `glmer`'s profiled-deviance machinery estimates the dispersion poorly and returns a **mis-scaled covariance matrix**. The point estimates and the log-likelihood are correct, but the standard errors can collapse to a small fraction of their true size. Because every Wald quantity is built from those SEs, the result is silently catastrophic: omnibus chi-squares in the thousands, partial η² ≈ 1, and post-hoc p-values of essentially zero — for effects that are not actually significant. (We observed exactly this: a Gamma fit with a true `p ≈ 0.27` reported `p ≈ 0` with SEs ~100× too small, while a likelihood-ratio test — which never touches the covariance — gave the correct answer. The fit also tripped a convergence warning.)
+
+`glmmTMB` estimates the dispersion as an **explicit parameter** and computes the covariance from a proper (automatic-differentiation) Hessian, so the standard errors are correct and the Wald omnibus, the post-hoc comparisons, and the EMM confidence intervals are all reliable **and mutually coherent** (the omnibus and the pairwise tests agree). It supports every family kbstatpy exposes (binomial, Poisson, Gamma, inverse Gaussian) and handles random slopes natively. For binomial and Poisson the two engines agree (no dispersion to misestimate); the switch is what makes the continuous-dispersion families trustworthy. Gaussian LMMs are unaffected — they continue to use `lmer`/`lmerTest` so the Satterthwaite degrees of freedom above are preserved.
+
 ### Post-hoc comparisons: `emmeans`
 
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.
@@ -502,10 +510,10 @@ This separation is necessary because requesting `type = 'response'` from `pairs(
 | GLMM, log link | original scale (exp applied by R) | original scale | log scale |
 | GLMM, logit link | original scale (probability) | original scale | logit scale |
 
-### Random slopes in GLMMs — pymer4 bug and workaround
+### Random slopes in GLMMs
 
-pymer4 0.9.x crashes when a GLMM contains random slopes (e.g. `(A + B | id)`). The bug is in pymer4's `broom.tidy()` result-parsing layer, which constructs a `data.frame` from two objects with mismatched row counts when more than one random-effect term is present per grouping factor. lme4 itself fits the model correctly — the failure is entirely in the Python post-processing step.
+GLMMs are fitted with `glmmTMB` (see "GLMM engine" above), which handles random slopes (e.g. `(A + B | id)`) natively through its own rpy2 wrapper (`kbstatpy/_glmmtmb.py`) — no special-casing is needed, and the same engine serves both the random-intercept and random-slope cases.
 
-**Workaround:** kbstatpy includes a `GlmerDirect` class (`kbstatpy/_glmer_direct.py`) that calls lme4, emmeans, and broom directly via rpy2, bypassing pymer4's broken parsing layer. When `fit()` detects random slopes in a GLMM formula, it automatically routes to `GlmerDirect` instead of pymer4's `Glmer`. The rest of the pipeline (ANOVA, post-hoc, plots, output files) is unaffected — the two backends expose the same interface.
+Historical note: earlier versions used `lme4::glmer` through `pymer4`, whose 0.9.x `broom.tidy()` layer crashed on GLMM random slopes (it built a `data.frame` from two objects with mismatched row counts). That required a separate `GlmerDirect` rpy2 wrapper. Moving the GLMM engine to `glmmTMB` resolved both the random-slope crash and the mis-scaled Gamma/inverse-Gaussian standard errors, so the old workaround is gone.
 
-Random slopes in LMMs (`distribution = 'normal'`) are not affected by this bug and continue to use pymer4 directly.
+Random slopes in LMMs (`distribution = 'normal'`) use `lmer`/`lmerTest` and are unaffected.

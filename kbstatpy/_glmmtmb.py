@@ -1,11 +1,26 @@
 """
-Direct lme4/emmeans wrapper for GLMMs with random slopes.
+Direct glmmTMB/emmeans wrapper for generalised linear mixed models.
 
-pymer4 0.9.x crashes in its broom.tidy() result-parsing layer when a GLMM has
-random slopes (more than one random-effect term per grouping factor). lme4 itself
-handles random slopes correctly. This class calls lme4 and emmeans directly via
-rpy2 and exposes the same interface that kbstat.py expects from a Glmer object.
+This is the GLMM engine for all non-Gaussian families (binomial, poisson,
+Gamma, inverse.gaussian). It replaces lme4::glmer, which produces unreliable
+fixed-effect standard errors for the continuous dispersion families (Gamma,
+inverse Gaussian): glmer fits the correct point estimates and log-likelihood but
+returns a mis-scaled covariance matrix, so every standard-error-derived quantity
+(Wald omnibus tests, post-hoc pairwise p-values, EMM confidence intervals)
+collapses. glmmTMB estimates the dispersion as an explicit parameter and computes
+the covariance from a proper (autodiff) Hessian, so those quantities are correct
+and mutually coherent.
+
+glmmTMB also handles random slopes natively, so this single engine covers both
+the random-intercept and random-slope cases (lme4 needed the separate direct
+wrapper only because pymer4's Glmer crashed on slopes).
+
+The class exposes the same interface that kbstat.py expects from a model object
+(fit / anova / emmeans / set_factors / set_contrasts and the r_model, residuals,
+fits, result_anova, coefs, fit_stats attributes).
 """
+
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -18,8 +33,8 @@ _R_DATA  = '.__kbstat_data__'
 _R_MODEL = '.__kbstat_model__'
 
 
-class GlmerDirect:
-    """Drop-in replacement for pymer4 Glmer when random slopes are present."""
+class GlmmTMB:
+    """GLMM engine backed by glmmTMB (drop-in for the former glmer path)."""
 
     def __init__(self, formula: str, data: pd.DataFrame, family: str, link: str = 'default'):
         self.formula = formula
@@ -39,23 +54,25 @@ class GlmerDirect:
         self._r_contrasts = {}
 
     # ------------------------------------------------------------------
-    # Public interface (mirrors pymer4 Glmer)
+    # Public interface (the methods/attributes kbstat.py expects from a model)
     # ------------------------------------------------------------------
 
     def fit(self, summarize=False):
-        """Fit the GLMM via lme4::glmer and extract residuals, fits, and summaries."""
+        """Fit the GLMM via glmmTMB::glmmTMB and extract residuals, fits, summaries."""
         self._push_data()
 
         family_expr = self._family_expr()
         ro.r(f'''
-        suppressMessages(library(lme4))
-        {_R_MODEL} <- glmer(
+        suppressMessages(library(glmmTMB))
+        {_R_MODEL} <- glmmTMB(
             {self.formula},
             data   = {_R_DATA},
             family = {family_expr}
         )
         ''')
         self.r_model = ro.r(_R_MODEL)
+
+        self._check_convergence()
 
         self.residuals = np.array(ro.r(f'residuals({_R_MODEL}, type="pearson")'))
         self.fits      = np.array(ro.r(f'fitted({_R_MODEL})'))
@@ -64,14 +81,17 @@ class GlmerDirect:
         self._extract_fit_stats()
 
     def anova(self, jointtest_kwargs=None, **kwargs):
-        """Type III ANOVA table via emmeans::joint_tests()."""
+        """Type III ANOVA table via emmeans::joint_tests().
+
+        With glmmTMB's correctly scaled covariance the Wald joint test is
+        trustworthy and coherent with the emmeans post-hoc comparisons.
+        """
         ro.r('suppressMessages(library(emmeans))')
         ro.r(f'.__kbstat_jt__ <- as.data.frame(joint_tests({_R_MODEL}))')
 
         with localconverter(default_converter + pandas2ri.converter):
             df = ro.conversion.rpy2py(ro.r('.__kbstat_jt__'))
 
-        # Rename to the column names kbstat.py expects before its own rename step
         df = df.rename(columns={
             'F.ratio': 'F_ratio',
             'p.value': 'p_value',
@@ -123,9 +143,20 @@ class GlmerDirect:
             return f'{self.family}(link="{self.link}")'
         return self.family
 
+    def _check_convergence(self):
+        """Warn if glmmTMB did not converge cleanly (so unreliable fits surface)."""
+        try:
+            code = int(ro.r(f'{_R_MODEL}$fit$convergence')[0])
+        except Exception:
+            code = 0
+        if code != 0:
+            warnings.warn(
+                f'glmmTMB reported non-convergence (code {code}); '
+                f'results for this fit may be unreliable.', stacklevel=2)
+
     def _extract_coefs(self):
         ro.r(f'''
-        .__kbstat_coefs__ <- as.data.frame(summary({_R_MODEL})$coefficients)
+        .__kbstat_coefs__ <- as.data.frame(summary({_R_MODEL})$coefficients$cond)
         .__kbstat_coefs__$term <- rownames(.__kbstat_coefs__)
         rownames(.__kbstat_coefs__) <- NULL
         ''')
@@ -138,7 +169,7 @@ class GlmerDirect:
             AIC      = AIC({_R_MODEL}),
             BIC      = BIC({_R_MODEL}),
             logLik   = as.numeric(logLik({_R_MODEL})),
-            deviance = deviance({_R_MODEL})
+            deviance = tryCatch(as.numeric(deviance({_R_MODEL})), error = function(e) NA_real_)
         )
         ''')
         with localconverter(default_converter + pandas2ri.converter):
