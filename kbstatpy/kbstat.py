@@ -998,20 +998,39 @@ class Kbstat:
         if close and mode != 'show_keep':
             plt.close(fig)
 
-    def _fitted_suptitle(self, fig, text, max_size=14, min_size=8, margin=0.95):
-        """Add a bold figure suptitle, shrinking the font so the title fits the
-        figure width. Long titles on narrow single-column figures would otherwise
-        spill past the frame. Returns the Text object."""
-        st = fig.suptitle(text, fontweight='bold', fontsize=max_size)
-        fig_w_px = fig.get_figwidth() * fig.dpi
+    # Preferred narrow/condensed title fonts, tried in order; the trailing
+    # 'sans-serif' guarantees a graceful fallback to the regular font.
+    _CONDENSED_CHAIN = ['Arial Narrow', 'DejaVu Sans Condensed',
+                        'Liberation Sans Narrow', 'Roboto Condensed', 'sans-serif']
+
+    def _add_suptitle(self, fig, text, max_size=14):
+        """Create the bold figure suptitle in a narrow/condensed font (see
+        options.title_font). Call :meth:`_fit_suptitle_to_axes` after the layout
+        is final to centre it over the plot box and shrink it to that width.
+        Returns the Text object."""
+        fam = self.options.title_font or self._CONDENSED_CHAIN
+        return fig.suptitle(text, fontweight='bold', fontsize=max_size, fontfamily=fam)
+
+    def _fit_suptitle_to_axes(self, st, fig, min_size=8, margin=0.98):
+        """Centre the suptitle over the axes (plot box) span and shrink its font
+        so it stays within the box's horizontal extent. Call after the layout is
+        settled (e.g. after tight_layout), when axes positions are final."""
+        if st is None:
+            return
+        boxes = [a.get_position() for a in fig.axes]
+        if not boxes:
+            return
+        x0 = min(b.x0 for b in boxes)
+        x1 = max(b.x1 for b in boxes)
+        st.set_x(0.5 * (x0 + x1))
+        avail_px = (x1 - x0) * fig.get_figwidth() * fig.dpi
         try:
-            text_w_px = st.get_window_extent(renderer=fig.canvas.get_renderer()).width
+            text_px = st.get_window_extent(renderer=fig.canvas.get_renderer()).width
         except Exception:
-            # Fallback estimate: a bold proportional glyph is roughly 0.6 em wide.
-            text_w_px = len(text) * 0.6 * max_size * fig.dpi / 72.0
-        if text_w_px > margin * fig_w_px:
-            st.set_fontsize(max(min_size, max_size * margin * fig_w_px / text_w_px))
-        return st
+            # Fallback estimate: a bold condensed glyph is roughly 0.55 em wide.
+            text_px = len(st.get_text()) * 0.55 * st.get_fontsize() * fig.dpi / 72.0
+        if text_px > margin * avail_px:
+            st.set_fontsize(max(min_size, st.get_fontsize() * margin * avail_px / text_px))
 
     def plot_data(self):
         """Generate publication-ready summary plots matching the MATLAB kbstat style.
@@ -1386,7 +1405,7 @@ class Kbstat:
         # Super title
         plot_title = f'{self.options.title} ({self._disp(y_var)})' \
             if self.options.title else self._disp(y_var)
-        self._fitted_suptitle(fig, plot_title)
+        _data_suptitle = self._add_suptitle(fig, plot_title)
 
         # --- Post-loop: expand y-limits once, then draw brackets ---
         # sharey=True means a set_ylim on any panel affects all; doing this after
@@ -1491,6 +1510,7 @@ class Kbstat:
                     ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
 
         fig.tight_layout()
+        self._fit_suptitle_to_axes(_data_suptitle, fig)
 
         self._show_fig(fig)
         return fig
@@ -1522,7 +1542,7 @@ class Kbstat:
         _diag_y = self._disp(self.options.y)
         diag_title = (f'Diagnostics of {self.options.title} ({_diag_y})'
                       if self.options.title else f'Diagnostics of {_diag_y}')
-        self._fitted_suptitle(fig, diag_title)
+        _diag_suptitle = self._add_suptitle(fig, diag_title)
 
         n_diag = len(self.model.residuals)
         s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
@@ -1689,6 +1709,7 @@ class Kbstat:
         # axes-units pushed the middle/right columns' labels into the panel to
         # their left; align_ylabels keeps each label just outside its own panel.)
         fig.align_ylabels(axes)
+        self._fit_suptitle_to_axes(_diag_suptitle, fig)
 
         self.fig_diagnostics = fig
         self._show_fig(fig)

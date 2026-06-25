@@ -55,6 +55,12 @@ class KbstatOptions:
     # variable still gets its own display name in the parentheses. Empty (default)
     # keeps the plain dependent-variable name as the title.
     title: str = ''
+    # Font family for plot titles (suptitles), distinct from the body font.
+    # Empty (default) uses a narrow / condensed sans-serif if one is installed
+    # (e.g. 'Arial Narrow', 'DejaVu Sans Condensed'), falling back to the regular
+    # sans-serif font, so titles take less horizontal space. Set a family name
+    # (or list of names) to override.
+    title_font: object = ''
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
     color_alpha: float = 0.5
