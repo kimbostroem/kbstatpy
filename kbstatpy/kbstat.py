@@ -1414,9 +1414,23 @@ class Kbstat:
         n_diag = len(self.model.residuals)
         s_diag = (5 * 1.2) ** 2  # fixed dot size for all diagnostic plots
 
-        # Build per-observation group label for hover tooltips
-        active_data = self.data[~self.data['is_outlier']].reset_index(drop=True) \
-            if 'is_outlier' in self.data.columns else self.data.reset_index(drop=True)
+        # Build per-observation group label for hover tooltips.
+        # active_data must hold exactly the rows the model was fit on, in fit
+        # order: non-outlier *complete cases* over the formula variables. R drops
+        # any row with NA in a model variable, so self.model.fits/residuals have
+        # length = complete cases; without dropping NaNs here too, active_data and
+        # y_actual desync from them and the diagnostic plots raise a length error.
+        fit_rows = self.data[~self.data['is_outlier']] \
+            if 'is_outlier' in self.data.columns else self.data
+        _model_vars = []
+        for _grp in (self.options.y, self.options.x, self.options.covariate,
+                     self.options.slope, self.options.id):
+            if isinstance(_grp, list):
+                _model_vars.extend(_grp)
+            elif _grp:
+                _model_vars.append(_grp)
+        _model_vars = [v for v in dict.fromkeys(_model_vars) if v in fit_rows.columns]
+        active_data = fit_rows.dropna(subset=_model_vars).reset_index(drop=True)
         x_vars = [v for v in (self.options.x if isinstance(self.options.x, list) else [self.options.x])
                   if v in active_data.columns]
         def _group_label(i):
@@ -1473,11 +1487,8 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 5: Fitted vs Response
         # ---------------------------------------------------------
-        if 'is_outlier' in self.data.columns:
-            y_actual = self.data[~self.data['is_outlier']]
-            y_actual = y_actual[self.options.y]
-        else:
-            y_actual = self.data[self.options.y]
+        # Same fit-row frame as active_data, so length/order match self.model.fits.
+        y_actual = active_data[self.options.y]
 
         sns.scatterplot(x=y_actual, y=self.model.fits, ax=axes[4], s=s_diag)
 
