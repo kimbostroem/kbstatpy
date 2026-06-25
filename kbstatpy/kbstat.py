@@ -843,7 +843,13 @@ class Kbstat:
                     fh.write(res.summary + '\n')
                 print(f'Saved Summary.txt to {d}')
             if res.fig_data is not None:
-                self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
+                # fig_data is a single Figure (<=3 factors) or a dict
+                # {level_suffix: Figure} when a 4th+ factor split it into files.
+                if isinstance(res.fig_data, dict):
+                    for suffix, f in res.fig_data.items():
+                        self._write_fig(f, d, f'DataPlots_{suffix}', html=True, tight=True)
+                else:
+                    self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
             if res.fig_diagnostics is not None:
                 self._write_fig(res.fig_diagnostics, d, 'Diagnostics', html=True, tight=False)
 
@@ -1014,21 +1020,50 @@ class Kbstat:
                 return
 
         # Use raw (untransformed) data for plotting so the y-axis is in original units
-        plot_data = self._data_raw if self._data_raw is not None else self.data
-
+        base = self._data_raw if self._data_raw is not None else self.data
         # Ensure the outlier column exists (mirror from self.data if needed)
-        if 'is_outlier' not in plot_data.columns:
-            if 'is_outlier' in self.data.columns:
-                plot_data = plot_data.copy()
-                plot_data['is_outlier'] = self.data['is_outlier'].values
-            else:
-                plot_data = plot_data.copy()
-                plot_data['is_outlier'] = False
+        if 'is_outlier' not in base.columns:
+            base = base.copy()
+            base['is_outlier'] = (self.data['is_outlier'].values
+                                  if 'is_outlier' in self.data.columns else False)
 
-        n_vars = len(self.options.x)
-        x_var = self.options.x[0]       # Violin / x-axis variable  (e.g. Chocolate)
+        # A data plot shows at most three factors (x-axis, column facets, row
+        # facets). When a 4th (or further) fixed-effect factor is present, produce
+        # one figure per level-combination of the extra factor(s), keyed by a
+        # suffix of those level names, so save() writes separate plot files.
+        x_all = list(self.options.x)
+        if len(x_all) <= 3:
+            self.fig_data = self._build_data_figure(base, x_all, {})
+            return
+        import itertools
+        split_vars = x_all[3:]
+        base_x = x_all[:3]
+
+        def _levels(df, v):
+            c = df[v]
+            return c.cat.categories.tolist() if hasattr(c, 'cat') else sorted(c.dropna().unique())
+
+        figs = {}
+        for combo in itertools.product(*[_levels(base, v) for v in split_vars]):
+            sub = base
+            for v, lev in zip(split_vars, combo):
+                sub = sub[sub[v] == lev]
+            if sub.empty:
+                continue
+            suffix = '_'.join(str(lev) for lev in combo)
+            figs[suffix] = self._build_data_figure(sub, base_x, dict(zip(split_vars, combo)))
+        self.fig_data = figs
+
+    def _build_data_figure(self, plot_data, x_list, emm_extra):
+        """Build one data-plot figure from ``plot_data`` using up to three factors
+        in ``x_list`` (x-axis, column facets, row facets). ``emm_extra`` maps any
+        further factors held fixed for this figure to their level, used to pick the
+        matching cell of the EMM grid. Returns the matplotlib Figure.
+        """
+        n_vars = len(x_list)
+        x_var = x_list[0]                # Violin / x-axis variable  (e.g. Chocolate)
         y_var = self.options.y           # Dependent variable        (e.g. Distance)
-        facet_var = self.options.x[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
+        facet_var = x_list[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
         id_var = self.options.id         # Subject identifier for connecting lines
         # y_units is a scalar string for this variable, but fit() re-runs
         # _normalize_options and re-wraps it into a single-element list; accept
@@ -1065,7 +1100,7 @@ class Kbstat:
         palette = dict(zip(x_levels, sns.color_palette(self.options.color_scheme, len(x_levels))))
 
         # Determine column facets (x[1]) and row facets (x[2])
-        row_var = self.options.x[2] if n_vars > 2 else None
+        row_var = x_list[2] if n_vars > 2 else None
 
         if facet_var:
             facet_levels = plot_data[facet_var].cat.categories.tolist() if hasattr(plot_data[facet_var], 'cat') else sorted(plot_data[facet_var].unique())
@@ -1248,6 +1283,10 @@ class Kbstat:
                         row_mask = row_mask & (emm_df_plot[facet_var].astype(str) == str(facet_val))
                     if row_var is not None and row_var in emm_df_plot.columns and row_val is not None:
                         row_mask = row_mask & (emm_df_plot[row_var].astype(str) == str(row_val))
+                    # Hold any further (4th+) factors fixed at this figure's level
+                    for _ev, _el in emm_extra.items():
+                        if _ev in emm_df_plot.columns:
+                            row_mask = row_mask & (emm_df_plot[_ev].astype(str) == str(_el))
                     if row_mask.any():
                         row = emm_df_plot[row_mask].iloc[0]
                         emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
@@ -1433,8 +1472,8 @@ class Kbstat:
 
         fig.tight_layout()
 
-        self.fig_data = fig
         self._show_fig(fig)
+        return fig
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
