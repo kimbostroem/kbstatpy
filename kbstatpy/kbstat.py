@@ -1115,7 +1115,12 @@ class Kbstat:
         n_cols = len(facet_levels)
         n_rows = len(row_levels)
 
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 6 * n_rows), sharey=True)
+        # Per-panel width is fixed (5 in). Panel height shrinks once there is more
+        # than one row so multi-row figures don't become excessively tall: the
+        # first row keeps the original 6 in, each further row adds only 4.5 in
+        # (1 row -> 6, 2 -> 10.5, 3 -> 15) instead of a flat 6 in per row.
+        fig_height = 6.0 + 4.5 * (n_rows - 1)
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, fig_height), sharey=True)
         # Normalise to a 2-D list so axes[row_idx][col_idx] always works
         if n_rows == 1 and n_cols == 1:
             axes = [[axes]]
