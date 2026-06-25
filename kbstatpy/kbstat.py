@@ -1647,8 +1647,8 @@ class Kbstat:
         axes[4].plot([min_val, max_val], [min_val, max_val], color='red', linestyle='--')
 
         axes[4].set_title("Fitted vs Response")
-        axes[4].set_xlabel("Fitted Values", labelpad=4)
-        axes[4].set_ylabel("Actual Raw Data", labelpad=4)
+        axes[4].set_xlabel("Actual Raw Data", labelpad=4)
+        axes[4].set_ylabel("Fitted Values", labelpad=4)
         self._tooltip(axes[4], axes[4].collections[-1],
                       [f'{_group_label(i)}, actual={float(y_actual.iloc[i]):.3f}, fitted={self.model.fits[i]:.3f}'
                        for i in range(n_diag)])
