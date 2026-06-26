@@ -377,13 +377,33 @@ class Kbstat:
         else:
             self.AIC = self.BIC = self.logLik = None
 
+    def _df_method(self):
+        """Denominator-df method for the fixed-effect tests, used identically by
+        the ANOVA and the post-hoc so the two strata stay consistent.
+
+        Gaussian LMMs use Kenward-Roger when pbkrtest is installed (exact on
+        balanced designs, best calibrated at small n), else Satterthwaite.
+        Returns None for plain LMs (exact df already) and GLMMs (asymptotic
+        z-tests), where neither approximation applies.
+        """
+        if not isinstance(self.model, Lmer):
+            return None
+        cache = getattr(type(self), '_pbkrtest', None)
+        if cache is None:
+            try:
+                cache = bool(ro.r('requireNamespace')('pbkrtest', quietly=True)[0])
+            except Exception:
+                cache = False
+            type(self)._pbkrtest = cache
+        return 'kenward-roger' if cache else 'satterthwaite'
+
     def anova(self):
         """Extract and enrich the ANOVA table from the fitted model.
 
-        Degrees of freedom are estimated using the Satterthwaite approximation
-        via R's lmerTest/emmeans. Note: MATLAB's fitglme does not support
-        Satterthwaite; this is a deliberate difference from the MATLAB kbstat
-        implementation.
+        Denominator degrees of freedom follow _df_method(): Kenward-Roger for
+        Gaussian LMMs when pbkrtest is available, else Satterthwaite. The
+        post-hoc uses the same method, so the two strata are consistent. (GLMMs
+        are asymptotic; plain LMs use exact df.)
         """
         if self.model is None:
             raise RuntimeError('Call fit() before anova()')
@@ -392,7 +412,8 @@ class Kbstat:
         if 'is_outlier' in self.data.columns:
             data_to_use = self.data[~self.data['is_outlier']]
 
-        self.model.anova(jointtest_kwargs={'mode': 'satterthwaite', 'lmer_df': 'satterthwaite'})
+        method = self._df_method() or 'satterthwaite'  # ignored by LM (exact) / GLMM (asymptotic)
+        self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
         raw = self.model.result_anova.to_pandas() if hasattr(self.model.result_anova, 'to_pandas') else self.model.result_anova
         raw = raw.rename(columns={
             'model term': 'Term',
@@ -413,10 +434,12 @@ class Kbstat:
     def posthoc(self):
         """Perform post-hoc pairwise comparisons and build a comparison table.
 
-        For LMMs (distribution='normal') emmeans uses the Satterthwaite
-        approximation and returns finite df. For GLMMs (any other distribution)
-        Satterthwaite is not defined and emmeans falls back to asymptotic
-        inference (df=Inf). This is expected behaviour, not an error.
+        For Gaussian LMMs the contrast df use the same method as the ANOVA
+        (Kenward-Roger when pbkrtest is available, else Satterthwaite), pinned
+        via emm_options below so the result does not depend on the ambient
+        emmeans default. For GLMMs neither applies and emmeans falls back to
+        asymptotic inference (df=Inf); plain LMs use exact df. This is expected
+        behaviour, not an error.
         """
         if self.model is None:
             raise RuntimeError('Call fit() before posthoc()')
@@ -426,6 +449,11 @@ class Kbstat:
         self.model.set_factors(factors)
         # Override the contr.treatment default that set_factors() hard-codes
         self.model.set_contrasts({f: 'contr.sum' for f in factors})
+        # Pin the contrast df method to match anova() (KR/Satterthwaite); no-op
+        # for LM (exact) and GLMM (asymptotic), which ignore lmer.df.
+        _dfm = self._df_method()
+        if _dfm:
+            ro.r("emmeans::emm_options(lmer.df = '%s')" % _dfm)
         self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
