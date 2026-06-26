@@ -21,7 +21,7 @@
   - [Multicollinearity diagnostics — VIF (Demo 14)](#multicollinearity-diagnostics-vif-demo-14)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
-  - [Degrees of freedom: Satterthwaite approximation and `df = Inf`](#degrees-of-freedom-satterthwaite-approximation-and-df-inf)
+  - [Degrees of freedom: Kenward-Roger and Satterthwaite](#degrees-of-freedom-kenward-roger-and-satterthwaite)
   - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
   - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
@@ -82,7 +82,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Paired t-test (Demo 2)
 
-`lmer(y ~ group + (1 | id))` is algebraically identical to a paired t-test for balanced data: same point estimate, same standard error, df = n − 1 = 9, and the same p-value. The LMM arrives there differently — by estimating a random-intercept variance and applying Satterthwaite degrees of freedom — but the numerical result is the same. Differences arise only when the data are unbalanced, or when the model has multiple random effects or a crossed structure; in those cases Satterthwaite df become non-integer and the LMM and paired t-test diverge. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
+`lmer(y ~ group + (1 | id))` is algebraically identical to a paired t-test for balanced data: same point estimate, same standard error, df = n − 1 = 9, and the same p-value. The LMM arrives there differently — by estimating a random-intercept variance and applying a small-sample df method (Kenward-Roger by default, Satterthwaite otherwise; both exact here) — but the numerical result is the same. Differences arise only when the data are unbalanced, or when the model has multiple random effects or a crossed structure; in those cases the df become non-integer and the LMM and paired t-test diverge. The LMM is strictly more general: it handles missing observations and unequal group sizes without modification.
 
 ### Two-way ANOVA (Demo 3)
 
@@ -96,7 +96,7 @@ For unbalanced designs, Type III SS with effects coding still gives well-defined
 1. The design is balanced (one observation per subject per condition), and
 2. The compound symmetry assumption holds (equal variances and equal pairwise correlations across all conditions).
 
-Demo 4 uses the `ergoStool` data (nlme): 9 subjects each rate the perceived effort (Borg scale) of arising from 4 stool types, exactly one rating per subject per type. The design is balanced, and because the four stool types have no natural ordering there is no serial trend to make adjacent conditions correlate more strongly than distant ones — so compound symmetry is a reasonable assumption rather than a fiction. The random intercept reproduces exactly that covariance structure, and the Type III F-test matches the classical RM-ANOVA to the displayed precision: `F(3, 24) = 22.36, p = 3.9 × 10⁻⁷` from both `lmer` (with Satterthwaite df) and `aov(effort ~ Type + Error(Subject/Type))`. The LMM again generalises gracefully: it handles missing cells, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
+Demo 4 uses the `ergoStool` data (nlme): 9 subjects each rate the perceived effort (Borg scale) of arising from 4 stool types, exactly one rating per subject per type. The design is balanced, and because the four stool types have no natural ordering there is no serial trend to make adjacent conditions correlate more strongly than distant ones — so compound symmetry is a reasonable assumption rather than a fiction. The random intercept reproduces exactly that covariance structure, and the Type III F-test matches the classical RM-ANOVA to the displayed precision: `F(3, 24) = 22.36, p = 3.9 × 10⁻⁷` from both `lmer` (with the default Kenward-Roger df, which is exact here, as is Satterthwaite) and `aov(effort ~ Type + Error(Subject/Type))`. The LMM again generalises gracefully: it handles missing cells, unbalanced designs, and more complex covariance structures (random slopes, crossed random effects) that are outside the scope of classical RM-ANOVA.
 
 A four-level within-subject factor is also a more honest demonstration than a two-level one: a repeated-measures ANOVA with only two conditions is just a paired t-test (`F = t²`), already covered in Demo 2.
 
@@ -216,19 +216,23 @@ Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` use
 
 > **Caution:** when an interaction is significant, marginal main-effect estimates from `emmeans` average over the other factor. Main effects should be interpreted cautiously in that case — the interaction result is the primary finding.
 
-### Degrees of freedom: Satterthwaite approximation and `df = Inf`
+### Degrees of freedom: Kenward-Roger and Satterthwaite
+
+The denominator degrees of freedom for the fixed-effect tests are controlled by the `df_method` option (default `'auto'`). The **same method is used for the omnibus ANOVA F-tests and the post-hoc contrasts alike**, so the two strata are always consistent, and the method actually used is reported in `Summary.txt` (under MODEL INFORMATION and beside the ANOVA and post-hoc tables).
 
 #### Linear mixed models (LMMs, `distribution = 'normal'`)
 
-For LMMs the **Satterthwaite approximation** is used to estimate the denominator degrees of freedom for each F-test. This accounts for the unbalanced random-effects structure and yields finite, data-adaptive df values. It is implemented via R's `lmerTest` and `emmeans` packages.
+With `df_method = 'auto'` an LMM uses the **Kenward-Roger** method when the R package `pbkrtest` is installed, and **Satterthwaite** otherwise. Both yield finite, data-adaptive df that account for the random-effects structure. Kenward-Roger additionally inflates the fixed-effect covariance matrix to reflect the uncertainty in the estimated variance components, which makes it better calibrated at small sample sizes and **exact on balanced classical designs**: it reproduces the integer df and F-statistic of the corresponding ANOVA / t-test (see Demos 2 and 4). Satterthwaite shares that exactness for single-error-stratum balanced cases but is otherwise an approximation. Both are implemented via R's `lmerTest`, `pbkrtest`, and `emmeans`.
+
+You can override the choice with `df_method = 'kenward-roger'`, `'satterthwaite'`, or `'asymptotic'` (Wald z, `df = Inf`). A request that is not available for the fitted model or dataset — Kenward-Roger without `pbkrtest`, a small-sample method on a GLMM, or a KR computation that fails on a degenerate fit — emits a warning and falls back, recommending valid alternatives (including `'auto'`).
 
 #### Generalised linear mixed models (GLMMs, any other distribution)
 
-The Satterthwaite approximation is **only defined for LMMs**. The Satterthwaite (and Kenward–Roger) machinery is derived for the Gaussian LMM, where an exact t-reference distribution for fixed-effect contrasts is available; GLMMs have no exact small-sample t-distribution for their contrasts. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests.
+The Kenward-Roger and Satterthwaite machinery is **only defined for LMMs**. It is derived for the Gaussian LMM, where an exact t-reference distribution for fixed-effect contrasts is available; GLMMs have no exact small-sample t-distribution for their contrasts. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests, regardless of `df_method` (requesting a small-sample method on a GLMM warns and uses asymptotic inference).
 
 This is mathematically correct behaviour, not a software error.
 
-For comparison: MATLAB's `fitglme` also does not support Satterthwaite for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because the Wald statistic for a GLMM contrast is asymptotically chi-square — its natural reference distribution — whereas `n − p` is a finite-sample fudge factor with no exact justification for non-Gaussian likelihoods.
+For comparison: MATLAB's `fitglme` also does not support these small-sample methods for GLMMs. Instead it uses the finite approximation `df2 = n − p`, where `n` is the number of observations and `p` is the number of fixed-effect columns. Both are approximations; the asymptotic `df = Inf` method used in kbstatpy is the more principled one because the Wald statistic for a GLMM contrast is asymptotically chi-square — its natural reference distribution — whereas `n − p` is a finite-sample fudge factor with no exact justification for non-Gaussian likelihoods.
 
 ### GLMM engine: `glmmTMB` (not `glmer`)
 
@@ -236,7 +240,7 @@ All non-Gaussian GLMMs are fitted with `glmmTMB`, not `lme4::glmer`. This matter
 
 `glmer` is built around binomial and Poisson likelihoods, which have **no free dispersion parameter** (dispersion is fixed at 1). For the continuous families that *do* carry a dispersion — **Gamma and inverse Gaussian** — `glmer`'s profiled-deviance machinery estimates the dispersion poorly and returns a **mis-scaled covariance matrix**. The point estimates and the log-likelihood are correct, but the standard errors can collapse to a small fraction of their true size. Because every Wald quantity is built from those SEs, the result is silently catastrophic: omnibus chi-squares in the thousands, partial η² ≈ 1, and post-hoc p-values of essentially zero — for effects that are not actually significant. (We observed exactly this: a Gamma fit with a true `p ≈ 0.27` reported `p ≈ 0` with SEs ~100× too small, while a likelihood-ratio test — which never touches the covariance — gave the correct answer. The fit also tripped a convergence warning.)
 
-`glmmTMB` estimates the dispersion as an **explicit parameter** and computes the covariance from a proper (automatic-differentiation) Hessian, so the standard errors are correct and the Wald omnibus, the post-hoc comparisons, and the EMM confidence intervals are all reliable **and mutually coherent** (the omnibus and the pairwise tests agree). It supports every family kbstatpy exposes (binomial, Poisson, Gamma, inverse Gaussian) and handles random slopes natively. For binomial and Poisson the two engines agree (no dispersion to misestimate); the switch is what makes the continuous-dispersion families trustworthy. Gaussian LMMs are unaffected — they continue to use `lmer`/`lmerTest` so the Satterthwaite degrees of freedom above are preserved.
+`glmmTMB` estimates the dispersion as an **explicit parameter** and computes the covariance from a proper (automatic-differentiation) Hessian, so the standard errors are correct and the Wald omnibus, the post-hoc comparisons, and the EMM confidence intervals are all reliable **and mutually coherent** (the omnibus and the pairwise tests agree). It supports every family kbstatpy exposes (binomial, Poisson, Gamma, inverse Gaussian) and handles random slopes natively. For binomial and Poisson the two engines agree (no dispersion to misestimate); the switch is what makes the continuous-dispersion families trustworthy. Gaussian LMMs are unaffected — they continue to use `lmer`/`lmerTest` so the Kenward-Roger / Satterthwaite degrees of freedom above are preserved.
 
 ### Post-hoc comparisons: `emmeans`
 
@@ -244,7 +248,7 @@ Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated 
 
 P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction = 'holm'`), which controls the family-wise error rate and is uniformly more powerful than Bonferroni.
 
-For LMMs, `emmeans` reports t-ratios with Satterthwaite degrees of freedom. For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
+For LMMs, `emmeans` reports t-ratios with Kenward-Roger or Satterthwaite degrees of freedom (per `df_method`, matching the omnibus). For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
 ### Why estimated marginal means?
 

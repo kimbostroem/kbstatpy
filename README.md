@@ -2,7 +2,7 @@
 
 A Python library for generalised linear mixed model (GLMM) analysis with post-hoc pairwise comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB `kbstat` library.
 
-Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
+Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Kenward-Roger / Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
 
 ## Table of contents
 
@@ -136,6 +136,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `distribution` | str | `'normal'` | Response distribution (see below) |
 | `link` | str | `'auto'` | Link function (`'auto'`, `'log'`, `'logit'`, …) |
 | `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
+| `df_method` | str | `'auto'` | Denominator-df method for the fixed-effect ANOVA F-tests and post-hoc contrasts (used for both, so they stay consistent). `'auto'`: Kenward-Roger for Gaussian LMMs when `pbkrtest` is installed, else Satterthwaite; exact residual df for plain LMs; asymptotic (`df = Inf`) for GLMMs. Override with `'kenward-roger'`, `'satterthwaite'`, or `'asymptotic'` (aliases `'kr'`, `'satt'`, `'wald'`). An unavailable request warns and falls back. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) |
 | `remove_outliers_prefit` | bool | `False` | Flag and exclude outliers before fitting using the IQR rule (1.5 × IQR beyond Q1/Q3) per group. Protects the model from extreme raw values |
 | `remove_outliers_postfit` | bool | `False` | Flag and exclude outliers after fitting based on Pearson residuals (z > 3), then refit. Catches observations that become outliers only in relation to the model. Can be combined with `remove_outliers_prefit` |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
@@ -316,7 +317,7 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 
 - **Effects coding** (`contr.sum`) — why it is used and why treatment coding is problematic
 - **Type III sums of squares** — when Type II would differ and why Type III is preferred
-- **Satterthwaite df vs. df = Inf** — why GLMMs yield asymptotic tests
+- **Kenward-Roger / Satterthwaite df vs. df = Inf** — the `df_method` option, and why GLMMs yield asymptotic tests
 - **Post-hoc comparisons with emmeans** — marginal means and Holm correction
 - **VIF and multicollinearity** — what VIF measures and when it matters
 
