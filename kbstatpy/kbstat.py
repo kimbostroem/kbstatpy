@@ -2166,8 +2166,9 @@ class Kbstat:
 
         sep = '=' * 70
 
-        # --- Header ---
-        lines += [sep, 'kbstatpy — Analysis Summary', sep, '']
+        # --- Header --- (version read live from the package single source of truth)
+        from kbstatpy import __version__ as _kbstatpy_version
+        lines += [sep, f'kbstatpy {_kbstatpy_version} — Analysis Summary', sep, '']
 
         # --- Formula ---
         formula = self._build_formula()
@@ -2181,6 +2182,7 @@ class Kbstat:
         lines += [
             'MODEL INFORMATION',
             '-----------------',
+            f'  {"Software":<22} : kbstatpy {_kbstatpy_version}',
             f'  Number of observations : {n_obs}',
             f'  Distribution           : {self.options.distribution}',
             f'  Link function          : {link}',
