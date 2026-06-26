@@ -397,6 +397,21 @@ class Kbstat:
             type(self)._pbkrtest = cache
         return 'kenward-roger' if cache else 'satterthwaite'
 
+    def _df_method_label(self):
+        """Human-readable denominator-df method, for reporting in Summary.txt.
+
+        Mirrors _df_method(): Kenward-Roger / Satterthwaite for Gaussian LMMs,
+        exact residual df for plain LMs, asymptotic (Wald) for GLMMs.
+        """
+        m = self._df_method()
+        if m == 'kenward-roger':
+            return 'Kenward-Roger'
+        if m == 'satterthwaite':
+            return 'Satterthwaite'
+        if isinstance(self.model, Lm):
+            return 'exact residual df (n - p)'
+        return 'asymptotic (Wald z, df = Inf)'
+
     def anova(self):
         """Extract and enrich the ANOVA table from the fitted model.
 
@@ -2083,6 +2098,8 @@ class Kbstat:
         if self.options.id:
             lines.append(f'  Random grouping factor : {self.options.id}')
         lines.append(f'  Contrast coding        : effects (contr.sum)')
+        if self.model is not None:
+            lines.append(f'  {"Deg.-of-freedom method":<22} : {self._df_method_label()}')
         lines.append('')
 
         # --- Fit statistics ---
@@ -2109,7 +2126,8 @@ class Kbstat:
         # --- ANOVA table ---
         if self.anova_table is not None:
             at = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
-            lines += ['ANOVA (Type III)', '----------------', at.to_string(index=False), '']
+            lines += ['ANOVA (Type III)', '----------------', at.to_string(index=False),
+                      f'  Denominator df method: {self._df_method_label()}', '']
 
             # Check for infinite df2 and add explanatory note
             has_inf_df = False
@@ -2119,15 +2137,16 @@ class Kbstat:
                 lines += [
                     'NOTE: df = Inf in ANOVA table',
                     '------------------------------',
-                    'The Satterthwaite approximation for degrees of freedom is only defined',
-                    'for linear mixed models (LMMs, distribution = normal). For generalised',
-                    'linear mixed models (GLMMs) the likelihood is not quadratic and the',
-                    'Satterthwaite formula does not apply. R\'s emmeans therefore falls back',
-                    'to asymptotic inference, yielding df = Inf and Wald chi-square tests.',
+                    'Finite-sample df methods (Kenward-Roger and Satterthwaite) are defined',
+                    'only for linear mixed models (LMMs, distribution = normal); this package',
+                    'uses Kenward-Roger when pbkrtest is available, else Satterthwaite. For',
+                    'generalised linear mixed models (GLMMs) the likelihood is not quadratic',
+                    'and neither method applies, so R\'s emmeans falls back to asymptotic',
+                    'inference, yielding df = Inf and Wald chi-square tests.',
                     '',
                     'This is mathematically correct behaviour — not a software error.',
                     '',
-                    'For comparison: MATLAB\'s fitglme also does not support Satterthwaite',
+                    'For comparison: MATLAB\'s fitglme also does not support these methods',
                     'for GLMMs. Instead it uses the finite approximation df2 = n - p, where',
                     'n is the number of observations and p is the number of fixed-effect',
                     'columns. Both approaches are approximations; the asymptotic (df = Inf)',
@@ -2141,7 +2160,8 @@ class Kbstat:
             if hasattr(ph, 'to_pandas'):
                 ph = ph.to_pandas()
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
-            lines += [f'  Correction: {self.options.posthoc_correction}', '']
+            lines += [f'  Correction: {self.options.posthoc_correction}',
+                      f'  Denominator df method: {self._df_method_label()}', '']
             lines += [ph.to_string(index=False), '']
 
 
