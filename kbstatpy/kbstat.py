@@ -85,10 +85,19 @@ class Kbstat:
     # Public interface
     # ------------------------------------------------------------------
 
+    def _body_font(self):
+        """The configured body font, or None when unset: '' or 'auto' (case-
+        insensitive) both mean 'use matplotlib's default font'."""
+        f = self.options.font
+        if not f or (isinstance(f, str) and f.strip().lower() == 'auto'):
+            return None
+        return f
+
     def _apply_font(self):
-        """Apply options.font to matplotlib rcParams if set."""
-        if self.options.font:
-            plt.rcParams['font.family'] = self.options.font
+        """Apply options.font to matplotlib rcParams unless it is unset ('' / 'auto')."""
+        f = self._body_font()
+        if f:
+            plt.rcParams['font.family'] = f
 
     @staticmethod
     def _split_csv(value):
@@ -1134,7 +1143,7 @@ class Kbstat:
         don't emit matplotlib 'font not found' warnings."""
         if self.options.title_font:
             return self.options.title_font
-        base = self.options.font or plt.rcParams.get('font.family', 'sans-serif')
+        base = self._body_font() or plt.rcParams.get('font.family', 'sans-serif')
         base_name = base[0] if isinstance(base, (list, tuple)) else str(base)
         cache = Kbstat._resolved_title_font
         if base_name not in cache:

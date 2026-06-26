@@ -79,6 +79,9 @@ class KbstatOptions:
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
     color_alpha: float = 0.5
+    # Matplotlib font family for body text on all plots. '' or 'auto' (default)
+    # use matplotlib's default font; otherwise a family name (e.g. 'Arial').
+    # The title font derives from this (see title_font).
     font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
     # How the x-axis of the data plot labels the first factor's levels:
