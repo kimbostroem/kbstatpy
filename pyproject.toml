@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kbstatpy"
-version = "0.1.0"
-description = "Generalised linear mixed model (GLMM) analysis with post-hoc comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB kbstat library."
+dynamic = ["version"]
+description ="Generalised linear mixed model (GLMM) analysis with post-hoc comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB kbstat library."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -32,3 +32,6 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["kbstatpy"]
+
+[tool.setuptools.dynamic]
+version = { attr = "kbstatpy.__version__" }
