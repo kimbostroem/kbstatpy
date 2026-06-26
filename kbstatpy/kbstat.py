@@ -1,4 +1,5 @@
 import os
+import warnings
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -77,6 +78,7 @@ class Kbstat:
         self._inverse_fn   = None             # inverse transform: array → array
         self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
         self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
+        self._df_runtime   = None             # df method after any runtime KR fallback (set in anova)
         self.output: Output = None            # populated by run(); read or pass to save()
 
     # ------------------------------------------------------------------
@@ -364,6 +366,10 @@ class Kbstat:
             # gives a correct covariance, and it handles random slopes natively.
             self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link)
         self.model.fit(summarize=False)
+        self._df_runtime = None                 # re-resolve df method for the (re)fitted model
+        if not getattr(self, '_df_validated', False):
+            self._validate_df_method()          # warn once if df_method is unavailable here
+            self._df_validated = True
 
         # Extract AIC, BIC, logLik from the R model object
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
@@ -377,17 +383,16 @@ class Kbstat:
         else:
             self.AIC = self.BIC = self.logLik = None
 
-    def _df_method(self):
-        """Denominator-df method for the fixed-effect tests, used identically by
-        the ANOVA and the post-hoc so the two strata stay consistent.
+    # Accepted options.df_method values (normalized) -> canonical request.
+    _DF_ALIASES = {
+        'auto': 'auto',
+        'kr': 'kenward-roger', 'kenward-roger': 'kenward-roger', 'kenwardroger': 'kenward-roger',
+        'satt': 'satterthwaite', 'satterthwaite': 'satterthwaite',
+        'wald': 'asymptotic', 'asymptotic': 'asymptotic',
+    }
 
-        Gaussian LMMs use Kenward-Roger when pbkrtest is installed (exact on
-        balanced designs, best calibrated at small n), else Satterthwaite.
-        Returns None for plain LMs (exact df already) and GLMMs (asymptotic
-        z-tests), where neither approximation applies.
-        """
-        if not isinstance(self.model, Lmer):
-            return None
+    def _pbkrtest_available(self):
+        """True if the R package pbkrtest (needed for Kenward-Roger) is installed."""
         cache = getattr(type(self), '_pbkrtest', None)
         if cache is None:
             try:
@@ -395,22 +400,83 @@ class Kbstat:
             except Exception:
                 cache = False
             type(self)._pbkrtest = cache
-        return 'kenward-roger' if cache else 'satterthwaite'
+        return cache
+
+    def _canonical_df_request(self):
+        """Normalize options.df_method to a canonical request ('auto',
+        'kenward-roger', 'satterthwaite', 'asymptotic'); None if unrecognised."""
+        raw = getattr(self.options, 'df_method', 'auto')
+        if raw is None:
+            return 'auto'
+        key = str(raw).strip().lower().replace('_', '-').replace(' ', '')
+        return self._DF_ALIASES.get(key)
+
+    def _resolve_df_method(self):
+        """Effective df method for the fitted model after honouring
+        options.df_method, pbkrtest availability and any runtime fallback. One of
+        'kenward-roger', 'satterthwaite', 'asymptotic', 'exact'."""
+        if self._df_runtime:                            # runtime KR fallback already decided
+            return self._df_runtime
+        if not isinstance(self.model, Lmer):
+            # Plain LM -> exact residual df; GLMM -> asymptotic. Not user-changeable.
+            return 'exact' if isinstance(self.model, Lm) else 'asymptotic'
+        req = self._canonical_df_request() or 'auto'    # unknown value -> auto (validate warns)
+        if req in ('auto', 'kenward-roger'):
+            return 'kenward-roger' if self._pbkrtest_available() else 'satterthwaite'
+        return req                                      # 'satterthwaite' or 'asymptotic'
+
+    def _df_method(self):
+        """emmeans lmer.df argument for the current model, honouring df_method.
+
+        The ANOVA and the post-hoc both use this so the two strata stay
+        consistent. Returns None where lmer.df does not apply: plain LMs (exact
+        residual df) and GLMMs (asymptotic by default)."""
+        if not isinstance(self.model, Lmer):
+            return None                                 # LM: ignored (exact); GLMM: default asymptotic
+        return self._resolve_df_method()                # 'kenward-roger'|'satterthwaite'|'asymptotic'
 
     def _df_method_label(self):
-        """Human-readable denominator-df method, for reporting in Summary.txt.
+        """Human-readable denominator-df method, for reporting in Summary.txt."""
+        return {
+            'kenward-roger': 'Kenward-Roger',
+            'satterthwaite': 'Satterthwaite',
+            'asymptotic':    'asymptotic (Wald z, df = Inf)',
+            'exact':         'exact residual df (n - p)',
+        }[self._resolve_df_method()]
 
-        Mirrors _df_method(): Kenward-Roger / Satterthwaite for Gaussian LMMs,
-        exact residual df for plain LMs, asymptotic (Wald) for GLMMs.
-        """
-        m = self._df_method()
-        if m == 'kenward-roger':
-            return 'Kenward-Roger'
-        if m == 'satterthwaite':
-            return 'Satterthwaite'
+    def _validate_df_method(self):
+        """Warn if options.df_method cannot be honoured for the fitted model and
+        recommend alternatives (including 'auto'). Resolution falls back
+        gracefully; this only surfaces the reason to the user."""
+        if self.model is None:
+            return
+        raw = getattr(self.options, 'df_method', 'auto')
+        req = self._canonical_df_request()
+        if req is None:
+            warnings.warn(
+                f"df_method={raw!r} is not recognised; using 'auto'. Valid values: "
+                "'auto', 'kenward-roger', 'satterthwaite', 'asymptotic' "
+                "(aliases 'kr', 'satt', 'wald').", stacklevel=2)
+            return
+        if req == 'auto':
+            return
         if isinstance(self.model, Lm):
-            return 'exact residual df (n - p)'
-        return 'asymptotic (Wald z, df = Inf)'
+            warnings.warn(
+                f"df_method={req!r} has no effect for a plain linear model (no random "
+                "effects): exact residual df (n - p) are always used. Set df_method='auto' "
+                "to silence this.", stacklevel=2)
+        elif not isinstance(self.model, Lmer):          # GLMM
+            if req != 'asymptotic':
+                warnings.warn(
+                    f"df_method={req!r} is not defined for generalised linear mixed models "
+                    f"(distribution={self.options.distribution!r}); using asymptotic "
+                    "(Wald z, df = Inf). Set df_method to 'asymptotic' or 'auto'.", stacklevel=2)
+        else:                                           # Gaussian LMM
+            if req == 'kenward-roger' and not self._pbkrtest_available():
+                warnings.warn(
+                    "df_method='kenward-roger' requires the R package 'pbkrtest', which is "
+                    "not installed; using Satterthwaite. Install pbkrtest, or set df_method "
+                    "to 'satterthwaite', 'asymptotic', or 'auto'.", stacklevel=2)
 
     def anova(self):
         """Extract and enrich the ANOVA table from the fitted model.
@@ -428,7 +494,20 @@ class Kbstat:
             data_to_use = self.data[~self.data['is_outlier']]
 
         method = self._df_method() or 'satterthwaite'  # ignored by LM (exact) / GLMM (asymptotic)
-        self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
+        try:
+            self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
+        except Exception as exc:
+            if method != 'kenward-roger':
+                raise
+            # KR can fail for some models/datasets (e.g. singular fits); fall back
+            # to Satterthwaite and keep the post-hoc and reporting consistent.
+            warnings.warn(
+                f"Kenward-Roger could not be computed for this model/dataset "
+                f"({type(exc).__name__}); falling back to Satterthwaite. Set "
+                "df_method='satterthwaite' or 'auto' to silence this.", stacklevel=2)
+            self._df_runtime = 'satterthwaite'
+            method = 'satterthwaite'
+            self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
         raw = self.model.result_anova.to_pandas() if hasattr(self.model.result_anova, 'to_pandas') else self.model.result_anova
         raw = raw.rename(columns={
             'model term': 'Term',

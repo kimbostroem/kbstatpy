@@ -43,6 +43,19 @@ class KbstatOptions:
     link: str = 'auto'
     fit_method: str = 'MPL'
 
+    # Denominator-df method for the fixed-effect tests (ANOVA F and post-hoc
+    # contrasts), used identically for both so the two strata stay consistent:
+    #   'auto'          (default) Kenward-Roger for Gaussian LMMs when the R
+    #                   package pbkrtest is installed, else Satterthwaite; exact
+    #                   residual df for plain LMs; asymptotic (Wald z, df=Inf)
+    #                   for GLMMs.
+    #   'kenward-roger' force Kenward-Roger (Gaussian LMM + pbkrtest only).
+    #   'satterthwaite' force Satterthwaite (Gaussian LMM).
+    #   'asymptotic'    force asymptotic Wald z (df=Inf).
+    # A request unavailable for the fitted model/dataset warns and falls back
+    # (see Kbstat._validate_df_method). Aliases: 'kr', 'satt', 'wald'.
+    df_method: str = 'auto'
+
     remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting
     remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)
 
