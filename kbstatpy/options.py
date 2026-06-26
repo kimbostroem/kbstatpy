@@ -69,10 +69,12 @@ class KbstatOptions:
     # keeps the plain dependent-variable name as the title.
     title: str = ''
     # Font family for plot titles (suptitles), distinct from the body font.
-    # Empty (default) uses the first installed of 'DejaVu Sans Condensed',
-    # 'Arial Narrow' / 'Arial Condensed', then plain 'DejaVu Sans', falling back
-    # to the regular sans-serif font. So titles use a condensed face where one is
-    # available. Set a family name (or list of names) to override.
+    # Empty (default) derives the title font from the body font (see `font`):
+    # a condensed/narrow variant when one is installed (e.g. 'Arial' ->
+    # 'Arial Narrow', 'DejaVu Sans' -> 'DejaVu Sans Condensed'), otherwise the
+    # body font itself. So titles match the body font, using a condensed face
+    # only where that exact variant exists. Set a family name (or list of
+    # names) to override.
     title_font: object = ''
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
