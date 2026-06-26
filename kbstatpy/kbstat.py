@@ -829,7 +829,8 @@ class Kbstat:
         for idx in range(n_pairs, nrows * ncols):
             axes[idx // ncols][idx % ncols].set_visible(False)
 
-        fig.suptitle(title, fontweight='bold', fontsize=11)
+        fig.suptitle(title, fontweight='bold', fontsize=11,
+                     fontfamily=self._title_font_family())
         plt.tight_layout()
         self._show_fig(fig)
         return fig
@@ -913,7 +914,8 @@ class Kbstat:
                       fontsize=fs, fontweight='bold')
 
         ax_t.set_ylim(-0.15, nr + 0.7)
-        ax_t.set_title(title, fontweight='bold', fontsize=13, pad=8)
+        ax_t.set_title(title, fontweight='bold', fontsize=13, pad=8,
+                       fontfamily=self._title_font_family())
         plt.tight_layout()
         self._show_fig(fig_t)
         return fig_t
