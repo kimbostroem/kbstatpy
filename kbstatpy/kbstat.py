@@ -1373,10 +1373,13 @@ class Kbstat:
             dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
             rng = np.random.default_rng(0)
             dot_xy = {}   # level -> (x_positions, y_values) for paired-line lookup
+            id_xy = {}    # level -> {subject id: (x_position, y_value)} for connecting lines
             for xi, level in enumerate(x_levels):
-                subset = panel_healthy[panel_healthy[x_var] == level][y_var].dropna()
+                sub_df = panel_healthy[panel_healthy[x_var] == level].dropna(subset=[y_var])
+                subset = sub_df[y_var]
                 if len(subset) == 0:
                     dot_xy[level] = (np.array([]), np.array([]))
+                    id_xy[level] = {}
                     continue
                 if use_bar:
                     bar_val = subset.mean()
@@ -1398,6 +1401,12 @@ class Kbstat:
                     ]
                     self._tooltip(ax, sc, tip_labels)
                     dot_xy[level] = (jx, subset.values)
+                    # record subject id -> (x, y) for identity-based connecting lines
+                    if id_var:
+                        id_xy[level] = {
+                            sid: (jxi, yi) for sid, jxi, yi
+                            in zip(sub_df[id_var].values, jx, subset.values)
+                        }
 
             # --- LAYER 2b: Outliers (red X markers, count text, or hidden) ---
             # Controlled by options.show_outliers: 'plot' (default), 'none', or
@@ -1428,27 +1437,22 @@ class Kbstat:
                     self._tooltip(ax, sc, tip_labels)
 
             # --- LAYER 3: Connecting lines for paired subjects ---
-            # Only drawn when each subject has exactly one observation per condition
-            # (true paired design). With multiple obs per subject the concept is ambiguous.
-            if id_var and len(x_levels) == 2:
-                counts = panel_healthy.groupby([id_var, x_var])[y_var].count()
-                is_paired = (counts == 1).all()
-                if is_paired:
-                    pivot = panel_healthy.pivot_table(index=id_var, columns=x_var, values=y_var, observed=True)
-                    if x_levels[0] in pivot.columns and x_levels[1] in pivot.columns:
-                        paired = pivot.dropna()
-                        lev0, lev1 = x_levels[0], x_levels[1]
-                        jx0, jy0 = dot_xy[lev0]
-                        jx1, jy1 = dot_xy[lev1]
-                        lookup0 = {round(float(y), 10): float(x) for x, y in zip(jx0, jy0)}
-                        lookup1 = {round(float(y), 10): float(x) for x, y in zip(jx1, jy1)}
-                        for _, row in paired.iterrows():
-                            y0, y1 = row[lev0], row[lev1]
-                            xa = lookup0.get(round(float(y0), 10))
-                            xb = lookup1.get(round(float(y1), 10))
-                            if xa is not None and xb is not None:
-                                ax.plot([xa, xb], [y0, y1],
-                                        color='black', alpha=0.4, linewidth=1.0, zorder=3)
+            # Drawn when the design is paired, i.e. at most one (healthy) observation per
+            # subject per level. Each subject is connected across adjacent levels by its
+            # identity (id_var), so the lines are correct for any number of levels and
+            # tolerate outlier removal: a removed point simply drops the segments touching
+            # it, while the subject's remaining points stay connected.
+            if id_var and not use_bar and len(x_levels) >= 2:
+                counts = panel_healthy.groupby([id_var, x_var], observed=True)[y_var].count()
+                if counts.empty or (counts <= 1).all():
+                    for li in range(len(x_levels) - 1):
+                        map_a = id_xy.get(x_levels[li], {})
+                        map_b = id_xy.get(x_levels[li + 1], {})
+                        for sid in map_a.keys() & map_b.keys():
+                            xa, ya = map_a[sid]
+                            xb, yb = map_b[sid]
+                            ax.plot([xa, xb], [ya, yb],
+                                    color='black', alpha=0.4, linewidth=1.0, zorder=3)
 
             # --- LAYER 4: EMM marker + 95 % CI bar ---
             # Prefer full interaction grid for multi-factor models (correct per-panel values)
