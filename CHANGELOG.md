@@ -1,5 +1,15 @@
 # Changes
 
+## [1.1.0] - 2026-06-29
+
+### Features
+
+- Connecting lines in the violin plots now span any number of factor levels (previously only two), tracing each subject's points across adjacent levels by identity.
+
+### Bugs
+
+- Connecting lines now tolerate outlier removal: a flagged point drops only the line segments touching it, rather than suppressing the lines for the whole panel. Pairing is now by subject id instead of by matching data values, which also fixes mis-connections when two subjects share a value.
+
 ## [1.0.0] - 2026-06-26
 
 ### Features
