@@ -1,5 +1,11 @@
 # Changes
 
+## [1.7.1] - 2026-06-30
+
+### Bugs
+
+- The diagnostics footer no longer lists the residual types used in each panel. With both a distribution and a structure residual named, the line could overflow the figure width. The residual types remain documented in the README, STATISTICAL_NOTES, and `Summary.txt`; the footer now shows only the formula and fit statistics.
+
 ## [1.7.0] - 2026-06-30
 
 ### Features

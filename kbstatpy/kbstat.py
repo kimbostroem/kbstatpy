@@ -2084,16 +2084,12 @@ class Kbstat:
                           [f'{_group_label(i)}, fitted={fitted[i]:.3f}, '
                            f'sqrt|resid|={sqrt_abs[i]:.3f}' for i in range(n_diag)])
 
-        # Footer row: formula + fit statistics
+        # Footer row: formula + fit statistics. The residual types used in the
+        # panels are documented in the README and STATISTICAL_NOTES (and in
+        # Summary.txt), so they are not repeated here to keep the footer compact.
         parts = [f'Formula: {self._build_formula()}']
         if self.AIC is not None:
             parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
-        _dist = getattr(self, '_resid_label', 'residuals')
-        _struct = getattr(self, '_struct_resid_label', None)
-        if _struct and _struct != _dist:
-            parts.append(f'distribution panels: {_dist}; structure panels: {_struct}')
-        else:
-            parts.append(_dist)
         footer = '     |     '.join(parts)
         fig.subplots_adjust(bottom=0.08)
         fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
