@@ -1,5 +1,11 @@
 # Changes
 
+## [1.3.1] - 2026-06-30
+
+### Changes
+
+- The residual histogram in the diagnostics plot now overlays a Normal(mean, sd) reference curve instead of a KDE. A KDE merely traced the bars and could not reveal non-normality; the fixed Gaussian lets skew and heavy tails show as gaps between the histogram and the dashed curve. The panel's y-axis is now density.
+
 ## [1.3.0] - 2026-06-30
 
 ### Features
