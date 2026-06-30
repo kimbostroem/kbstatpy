@@ -1,5 +1,11 @@
 # Changes
 
+## [1.1.2] - 2026-06-30
+
+### Bugs
+
+- Silenced the repeated "Blended transforms not yet supported" warning emitted by mpld3 while writing the interactive HTML plots. It is an unactionable mpld3 limitation (its exporter cannot represent seaborn's blended-transform violins); the HTML still renders, only its zoom is approximate.
+
 ## [1.1.1] - 2026-06-30
 
 ### Bugs
