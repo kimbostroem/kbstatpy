@@ -1,5 +1,11 @@
 # Changes
 
+## [1.1.1] - 2026-06-30
+
+### Bugs
+
+- Data-plot suptitle no longer overlaps the top row of panels on tall faceted figures (e.g. one row per subject). It is anchored a constant physical distance above the panels — matching the diagnostics plot — instead of at a fixed figure fraction.
+
 ## [1.1.0] - 2026-06-29
 
 ### Features
