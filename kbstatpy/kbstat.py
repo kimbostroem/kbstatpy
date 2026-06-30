@@ -1808,7 +1808,20 @@ class Kbstat:
             self.model.residuals, self._resid_label = self._diagnostic_residuals(r_obj)
         else:
             raise RuntimeError("Unable to find R model, rerun the fit")
-            
+
+        # Structural panels (residuals-vs-fitted, lagged, scale-location) use
+        # deviance residuals rather than the DHARMa quantile residuals: deviance
+        # residuals have no ±Inf boundary capping (so no edge-line artifacts in the
+        # scatter panels) and are the right residual for checking structure,
+        # autocorrelation, and homoscedasticity. The distribution panels (histogram,
+        # Q-Q) keep the DHARMa quantile residuals for an honest normality check.
+        try:
+            struct_resid = np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float)
+            self._struct_resid_label = 'deviance residuals'
+        except Exception:
+            struct_resid = np.asarray(self.model.residuals, dtype=float)
+            self._struct_resid_label = self._resid_label
+
         if r_obj is not None:
             self.model.fits = np.array(ro.r('fitted')(r_obj))
         else:
@@ -1886,24 +1899,24 @@ class Kbstat:
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.fits, y=self.model.residuals, ax=axes[2], s=s_diag)
+        sns.scatterplot(x=self.model.fits, y=struct_resid, ax=axes[2], s=s_diag)
         axes[2].axhline(0, color='red', linestyle='--')
         axes[2].set_title("Residuals vs Fitted")
         axes[2].set_xlabel("Fitted Values", labelpad=4)
-        axes[2].set_ylabel("Residuals", labelpad=4)
+        axes[2].set_ylabel("Deviance residuals", labelpad=4)
         self._tooltip(axes[2], axes[2].collections[-1],
-                      [f'{_group_label(i)}, fitted={self.model.fits[i]:.3f}, resid={self.model.residuals[i]:.3f}'
+                      [f'{_group_label(i)}, fitted={self.model.fits[i]:.3f}, resid={struct_resid[i]:.3f}'
                        for i in range(n_diag)])
 
         # ---------------------------------------------------------
         # Plot 4: Lagged Residuals
         # ---------------------------------------------------------
-        sns.scatterplot(x=self.model.residuals[:-1], y=self.model.residuals[1:], ax=axes[3], s=s_diag)
+        sns.scatterplot(x=struct_resid[:-1], y=struct_resid[1:], ax=axes[3], s=s_diag)
         axes[3].set_title("Lagged Residuals")
         axes[3].set_xlabel("Residual (i)", labelpad=4)
         axes[3].set_ylabel("Residual (i+1)", labelpad=4)
         self._tooltip(axes[3], axes[3].collections[-1],
-                      [f'{_group_label(i)}, r(i)={self.model.residuals[i]:.3f}, r(i+1)={self.model.residuals[i+1]:.3f}'
+                      [f'{_group_label(i)}, r(i)={struct_resid[i]:.3f}, r(i+1)={struct_resid[i+1]:.3f}'
                        for i in range(n_diag - 1)])
 
         # ---------------------------------------------------------
@@ -1965,7 +1978,7 @@ class Kbstat:
             # Scale-Location fallback (no random effect): sqrt(|residual|) vs
             # fitted. A flat trend confirms homoscedasticity.
             fitted = np.asarray(self.model.fits, dtype=float)
-            sqrt_abs = np.sqrt(np.abs(np.asarray(self.model.residuals, dtype=float)))
+            sqrt_abs = np.sqrt(np.abs(struct_resid))
             sns.scatterplot(x=fitted, y=sqrt_abs, ax=axes[5], s=s_diag)
             order = np.argsort(fitted)
             try:  # lowess trend if available, else a linear fit
@@ -1988,7 +2001,12 @@ class Kbstat:
         parts = [f'Formula: {self._build_formula()}']
         if self.AIC is not None:
             parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
-        parts.append(getattr(self, '_resid_label', 'residuals'))
+        _dist = getattr(self, '_resid_label', 'residuals')
+        _struct = getattr(self, '_struct_resid_label', None)
+        if _struct and _struct != _dist:
+            parts.append(f'distribution panels: {_dist}; structure panels: {_struct}')
+        else:
+            parts.append(_dist)
         footer = '     |     '.join(parts)
         fig.subplots_adjust(bottom=0.08)
         fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
@@ -2406,15 +2424,19 @@ class Kbstat:
 
         # --- Diagnostics note ---
         _resid = getattr(self, '_resid_label', None)
+        _struct = getattr(self, '_struct_resid_label', None)
         if _resid:
             lines += ['DIAGNOSTICS', '-----------',
-                      f'  The Diagnostics plot uses {_resid}.']
+                      f'  Distribution panels (histogram, Q-Q): {_resid}.']
+            if _struct and _struct != _resid:
+                lines.append(f'  Structure panels (residuals-vs-fitted, lagged, scale-location): {_struct}.')
             if _resid.startswith('DHARMa'):
                 lines += [
                     '  DHARMa simulation-based quantile residuals are ~N(0, 1) under a',
                     '  correctly specified model for any distribution family, so the residual',
                     '  histogram (with its Normal reference curve) and the Q-Q plot are valid',
-                    '  normality checks even for non-Gaussian GLMMs.',
+                    '  normality checks even for non-Gaussian GLMMs. The structure panels use',
+                    '  deviance residuals, which avoid the quantile residuals\' boundary capping.',
                 ]
             else:
                 lines += [
