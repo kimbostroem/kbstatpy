@@ -1,5 +1,15 @@
 # Changes
 
+## [1.3.0] - 2026-06-30
+
+### Features
+
+- New option `max_iterations` (default 10000) setting the glmmTMB optimizer's iteration/evaluation cap for non-Gaussian GLMMs.
+
+### Changes
+
+- Raised the default glmmTMB optimizer iteration limit (`max_iterations=10000`). Large fixed-effect models — e.g. a `factor * factor` interaction with many levels — that previously stopped at the optimizer's default cap with a benign "Model convergence problem; iteration limit reached" warning now converge cleanly (code 0). Verified the estimates are unchanged (the default fit was already at the optimum).
+
 ## [1.2.0] - 2026-06-30
 
 ### Features
