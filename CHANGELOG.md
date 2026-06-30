@@ -1,5 +1,11 @@
 # Changes
 
+## [1.4.1] - 2026-06-30
+
+### Features
+
+- New demo `demo_15_posthoc_compare` (script + notebook) showcasing `options.posthoc_compare`: it reuses the two-way ToothGrowth model from Demo 3 and compares both factors in one run, each plotted as if it were the first x-variable (its own `DataPlots_<var>` and `Posthoc_<var>`). Demo 3 now cross-references it.
+
 ## [1.4.0] - 2026-06-30
 
 ### Features
