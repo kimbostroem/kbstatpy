@@ -254,7 +254,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 
 ## Demo scripts
 
-Fourteen worked examples are included in the `demos/` folder; each demo's script
+Fifteen worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -279,6 +279,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_12_multi_y.py` | `iris.csv` | Multiple dependent variables + pairwise correlation analysis; `constraints` excludes setosa (categorical filter) |
 | `demo_13_family_correction.py` | `mtcars.csv` | Family-wise correction across multiple dependent variables (`y_correction`) — six outcomes vs transmission, FDR-adjusted as one family per term |
 | `demo_14_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
+| `demo_15_posthoc_compare.py` | `toothgrowth.csv` | Compare several factors with `posthoc_compare` — one comparison plot + post-hoc table per factor, each plotted as if it were first |
 
 **Equivalence to classical tests** (demos 1–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -296,11 +297,12 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 10** — data imbalance (unequal cell sizes) can arise by design, through data loss, or through outlier removal; all three cases invalidate classical ANOVA, while GLM fits by maximum likelihood on individual observations and handles any degree of imbalance without modification
 - **Demo 11** — binary dependent variables cannot be modelled with gaussian ANOVA; binomial GLMM with logit link models the probability directly and correctly
 
-**Analytical extensions** (demos 12–14) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Analytical extensions** (demos 12–15) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 12** — multiple dependent variables in one call; within-model post-hoc is Holm-corrected, and correction across the dependent variables is available via `y_correction` (Demo 13)
 - **Demo 13** — family-wise correction across multiple dependent variables (`y_correction`), one family per model term
 - **Demo 14** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
+- **Demo 15** — `posthoc_compare` runs the pairwise comparisons (and brackets) on any chosen factor(s) instead of just the first, each plotted as if it were the first variable
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:
