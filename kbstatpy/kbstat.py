@@ -1822,13 +1822,21 @@ class Kbstat:
             return ', '.join(parts)
 
         # ---------------------------------------------------------
-        # Plot 1: Histogram of Residuals
+        # Plot 1: Histogram of Residuals with a Normal reference curve
         # ---------------------------------------------------------
-        sns.histplot(self.model.residuals, kde=True, ax=axes[0])
+        # Overlay N(mean, sd) of the residuals (not a KDE, which would merely
+        # trace the bars) so departures from normality — skew, heavy tails — show
+        # as gaps between the histogram and the dashed reference curve.
+        resid = np.asarray(self.model.residuals, dtype=float)
+        resid = resid[np.isfinite(resid)]
+        sns.histplot(resid, stat='density', ax=axes[0])
+        mu, sd = float(np.mean(resid)), float(np.std(resid, ddof=1))
+        if sd > 0:
+            xs = np.linspace(float(resid.min()), float(resid.max()), 200)
+            axes[0].plot(xs, stats.norm.pdf(xs, mu, sd), color='red', linestyle='--')
         axes[0].set_title("Histogram of Residuals")
         axes[0].set_xlabel("Residuals", labelpad=4)
-        axes[0].set_ylabel("Count", labelpad=4)
-        axes[0].get_lines()[0].set(color='red', linestyle='--')
+        axes[0].set_ylabel("Density", labelpad=4)
 
         # ---------------------------------------------------------
         # Plot 2: Normal Q-Q Plot
