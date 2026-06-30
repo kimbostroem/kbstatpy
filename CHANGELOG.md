@@ -1,5 +1,15 @@
 # Changes
 
+## [1.4.0] - 2026-06-30
+
+### Features
+
+- Diagnostic plots now use DHARMa simulation-based quantile residuals (transformed to the normal scale) instead of Pearson residuals. Under a correctly specified model these are ~N(0, 1) for any family (gaussian, gamma, binomial, Poisson, ...), so the residual histogram (with its Normal reference curve) and the Q-Q plot are honest normality checks even for non-Gaussian GLMMs. Falls back to deviance residuals (then Pearson) if DHARMa is unavailable or the simulation fails; the residual type is shown in the diagnostics footer.
+
+### Dependencies
+
+- Added the R package DHARMa (installed by install.sh).
+
 ## [1.3.1] - 2026-06-30
 
 ### Changes
