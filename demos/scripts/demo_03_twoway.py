@@ -13,6 +13,9 @@ Both factors enter as crossed between-subject effects:
 With effects coding, Type III sums of squares, and the balanced design, the
 result is numerically identical to a classical two-way factorial ANOVA, including
 the interaction term.
+
+To compare both factors from this same model — not just the first — see Demo 15,
+which uses `options.posthoc_compare`.
 """
 
 import os
