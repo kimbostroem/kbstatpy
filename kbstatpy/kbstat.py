@@ -1904,7 +1904,14 @@ class Kbstat:
             fig.set_dpi(100)
             fig.tight_layout()
             try:
-                mpld3.save_html(fig, path)
+                # mpld3's exporter cannot represent matplotlib blended transforms
+                # (seaborn's violins use them) and warns once per artist. The HTML
+                # still renders; only its zoom behaviour is approximate. Silence the
+                # known, unactionable warning so it doesn't flood the console.
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        'ignore', message='Blended transforms not yet supported')
+                    mpld3.save_html(fig, path)
                 print(f'Saved interactive HTML to {path}')
             finally:
                 fig.set_size_inches(orig_size)
