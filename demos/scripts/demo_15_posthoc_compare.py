@@ -16,6 +16,8 @@ juice vs ascorbic acid) and `dose` (low/medium/high). Comparisons are per-cell
 (conditional): each factor's levels are compared within every cell of the other
 factor, so each facet panel gets its own brackets — e.g. medium-vs-high dose is
 highly significant under vitamin C but only marginally so under orange juice.
+Each `Posthoc_<var>.xlsx` also carries a marginal block (conditioning column set
+to `any`) with the comparison averaged over the other factor — in the table only.
 
 Other settings: `posthoc_compare = 'auto'` (the default) compares just the first
 factor (`supp` here); `posthoc_compare = 'none'` (or `''`) switches comparisons
