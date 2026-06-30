@@ -64,6 +64,8 @@ class Kbstat:
         self.anova_table: pd.DataFrame = None
         self.posthoc_table: pd.DataFrame = None
         self.contrasts_table: pd.DataFrame = None
+        self.contrasts_by_var: dict = {}   # {factor: contrasts table} per posthoc_compare variable
+        self.posthoc_by_var: dict = {}      # {factor: posthoc table} per posthoc_compare variable
         self.statistics_table: pd.DataFrame = None
         self.AIC    = None
         self.BIC    = None
@@ -251,7 +253,7 @@ class Kbstat:
                 y=worker.options.y,
                 formula=worker._build_formula(),
                 anova=worker.anova_table,
-                posthoc=worker.posthoc_table,
+                posthoc=(worker.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=worker.statistics_table,
                 summary=worker._summary_text() if worker.model is not None else '',
                 data=worker.data,
@@ -319,7 +321,7 @@ class Kbstat:
                 y=self.options.y if isinstance(self.options.y, str) else '',
                 formula=self._build_formula(),
                 anova=self.anova_table,
-                posthoc=self.posthoc_table,
+                posthoc=(self.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=self.statistics_table,
                 summary=self._summary_text(),
                 data=self.data,
@@ -562,34 +564,13 @@ class Kbstat:
             p_adjust=self.options.posthoc_correction,
         )
 
-        # Pairwise contrasts and EMM table — use R directly so factor labels are
-        # the actual level values, not integer indices (pymer4 returns the latter).
+        # Use R directly so factor labels are the actual level values, not the
+        # integer indices pymer4 returns.
         import rpy2.robjects.pandas2ri as p2ri
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
-        emm_df = None
-        ct_adj = None
-        ct_raw = None
-        if r_obj is not None:
-            try:
-                # Link-scale emmeans: used for pairs() so contrast strings and t/z ratios are correct
-                _emm_link = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'))
-                ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
-                    ro.r('pairs')(_emm_link, adjust=self.options.posthoc_correction)))
-                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
-                    ro.r('pairs')(_emm_link, adjust='none')))
-                # Response-scale emmeans: used for EMM/CI display values in table and plot
-                _emm_resp = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{factors[0]}'), type='response')
-                _emm_df_r = ro.r('as.data.frame')(_emm_resp)
-                ro.r.assign('._emm_df_tmp', _emm_df_r)
-                ro.r(f'._emm_df_tmp[["{factors[0]}"]] <- as.character(._emm_df_tmp[["{factors[0]}"]])')
-                emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
-            except Exception:
-                pass
 
-        self.contrasts_table = ct_adj  # used for significance brackets in plot_data
-
-        # For multi-factor models, fetch the full interaction EMM grid so that
-        # plot_data() can place the CI bar at the correct per-panel value.
+        # Full interaction EMM grid (independent of which factor is compared) so
+        # plot_data() can place each panel's CI bar at the correct per-cell value.
         self._emm_df_full = None
         if r_obj is not None and len(factors) > 1:
             try:
@@ -603,86 +584,151 @@ class Kbstat:
             except Exception:
                 pass
 
-        # Build the rich posthoc table
-        if emm_df is not None and ct_adj is not None and ct_raw is not None and factors[0] in emm_df.columns:
-            factor_col = factors[0]
+        # Pairwise comparisons for each factor named by options.posthoc_compare,
+        # each marginal (averaged over the other factors). 'none'/'' -> none.
+        compare_vars = self._compare_vars()
+        self.contrasts_by_var = {}
+        self.posthoc_by_var = {}
+        primary_emm = None
+        for var in compare_vars:
+            if r_obj is None:
+                break
+            ct_adj, ph_df, var_emm = self._pairwise_for(r_obj, var)
+            if ct_adj is not None:
+                self.contrasts_by_var[var] = ct_adj
+            if ph_df is not None:
+                self.posthoc_by_var[var] = ph_df
+            if primary_emm is None:
+                primary_emm = var_emm
 
-            def _parse_level(part, levels):
-                """Match a contrast part like 'group1' to a level value."""
-                for lev in levels:
-                    ls = str(lev)
-                    if part == ls or part == f'{factor_col}{ls}' or part == f'{factor_col} {ls}':
-                        return lev
-                return part  # fallback: return raw string
+        # Primary tables (first compared variable, or None when comparisons are
+        # off) — kept for the summary text and backward compatibility.
+        primary = compare_vars[0] if compare_vars else None
+        self.contrasts_table = self.contrasts_by_var.get(primary)
+        self.posthoc_table = self.posthoc_by_var.get(primary)
 
-            inv = self._inverse_fn  # None if no transform
-
-            def _bt(val):
-                """Back-transform a scalar value if a transform is active."""
-                return float(inv(np.array([val]))[0]) if inv is not None else float(val)
-
-            # emmeans column names differ by model family
-            emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
-                            if c in emm_df.columns), emm_df.columns[1])
-            lo_col  = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL')
-                            if c in emm_df.columns), None)
-            hi_col  = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL')
-                            if c in emm_df.columns), None)
-
-            def _emm_ci_str(lev):
-                row = emm_df[emm_df[factor_col] == lev]
-                if len(row) == 0:
-                    return ''
-                r = row.iloc[0]
-                emm = _bt(r[emm_col])
-                lo  = _bt(r[lo_col])  if lo_col else np.nan
-                hi  = _bt(r[hi_col])  if hi_col else np.nan
-                if np.isnan(lo) or np.isnan(hi):
-                    return f"{emm:.3f}"
-                return f"{emm:.3f} ({lo:.3f}, {hi:.3f})"
-
-            def _emm_val(lev):
-                """Return back-transformed EMM for a level."""
-                row = emm_df[emm_df[factor_col] == lev]
-                if len(row) == 0:
-                    return np.nan
-                return _bt(row.iloc[0][emm_col])
-
-            levels = emm_df[factor_col].tolist()
-            rows = []
-            for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
-                parts = [p.strip() for p in str(cadj['contrast']).split(' - ')]
-                lev1 = _parse_level(parts[0], levels) if len(parts) > 0 else ''
-                lev2 = _parse_level(parts[1], levels) if len(parts) > 1 else ''
-                ratio_col = 't.ratio' if 't.ratio' in cadj.index else 'z.ratio'
-                t_val = float(cadj[ratio_col])
-                df_val = float(cadj['df']) if 'df' in cadj.index else float('inf')
-                smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
-                p_raw  = float(craw['p.value'])
-                p_corr = float(cadj['p.value'])
-                # Difference computed in original (back-transformed) space
-                diff = _emm_val(lev1) - _emm_val(lev2)
-                rows.append({
-                    f'{factor_col}_1':  str(lev1),
-                    f'{factor_col}_2':  str(lev2),
-                    'emm_1':            _emm_ci_str(lev1),
-                    'emm_2':            _emm_ci_str(lev2),
-                    'diff':             diff,
-                    't':                t_val,
-                    'df':               df_val,
-                    'p':                p_raw,
-                    'pCorr':            p_corr,
-                    'SMD':              smd,
-                    'effectSize':       _d_label(smd),
-                    'significance':     _sig_stars(p_corr),
-                })
-            self.posthoc_table = pd.DataFrame(rows)
-        else:
-            self.posthoc_table = emm_df if emm_df is not None else pd.DataFrame()  # fallback to marginal means
-
-        self._emm_df = emm_df  # stored for use in plot_data()
+        # EMM table for the single-factor dot fallback (plot_data prefers the full
+        # grid; this covers single-factor models and the comparisons-off case).
+        if primary_emm is None and r_obj is not None:
+            _, _, primary_emm = self._pairwise_for(r_obj, factors[0])
+        self._emm_df = primary_emm
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
+
+    def _compare_vars(self):
+        """Resolve options.posthoc_compare into the list of factors to compare.
+
+        '' / 'none' -> [] (comparisons off); 'auto' -> [first factor]; otherwise
+        the listed factors. Raises if a factor is named with a reserved word
+        ('auto'/'none') or if a listed name is not a fixed-effect factor.
+        """
+        factors = list(self.options.x or [])
+        clash = [f for f in factors if str(f).strip().lower() in ('auto', 'none')]
+        if clash:
+            raise ValueError(
+                f"Fixed-effect factor(s) {clash} use a name reserved by "
+                f"options.posthoc_compare ('auto'/'none'). Please rename them.")
+        spec = str(self.options.posthoc_compare or '').strip()
+        low = spec.lower()
+        if low in ('', 'none'):
+            return []
+        if low == 'auto':
+            return factors[:1]
+        requested = [v.strip() for v in spec.split(',') if v.strip()]
+        bad = [v for v in requested if v not in factors]
+        if bad:
+            raise ValueError(
+                f"options.posthoc_compare lists {bad}, which are not fixed-effect "
+                f"factors (x = {factors}).")
+        return requested
+
+    def _pairwise_for(self, r_obj, var):
+        """Marginal pairwise contrasts + rich posthoc table for one factor ``var``
+        (averaged over the other factors). Returns (contrasts_adj, posthoc_df,
+        emm_df); any element may be None on failure."""
+        import rpy2.robjects.pandas2ri as p2ri
+        ct_adj = ct_raw = emm_df = None
+        try:
+            # Link-scale emmeans: pairs() contrast strings and t/z ratios are correct here
+            _emm_link = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{var}'))
+            ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
+                ro.r('pairs')(_emm_link, adjust=self.options.posthoc_correction)))
+            ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
+                ro.r('pairs')(_emm_link, adjust='none')))
+            # Response-scale emmeans: EMM/CI display values for the table and plot
+            _emm_resp = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{var}'), type='response')
+            _emm_df_r = ro.r('as.data.frame')(_emm_resp)
+            ro.r.assign('._emm_df_tmp', _emm_df_r)
+            ro.r(f'._emm_df_tmp[["{var}"]] <- as.character(._emm_df_tmp[["{var}"]])')
+            emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
+        except Exception:
+            pass
+        return ct_adj, self._build_posthoc_table(var, emm_df, ct_adj, ct_raw), emm_df
+
+    def _build_posthoc_table(self, factor_col, emm_df, ct_adj, ct_raw):
+        """Build the rich pairwise posthoc DataFrame for factor ``factor_col``."""
+        if not (emm_df is not None and ct_adj is not None and ct_raw is not None
+                and factor_col in emm_df.columns):
+            return emm_df if emm_df is not None else pd.DataFrame()
+
+        def _parse_level(part, levels):
+            for lev in levels:
+                ls = str(lev)
+                if part == ls or part == f'{factor_col}{ls}' or part == f'{factor_col} {ls}':
+                    return lev
+            return part
+
+        inv = self._inverse_fn  # None if no transform
+
+        def _bt(val):
+            return float(inv(np.array([val]))[0]) if inv is not None else float(val)
+
+        emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
+                        if c in emm_df.columns), emm_df.columns[1])
+        lo_col = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL') if c in emm_df.columns), None)
+        hi_col = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL') if c in emm_df.columns), None)
+
+        def _emm_ci_str(lev):
+            row = emm_df[emm_df[factor_col] == lev]
+            if len(row) == 0:
+                return ''
+            r = row.iloc[0]
+            emm = _bt(r[emm_col])
+            lo = _bt(r[lo_col]) if lo_col else np.nan
+            hi = _bt(r[hi_col]) if hi_col else np.nan
+            if np.isnan(lo) or np.isnan(hi):
+                return f"{emm:.3f}"
+            return f"{emm:.3f} ({lo:.3f}, {hi:.3f})"
+
+        def _emm_val(lev):
+            row = emm_df[emm_df[factor_col] == lev]
+            if len(row) == 0:
+                return np.nan
+            return _bt(row.iloc[0][emm_col])
+
+        levels = emm_df[factor_col].tolist()
+        rows = []
+        for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
+            parts = [p.strip() for p in str(cadj['contrast']).split(' - ')]
+            lev1 = _parse_level(parts[0], levels) if len(parts) > 0 else ''
+            lev2 = _parse_level(parts[1], levels) if len(parts) > 1 else ''
+            ratio_col = 't.ratio' if 't.ratio' in cadj.index else 'z.ratio'
+            t_val = float(cadj[ratio_col])
+            df_val = float(cadj['df']) if 'df' in cadj.index else float('inf')
+            smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
+            p_raw = float(craw['p.value'])
+            p_corr = float(cadj['p.value'])
+            diff = _emm_val(lev1) - _emm_val(lev2)
+            rows.append({
+                f'{factor_col}_1': str(lev1),
+                f'{factor_col}_2': str(lev2),
+                'emm_1': _emm_ci_str(lev1),
+                'emm_2': _emm_ci_str(lev2),
+                'diff': diff, 't': t_val, 'df': df_val,
+                'p': p_raw, 'pCorr': p_corr, 'SMD': smd,
+                'effectSize': _d_label(smd), 'significance': _sig_stars(p_corr),
+            })
+        return pd.DataFrame(rows)
 
     def correlate(self):
         """Compute pairwise Pearson and partial correlations, VIF, and scatter grids.
@@ -963,8 +1009,15 @@ class Kbstat:
                 self._disp_vals(anova_df, 'Term').to_excel(os.path.join(d, 'Anova.xlsx'), index=False)
                 print(f'Saved Anova.xlsx to {d}')
             if res.posthoc is not None:
-                self._write_posthoc_xlsx(res.posthoc, os.path.join(d, 'Posthoc.xlsx'))
-                print(f'Saved Posthoc.xlsx to {d}')
+                # posthoc is a {variable: table} dict (one per posthoc_compare
+                # variable); write each as Posthoc_<variable>.xlsx.
+                if isinstance(res.posthoc, dict):
+                    for var, ph in res.posthoc.items():
+                        self._write_posthoc_xlsx(ph, os.path.join(d, f'Posthoc_{var}.xlsx'))
+                        print(f'Saved Posthoc_{var}.xlsx to {d}')
+                else:
+                    self._write_posthoc_xlsx(res.posthoc, os.path.join(d, 'Posthoc.xlsx'))
+                    print(f'Saved Posthoc.xlsx to {d}')
             if res.statistics is not None:
                 self._disp_cols(res.statistics).to_excel(os.path.join(d, 'Statistics.xlsx'), index=False)
                 print(f'Saved Statistics.xlsx to {d}')
@@ -1196,39 +1249,67 @@ class Kbstat:
         if not self.options.x:
             print("No independent variables to plot.")
             return
-        if self.data is not None:
-            col = self.data[self.options.x[0]]
-            underlying = col.cat.categories if hasattr(col, 'cat') else col
-            n_unique = len(underlying.unique()) if hasattr(underlying, 'unique') else len(set(underlying))
-            if pd.api.types.is_numeric_dtype(underlying) and n_unique > 15:
-                print(f"Skipping data plot: '{self.options.x[0]}' is continuous ({n_unique} unique values) — violin plots require categorical x variables.")
-                return
-
         # Use raw (untransformed) data for plotting so the y-axis is in original units
         base = self._data_raw if self._data_raw is not None else self.data
         # Ensure the outlier column exists (mirror from self.data if needed)
-        if 'is_outlier' not in base.columns:
+        if base is not None and 'is_outlier' not in base.columns:
             base = base.copy()
             base['is_outlier'] = (self.data['is_outlier'].values
                                   if 'is_outlier' in self.data.columns else False)
 
-        # A data plot shows at most three factors (x-axis, column facets, row
-        # facets). When a 4th (or further) fixed-effect factor is present, produce
-        # one figure per level-combination of the extra factor(s), keyed by a
-        # suffix of those level names, so save() writes separate plot files.
         x_all = list(self.options.x)
-        if len(x_all) <= 3:
-            self.fig_data = self._build_data_figure(base, x_all, {})
+
+        def _is_continuous(v):
+            if self.data is None:
+                return False
+            col = self.data[v]
+            underlying = col.cat.categories if hasattr(col, 'cat') else col
+            n_unique = len(underlying.unique()) if hasattr(underlying, 'unique') else len(set(underlying))
+            return pd.api.types.is_numeric_dtype(underlying) and n_unique > 15
+
+        compare_vars = self._compare_vars()
+
+        # Comparisons off: a single plain plot (first factor on the x-axis, no
+        # significance brackets), saved as DataPlots.* with no variable suffix.
+        if not compare_vars:
+            if _is_continuous(x_all[0]):
+                print(f"Skipping data plot: '{x_all[0]}' is continuous — violin plots need a categorical x variable.")
+                self.fig_data = None
+                return
+            self.fig_data = self._build_data_figure(base, x_all[:3], {}, contrasts=None)
             return
+
+        # One comparison plot per requested variable, each with that variable on
+        # the x-axis (as if it were first) and the others as facet panels. Files
+        # are keyed by the original variable name -> DataPlots_<var>.*.
+        figs = {}
+        for var in compare_vars:
+            if _is_continuous(var):
+                print(f"Skipping posthoc_compare='{var}': continuous variable, no level comparison.")
+                continue
+            x_ordered = [var] + [v for v in x_all if v != var]
+            figs.update(self._compare_figures(base, var, x_ordered,
+                                               self.contrasts_by_var.get(var)))
+        self.fig_data = figs if figs else None
+
+    def _compare_figures(self, base, var, x_ordered, contrasts):
+        """Build the data figure(s) for one comparison variable, keyed by the
+        original variable name (plus a level suffix when a 4th+ factor splits it).
+
+        A data plot shows at most three factors (x-axis, column facets, row
+        facets); a further factor produces one figure per level-combination.
+        """
+        if len(x_ordered) <= 3:
+            return {var: self._build_data_figure(base, x_ordered, {}, contrasts=contrasts)}
         import itertools
-        split_vars = x_all[3:]
-        base_x = x_all[:3]
+        split_vars = x_ordered[3:]
+        base_x = x_ordered[:3]
 
         def _levels(df, v):
             c = df[v]
             return c.cat.categories.tolist() if hasattr(c, 'cat') else sorted(c.dropna().unique())
 
-        figs = {}
+        out = {}
         for combo in itertools.product(*[_levels(base, v) for v in split_vars]):
             sub = base
             for v, lev in zip(split_vars, combo):
@@ -1236,10 +1317,11 @@ class Kbstat:
             if sub.empty:
                 continue
             suffix = '_'.join(str(lev) for lev in combo)
-            figs[suffix] = self._build_data_figure(sub, base_x, dict(zip(split_vars, combo)))
-        self.fig_data = figs
+            out[f'{var}_{suffix}'] = self._build_data_figure(
+                sub, base_x, dict(zip(split_vars, combo)), contrasts=contrasts)
+        return out
 
-    def _build_data_figure(self, plot_data, x_list, emm_extra):
+    def _build_data_figure(self, plot_data, x_list, emm_extra, contrasts=None):
         """Build one data-plot figure from ``plot_data`` using up to three factors
         in ``x_list`` (x-axis, column facets, row facets). ``emm_extra`` maps any
         further factors held fixed for this figure to their level, used to pick the
@@ -1579,8 +1661,8 @@ class Kbstat:
             y_pad = y_range * 0.08
             ref_ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
 
-        if self.contrasts_table is not None:
-            ct = self.contrasts_table
+        if contrasts is not None:
+            ct = contrasts
             if 'p.value' in ct.columns:
                 bracket_step = y_range * 0.07
 

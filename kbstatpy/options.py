@@ -113,6 +113,16 @@ class KbstatOptions:
     # Post-hoc settings
     posthoc_method: str = 'emm'
     posthoc_correction: str = 'holm'
+    # Which fixed-effect factor(s) to run pairwise level comparisons on. Each
+    # listed factor is plotted as if it were the first x-variable — its levels on
+    # the x-axis, the others as facet panels — with significance brackets between
+    # its violins. Comma-separated factor names; '' or 'none' turns comparisons
+    # off (violin plots only, no brackets); 'auto' (default) compares the first
+    # x-variable, reproducing the previous behaviour. Output files are suffixed
+    # with the (original) variable name, e.g. DataPlots_condition.* and
+    # Posthoc_condition.xlsx. 'auto' and 'none' are reserved — a factor may not be
+    # named either.
+    posthoc_compare: str = 'auto'
 
     # Multiple-comparison correction applied ACROSS the dependent variables of a
     # multi-y run (one family per model term). Distinct from posthoc_correction,
