@@ -1,5 +1,11 @@
 # Changes
 
+## [1.4.2] - 2026-06-30
+
+### Bugs
+
+- Removed edge-line / stacking artifacts from the diagnostic scatter panels. The structure panels (residuals-vs-fitted, lagged residuals, scale-location) now use deviance residuals instead of DHARMa quantile residuals: the quantile residuals' ±Inf boundary capping (observations beyond every simulated draw, pinned to ±7) lined up into a frame along the panel edges. The distribution panels (histogram, Q-Q) keep the DHARMa quantile residuals for the normality check. Both residual types are noted in the diagnostics footer and `Summary.txt`.
+
 ## [1.4.1] - 2026-06-30
 
 ### Features
