@@ -123,12 +123,15 @@ class KbstatOptions:
     # Which fixed-effect factor(s) to run pairwise level comparisons on. Each
     # listed factor is plotted as if it were the first x-variable — its levels on
     # the x-axis, the others as facet panels — with significance brackets between
-    # its violins. Comma-separated factor names; '' or 'none' turns comparisons
+    # its violins. Comparisons are CONDITIONAL (per cell): a factor's levels are
+    # compared within each combination of the other factors, so every facet panel
+    # gets its own brackets (and its own block of rows in Posthoc_<var>.xlsx, with
+    # the conditioning factors as leading columns). Per-cell p-values are corrected
+    # within the cell. Comma-separated factor names; '' or 'none' turns comparisons
     # off (violin plots only, no brackets); 'auto' (default) compares the first
-    # x-variable, reproducing the previous behaviour. Output files are suffixed
-    # with the (original) variable name, e.g. DataPlots_condition.* and
-    # Posthoc_condition.xlsx. 'auto' and 'none' are reserved — a factor may not be
-    # named either.
+    # x-variable. Output files are suffixed with the (original) variable name, e.g.
+    # DataPlots_condition.* and Posthoc_condition.xlsx. 'auto' and 'none' are
+    # reserved — a factor may not be named either.
     posthoc_compare: str = 'auto'
 
     # Multiple-comparison correction applied ACROSS the dependent variables of a

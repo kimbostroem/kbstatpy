@@ -586,7 +586,8 @@ class Kbstat:
                 pass
 
         # Pairwise comparisons for each factor named by options.posthoc_compare,
-        # each marginal (averaged over the other factors). 'none'/'' -> none.
+        # conditional: each factor's levels are compared within every cell of the
+        # other factors (i.e. per panel), not marginally. 'none'/'' -> none.
         compare_vars = self._compare_vars()
         self.contrasts_by_var = {}
         self.posthoc_by_var = {}
@@ -594,7 +595,8 @@ class Kbstat:
         for var in compare_vars:
             if r_obj is None:
                 break
-            ct_adj, ph_df, var_emm = self._pairwise_for(r_obj, var)
+            by_factors = [f for f in factors if f != var]
+            ct_adj, ph_df, var_emm = self._pairwise_for(r_obj, var, by_factors)
             if ct_adj is not None:
                 self.contrasts_by_var[var] = ct_adj
             if ph_df is not None:
@@ -611,7 +613,7 @@ class Kbstat:
         # EMM table for the single-factor dot fallback (plot_data prefers the full
         # grid; this covers single-factor models and the comparisons-off case).
         if primary_emm is None and r_obj is not None:
-            _, _, primary_emm = self._pairwise_for(r_obj, factors[0])
+            _, _, primary_emm = self._pairwise_for(r_obj, factors[0], [])
         self._emm_df = primary_emm
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
@@ -643,31 +645,67 @@ class Kbstat:
                 f"factors (x = {factors}).")
         return requested
 
-    def _pairwise_for(self, r_obj, var):
-        """Marginal pairwise contrasts + rich posthoc table for one factor ``var``
-        (averaged over the other factors). Returns (contrasts_adj, posthoc_df,
-        emm_df); any element may be None on failure."""
+    def _pairwise_for(self, r_obj, var, by_factors=None):
+        """Pairwise contrasts + rich posthoc table for factor ``var``, conditional
+        on ``by_factors``: ``var``'s levels are compared within each cell of those
+        factors. With no by_factors the comparison is marginal. Returns
+        (contrasts_adj, posthoc_df, emm_df); any element may be None.
+
+        Conditional comparisons are computed cell-by-cell with the marginal form
+        ``emmeans(~ var, at = list(<other factors fixed>))`` rather than a single
+        ``emmeans(~ var | by)``: for this glmmTMB/pymer4 model the ``by`` form makes
+        emmeans drop the factor labels (contrast/by columns come back as integer
+        codes), whereas the ``at=`` form keeps proper labels. The cell labels are
+        supplied here, and EMM display values come from the labelled full grid.
+        """
         import rpy2.robjects.pandas2ri as p2ri
+        import itertools
+        by_factors = [b for b in (by_factors or []) if b]
+        adj = self.options.posthoc_correction
         ct_adj = ct_raw = emm_df = None
         try:
-            # Link-scale emmeans: pairs() contrast strings and t/z ratios are correct here
-            _emm_link = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{var}'))
-            ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(
-                ro.r('pairs')(_emm_link, adjust=self.options.posthoc_correction)))
-            ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(
-                ro.r('pairs')(_emm_link, adjust='none')))
-            # Response-scale emmeans: EMM/CI display values for the table and plot
-            _emm_resp = ro.r('emmeans::emmeans')(r_obj, ro.Formula(f'~{var}'), type='response')
-            _emm_df_r = ro.r('as.data.frame')(_emm_resp)
-            ro.r.assign('._emm_df_tmp', _emm_df_r)
-            ro.r(f'._emm_df_tmp[["{var}"]] <- as.character(._emm_df_tmp[["{var}"]])')
-            emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
+            ro.globalenv['kbstat_cmp_model'] = r_obj
+            if not by_factors:
+                # Marginal comparison of var (averaged over any other factors).
+                _emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var})')
+                ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust=adj)))
+                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust='none')))
+                _emm_resp = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, type="response")')
+                ro.r.assign('._emm_df_tmp', ro.r('as.data.frame')(_emm_resp))
+                ro.r(f'._emm_df_tmp[["{var}"]] <- as.character(._emm_df_tmp[["{var}"]])')
+                emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
+            else:
+                # Conditional: one labelled marginal comparison per cell of the
+                # other factors, via at=. The per-cell p-values are corrected
+                # within the cell (across var's pairs there).
+                def _levels(b):
+                    c = self.data[b]
+                    return [str(x) for x in (c.cat.categories if hasattr(c, 'cat')
+                                             else sorted(c.dropna().unique()))]
+                by_levels = {b: _levels(b) for b in by_factors}
+                adj_parts, raw_parts = [], []
+                for combo in itertools.product(*[by_levels[b] for b in by_factors]):
+                    at_str = ', '.join(f'{b} = "{lvl}"' for b, lvl in zip(by_factors, combo))
+                    _emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, at = list({at_str}))')
+                    ca = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust=adj)))
+                    cr = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust='none')))
+                    for dfc in (ca, cr):
+                        for b, lvl in zip(by_factors, combo):
+                            dfc[b] = lvl  # supply the cell labels ourselves
+                    adj_parts.append(ca); raw_parts.append(cr)
+                ct_adj = pd.concat(adj_parts, ignore_index=True) if adj_parts else None
+                ct_raw = pd.concat(raw_parts, ignore_index=True) if raw_parts else None
+                # EMM display values come from the labelled full interaction grid.
+                emm_df = self._emm_df_full
         except Exception:
             pass
-        return ct_adj, self._build_posthoc_table(var, emm_df, ct_adj, ct_raw), emm_df
+        return ct_adj, self._build_posthoc_table(var, by_factors, emm_df, ct_adj, ct_raw), emm_df
 
-    def _build_posthoc_table(self, factor_col, emm_df, ct_adj, ct_raw):
-        """Build the rich pairwise posthoc DataFrame for factor ``factor_col``."""
+    def _build_posthoc_table(self, factor_col, by_factors, emm_df, ct_adj, ct_raw):
+        """Rich pairwise posthoc DataFrame for ``factor_col``, conditional on
+        ``by_factors`` — one block of comparisons per cell of those factors, with
+        the cell levels as leading columns. EMM lookups are within the cell."""
+        by_factors = [b for b in (by_factors or []) if b]
         if not (emm_df is not None and ct_adj is not None and ct_raw is not None
                 and factor_col in emm_df.columns):
             return emm_df if emm_df is not None else pd.DataFrame()
@@ -689,8 +727,16 @@ class Kbstat:
         lo_col = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL') if c in emm_df.columns), None)
         hi_col = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL') if c in emm_df.columns), None)
 
-        def _emm_ci_str(lev):
-            row = emm_df[emm_df[factor_col] == lev]
+        def _cell_subset(cell):
+            sub = emm_df
+            for b, v in cell.items():
+                if b in sub.columns:
+                    sub = sub[sub[b].astype(str) == str(v)]
+            return sub
+
+        def _emm_ci_str(lev, cell):
+            row = _cell_subset(cell)
+            row = row[row[factor_col] == lev]
             if len(row) == 0:
                 return ''
             r = row.iloc[0]
@@ -701,15 +747,15 @@ class Kbstat:
                 return f"{emm:.3f}"
             return f"{emm:.3f} ({lo:.3f}, {hi:.3f})"
 
-        def _emm_val(lev):
-            row = emm_df[emm_df[factor_col] == lev]
-            if len(row) == 0:
-                return np.nan
-            return _bt(row.iloc[0][emm_col])
+        def _emm_val(lev, cell):
+            row = _cell_subset(cell)
+            row = row[row[factor_col] == lev]
+            return _bt(row.iloc[0][emm_col]) if len(row) else np.nan
 
-        levels = emm_df[factor_col].tolist()
+        levels = emm_df[factor_col].astype(str).unique().tolist()
         rows = []
         for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
+            cell = {b: str(cadj[b]) for b in by_factors if b in cadj.index}
             parts = [p.strip() for p in str(cadj['contrast']).split(' - ')]
             lev1 = _parse_level(parts[0], levels) if len(parts) > 0 else ''
             lev2 = _parse_level(parts[1], levels) if len(parts) > 1 else ''
@@ -719,16 +765,18 @@ class Kbstat:
             smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
             p_raw = float(craw['p.value'])
             p_corr = float(cadj['p.value'])
-            diff = _emm_val(lev1) - _emm_val(lev2)
-            rows.append({
+            diff = _emm_val(lev1, cell) - _emm_val(lev2, cell)
+            row = {b: cell[b] for b in by_factors if b in cell}  # leading cell columns
+            row.update({
                 f'{factor_col}_1': str(lev1),
                 f'{factor_col}_2': str(lev2),
-                'emm_1': _emm_ci_str(lev1),
-                'emm_2': _emm_ci_str(lev2),
+                'emm_1': _emm_ci_str(lev1, cell),
+                'emm_2': _emm_ci_str(lev2, cell),
                 'diff': diff, 't': t_val, 'df': df_val,
                 'p': p_raw, 'pCorr': p_corr, 'SMD': smd,
                 'effectSize': _d_label(smd), 'significance': _sig_stars(p_corr),
             })
+            rows.append(row)
         return pd.DataFrame(rows)
 
     def correlate(self):
@@ -1722,12 +1770,27 @@ class Kbstat:
                 for row_idx, row_val in enumerate(row_levels):
                     for col_idx, facet_val in enumerate(facet_levels):
                         ax = axes[row_idx][col_idx]
+                        # Conditional posthoc: keep only the contrasts for THIS
+                        # panel's cell (this panel's levels of the conditioning
+                        # factors). Match the by-factor columns in the contrast
+                        # table to the panel's facet/row levels and any split-figure
+                        # fixed levels. Columns absent from ct are simply not filtered
+                        # (covers the marginal / single-factor case).
+                        cell = dict(emm_extra)
+                        if facet_var is not None and facet_val is not None:
+                            cell[facet_var] = facet_val
+                        if row_var is not None and row_val is not None:
+                            cell[row_var] = row_val
+                        panel_ct = ct
+                        for _k, _v in cell.items():
+                            if _k in panel_ct.columns:
+                                panel_ct = panel_ct[panel_ct[_k].astype(str) == str(_v)]
                         # anchor just above THIS panel's tallest rendered content
                         bracket_y = _panel_top(ax) + bracket_step * 0.5
                         tick_h = bracket_step * 0.3
-                        for _, crow in ct.iterrows():
+                        for _, crow in panel_ct.iterrows():
                             p_val = crow['p.value']
-                            if p_val >= 0.05:
+                            if not np.isfinite(p_val) or p_val >= 0.05:
                                 continue
                             label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
                             xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
