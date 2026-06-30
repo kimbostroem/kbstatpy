@@ -36,11 +36,13 @@ _R_MODEL = '.__kbstat_model__'
 class GlmmTMB:
     """GLMM engine backed by glmmTMB (drop-in for the former glmer path)."""
 
-    def __init__(self, formula: str, data: pd.DataFrame, family: str, link: str = 'default'):
+    def __init__(self, formula: str, data: pd.DataFrame, family: str, link: str = 'default',
+                 max_iterations: int = 10000):
         self.formula = formula
         self._pd_data = data
         self.family = family
         self.link = link
+        self.max_iterations = int(max_iterations)
         # Attributes expected by kbstat.py
         self.r_model = None
         self.residuals = None
@@ -62,12 +64,17 @@ class GlmmTMB:
         self._push_data()
 
         family_expr = self._family_expr()
+        # Raise the nlminb optimizer's iteration/evaluation caps so large
+        # fixed-effect models converge cleanly instead of stopping at the default
+        # limit with a benign "iteration limit reached" warning (see max_iterations).
+        _maxit = int(self.max_iterations)
         ro.r(f'''
         suppressMessages(library(glmmTMB))
         {_R_MODEL} <- glmmTMB(
             {self.formula},
-            data   = {_R_DATA},
-            family = {family_expr}
+            data    = {_R_DATA},
+            family  = {family_expr},
+            control = glmmTMBControl(optCtrl = list(iter.max = {_maxit}, eval.max = {_maxit}))
         )
         ''')
         self.r_model = ro.r(_R_MODEL)

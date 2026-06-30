@@ -42,6 +42,13 @@ class KbstatOptions:
     distribution: str = 'normal'
     link: str = 'auto'
     fit_method: str = 'MPL'
+    # Maximum optimizer iterations / function evaluations for the glmmTMB fit
+    # (non-Gaussian GLMMs). Large fixed-effect models — e.g. a factor*factor
+    # interaction with many levels — can hit the optimizer's default cap and emit
+    # a benign "iteration limit reached" convergence warning even when the fit is
+    # already at the optimum; raising this lets them converge cleanly. Only
+    # affects glmmTMB fits (gamma, binomial, Poisson, ...).
+    max_iterations: int = 10000
 
     # Denominator-df method for the fixed-effect tests (ANOVA F and post-hoc
     # contrasts), used identically for both so the two strata stay consistent:

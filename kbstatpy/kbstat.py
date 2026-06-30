@@ -375,7 +375,8 @@ class Kbstat:
             # standard errors for the continuous dispersion families (Gamma,
             # inverse Gaussian); glmmTMB estimates the dispersion explicitly and
             # gives a correct covariance, and it handles random slopes natively.
-            self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link)
+            self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link,
+                                 max_iterations=self.options.max_iterations)
         self.model.fit(summarize=False)
         self._df_runtime = None                 # re-resolve df method for the (re)fitted model
         if not getattr(self, '_df_validated', False):
