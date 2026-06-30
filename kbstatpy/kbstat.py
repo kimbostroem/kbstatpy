@@ -1764,6 +1764,38 @@ class Kbstat:
         self._show_fig(fig)
         return fig
 
+    def _diagnostic_residuals(self, r_obj):
+        """Residuals for the diagnostic panels, with a label describing their type.
+
+        Prefer DHARMa simulation-based quantile residuals transformed to the
+        normal scale: under a correctly specified model these are ~N(0, 1) for
+        *any* family (gaussian, gamma, binomial, Poisson, ...), so the histogram
+        Normal overlay and the Q-Q-vs-normal plot become honest checks. Fall back
+        to deviance residuals (better-behaved than Pearson for GLMs) if DHARMa is
+        unavailable or the simulation fails, and to Pearson only as a last resort.
+        """
+        try:
+            if int(ro.r('as.integer(requireNamespace("DHARMa", quietly=TRUE))')[0]) == 1:
+                ro.r('suppressMessages(library(DHARMa))')
+                ro.globalenv['._kbstat_rmodel'] = r_obj
+                ro.r('''
+                ._kbstat_dharma <- DHARMa::simulateResiduals(._kbstat_rmodel, n = 250,
+                                                             plot = FALSE, seed = 42)
+                ._kbstat_qres <- residuals(._kbstat_dharma, quantileFunction = qnorm,
+                                           outlierValues = c(-7, 7))
+                ''')
+                res = np.asarray(ro.r('._kbstat_qres'), dtype=float)
+                if res.size and np.isfinite(res).any():
+                    return res, 'DHARMa quantile residuals'
+        except Exception:
+            pass
+        try:
+            return np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float), \
+                'deviance residuals'
+        except Exception:
+            return np.asarray(ro.r('residuals')(r_obj, type='pearson'), dtype=float), \
+                'Pearson residuals'
+
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
         self._apply_font()
@@ -1773,7 +1805,7 @@ class Kbstat:
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
 
         if r_obj is not None:
-            self.model.residuals = np.array(ro.r('residuals')(r_obj, type="pearson"))
+            self.model.residuals, self._resid_label = self._diagnostic_residuals(r_obj)
         else:
             raise RuntimeError("Unable to find R model, rerun the fit")
             
@@ -1956,6 +1988,7 @@ class Kbstat:
         parts = [f'Formula: {self._build_formula()}']
         if self.AIC is not None:
             parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
+        parts.append(getattr(self, '_resid_label', 'residuals'))
         footer = '     |     '.join(parts)
         fig.subplots_adjust(bottom=0.08)
         fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
@@ -2370,6 +2403,25 @@ class Kbstat:
                       f'  Denominator df method: {self._df_method_label()}', '']
             lines += [ph.to_string(index=False), '']
 
+
+        # --- Diagnostics note ---
+        _resid = getattr(self, '_resid_label', None)
+        if _resid:
+            lines += ['DIAGNOSTICS', '-----------',
+                      f'  The Diagnostics plot uses {_resid}.']
+            if _resid.startswith('DHARMa'):
+                lines += [
+                    '  DHARMa simulation-based quantile residuals are ~N(0, 1) under a',
+                    '  correctly specified model for any distribution family, so the residual',
+                    '  histogram (with its Normal reference curve) and the Q-Q plot are valid',
+                    '  normality checks even for non-Gaussian GLMMs.',
+                ]
+            else:
+                lines += [
+                    '  (DHARMa was unavailable; these residuals can be mildly skewed for',
+                    '  non-Gaussian families even when the model is correct.)',
+                ]
+            lines.append('')
 
         # --- Significance key ---
         lines += [

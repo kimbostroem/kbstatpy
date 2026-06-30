@@ -93,7 +93,7 @@ echo "[3/4] Installing R packages..."
 
 Rscript -e '
 pkgs <- c(
-    "lme4", "lmerTest", "glmmTMB", "emmeans", "pbkrtest",
+    "lme4", "lmerTest", "glmmTMB", "emmeans", "pbkrtest", "DHARMa",
     "tibble", "broom", "broom.mixed",
     "report", "see", "parameters", "performance",
     "effectsize", "insight", "datawizard", "bayestestR"
