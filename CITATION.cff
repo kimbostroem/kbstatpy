@@ -5,7 +5,7 @@ authors:
     given-names: Kim Joris
     orcid: https://orcid.org/0000-0001-5966-458X
 title: "kbstatpy"
-version: 1.4.2
+version: 1.4.3
 date-released: 2026-06-30
 repository-code: https://github.com/kimbostroem/kbstatpy
 programming-languages:

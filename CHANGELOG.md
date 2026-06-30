@@ -1,5 +1,11 @@
 # Changes
 
+## [1.4.3] - 2026-06-30
+
+### Documentation
+
+- Updated the README and STATISTICAL_NOTES diagnostic-plot descriptions to match the 1.4.2 residual split: the distribution panels (histogram, Q-Q) use DHARMa quantile residuals, while the structure panels (residuals-vs-fitted, lagged, scale-location) use deviance residuals.
+
 ## [1.4.2] - 2026-06-30
 
 ### Bugs
