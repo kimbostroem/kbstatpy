@@ -12,8 +12,10 @@ This demo reuses the two-way ToothGrowth model from Demo 3:
     len ~ supp * dose
 
 but compares BOTH factors in a single run, from one model fit — `supp` (orange
-juice vs ascorbic acid) and `dose` (low/medium/high). Comparisons are marginal:
-each factor is averaged over the other.
+juice vs ascorbic acid) and `dose` (low/medium/high). Comparisons are per-cell
+(conditional): each factor's levels are compared within every cell of the other
+factor, so each facet panel gets its own brackets — e.g. medium-vs-high dose is
+highly significant under vitamin C but only marginally so under orange juice.
 
 Other settings: `posthoc_compare = 'auto'` (the default) compares just the first
 factor (`supp` here); `posthoc_compare = 'none'` (or `''`) switches comparisons
