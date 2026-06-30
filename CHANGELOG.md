@@ -1,5 +1,11 @@
 # Changes
 
+## [1.6.0] - 2026-06-30
+
+### Features
+
+- The per-cell post-hoc tables (`Posthoc_<var>.xlsx`) now also include a marginal block: every conditioning column set to `any`, giving the pairwise comparison averaged over the conditioning factors. Added to the tables only — the plot brackets stay per-cell.
+
 ## [1.5.0] - 2026-06-30
 
 ### Changes
