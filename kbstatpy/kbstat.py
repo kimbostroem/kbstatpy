@@ -1664,7 +1664,18 @@ class Kbstat:
                 if np.isfinite(bracket_y_max):
                     ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
 
+        # Place the suptitle a constant physical gap above the panels, matching the
+        # diagnostics plot, independent of figure height. tight_layout reserves no
+        # room for a suptitle, so on a tall faceted grid a fixed-fraction title would
+        # collide with the top row; anchoring it just above the rendered top of the
+        # panels (column titles included) keeps the same small gap at any height.
         fig.tight_layout()
+        fig.canvas.draw()
+        _inv = fig.transFigure.inverted()
+        _top_y = max(ax.get_tightbbox(fig.canvas.get_renderer()).transformed(_inv).y1
+                     for ax in fig.axes)
+        _data_suptitle.set_verticalalignment('bottom')
+        _data_suptitle.set_y(min(0.999, _top_y + 0.167 / fig_height))
         self._fit_suptitle_to_axes(_data_suptitle, fig)
 
         self._show_fig(fig)
