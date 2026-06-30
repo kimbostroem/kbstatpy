@@ -1517,8 +1517,15 @@ class Kbstat:
                 return 0.35  # fallback if violin not found
 
             # --- LAYER 2: Jittered scatter (violin style) or observed mean/proportion bar (bar style) ---
+            # Dots shrink and fade as the count grows so dense violins stay
+            # readable instead of saturating to solid black. Both taper with
+            # 1/sqrt(n); the floors keep a handful of points still visible.
             n_pts = len(panel_healthy)
-            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 5, 7))
+            dot_size = float(np.clip(25 / np.sqrt(max(n_pts, 1)), 1.5, 7))
+            dot_alpha = float(np.clip(4 / np.sqrt(max(n_pts, 1)), 0.08, 0.4))
+            # Spread dots wider as they shrink: fat dots keep a margin so they
+            # don't spill over the violin edge; tiny dots fill closer to it.
+            jitter_frac = 0.95 - (dot_size - 1.5) / 5.5 * 0.20
             rng = np.random.default_rng(0)
             dot_xy = {}   # level -> (x_positions, y_values) for paired-line lookup
             id_xy = {}    # level -> {subject id: (x_position, y_value)} for connecting lines
@@ -1538,11 +1545,11 @@ class Kbstat:
                     dot_xy[level] = (np.array([xi]), np.array([bar_val]))
                 else:
                     jx = np.array([
-                        xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
+                        xi + rng.uniform(-_violin_hw(xi, y) * jitter_frac, _violin_hw(xi, y) * jitter_frac)
                         for y in subset.values
                     ])
                     sc = ax.scatter(jx, subset.values, color='black', s=dot_size ** 2,
-                                    alpha=0.4, zorder=4, linewidths=0)
+                                    alpha=dot_alpha, zorder=4, linewidths=0)
                     tip_labels = [
                         f'obs {idx}, {self._disp(x_var)}={level}, {self._disp(y_var)}={v:.3f}'
                         for idx, v in zip(subset.index, subset.values)
@@ -1573,7 +1580,7 @@ class Kbstat:
                     if len(subset) == 0:
                         continue
                     jx = np.array([
-                        xi + rng.uniform(-_violin_hw(xi, y) * 0.75, _violin_hw(xi, y) * 0.75)
+                        xi + rng.uniform(-_violin_hw(xi, y) * jitter_frac, _violin_hw(xi, y) * jitter_frac)
                         for y in subset.values
                     ])
                     sc = ax.scatter(jx, subset.values, color='red', s=dot_size ** 2,
