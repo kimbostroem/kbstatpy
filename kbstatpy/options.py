@@ -127,7 +127,10 @@ class KbstatOptions:
     # compared within each combination of the other factors, so every facet panel
     # gets its own brackets (and its own block of rows in Posthoc_<var>.xlsx, with
     # the conditioning factors as leading columns). Per-cell p-values are corrected
-    # within the cell. Comma-separated factor names; '' or 'none' turns comparisons
+    # within the cell. Posthoc_<var>.xlsx additionally carries a marginal block —
+    # every conditioning column set to 'any' — with the comparison averaged over the
+    # conditioning factors (table only, not the plot). Comma-separated factor names;
+    # '' or 'none' turns comparisons
     # off (violin plots only, no brackets); 'auto' (default) compares the first
     # x-variable. Output files are suffixed with the (original) variable name, e.g.
     # DataPlots_condition.* and Posthoc_condition.xlsx. 'auto' and 'none' are

@@ -663,6 +663,7 @@ class Kbstat:
         by_factors = [b for b in (by_factors or []) if b]
         adj = self.options.posthoc_correction
         ct_adj = ct_raw = emm_df = None
+        posthoc_df = pd.DataFrame()
         try:
             ro.globalenv['kbstat_cmp_model'] = r_obj
             if not by_factors:
@@ -674,10 +675,11 @@ class Kbstat:
                 ro.r.assign('._emm_df_tmp', ro.r('as.data.frame')(_emm_resp))
                 ro.r(f'._emm_df_tmp[["{var}"]] <- as.character(._emm_df_tmp[["{var}"]])')
                 emm_df = p2ri.rpy2py(ro.r('._emm_df_tmp'))
+                posthoc_df = self._build_posthoc_table(var, [], emm_df, ct_adj, ct_raw)
             else:
                 # Conditional: one labelled marginal comparison per cell of the
-                # other factors, via at=. The per-cell p-values are corrected
-                # within the cell (across var's pairs there).
+                # other factors, via at=. Per-cell p-values are corrected within
+                # the cell (across var's pairs there).
                 def _levels(b):
                     c = self.data[b]
                     return [str(x) for x in (c.cat.categories if hasattr(c, 'cat')
@@ -697,9 +699,24 @@ class Kbstat:
                 ct_raw = pd.concat(raw_parts, ignore_index=True) if raw_parts else None
                 # EMM display values come from the labelled full interaction grid.
                 emm_df = self._emm_df_full
+                cond_tbl = self._build_posthoc_table(var, by_factors, emm_df, ct_adj, ct_raw)
+                # Marginal comparison (averaged over the conditioning factors),
+                # added to the TABLE only — NOT to ct_adj (the plot brackets) — as a
+                # leading block with every conditioning column set to 'any'.
+                _emm_m = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var})')
+                cma = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm_m, adjust=adj)))
+                cmr = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm_m, adjust='none')))
+                ro.r.assign('._emm_m_tmp', ro.r('as.data.frame')(
+                    ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, type="response")')))
+                ro.r(f'._emm_m_tmp[["{var}"]] <- as.character(._emm_m_tmp[["{var}"]])')
+                marg_emm_df = p2ri.rpy2py(ro.r('._emm_m_tmp'))
+                marg_tbl = self._build_posthoc_table(var, [], marg_emm_df, cma, cmr)
+                for i, b in enumerate(by_factors):
+                    marg_tbl.insert(i, b, 'any')
+                posthoc_df = pd.concat([marg_tbl, cond_tbl], ignore_index=True)
         except Exception:
             pass
-        return ct_adj, self._build_posthoc_table(var, by_factors, emm_df, ct_adj, ct_raw), emm_df
+        return ct_adj, posthoc_df, emm_df
 
     def _build_posthoc_table(self, factor_col, by_factors, emm_df, ct_adj, ct_raw):
         """Rich pairwise posthoc DataFrame for ``factor_col``, conditional on
