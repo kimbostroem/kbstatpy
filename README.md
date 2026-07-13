@@ -1,5 +1,7 @@
 # kbstatpy
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
+
 A Python library for generalised linear mixed model (GLMM) analysis with post-hoc pairwise comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB `kbstat` library.
 
 Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), and `emmeans` packages (through `pymer4` and `rpy2`), giving access to the same statistical machinery used in R — Kenward-Roger / Satterthwaite degrees of freedom, Type III sums of squares, and effects-coded contrasts — from a clean Python interface.
@@ -17,6 +19,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 - [Variance Inflation Factor (VIF)](#variance-inflation-factor-vif)
 - [Output files](#output-files)
 - [Demo scripts](#demo-scripts)
+  - [Try the demos on Google Colab](#try-the-demos-on-google-colab)
 - [Statistical notes](#statistical-notes)
 - [Known issues and workarounds](#known-issues-and-workarounds)
 
@@ -262,6 +265,19 @@ Run any demo with:
 cd kbstatpy
 python3 demos/scripts/demo_01_unpaired.py
 ```
+
+### Try the demos on Google Colab
+
+You can run every demo in the browser — no local install and no R to set up on
+your own machine — on a free [Google Colab](https://colab.research.google.com)
+runtime:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
+
+The [`demos/kbstatpy_colab.ipynb`](demos/kbstatpy_colab.ipynb) notebook installs
+the R packages and kbstatpy, clones this repo so all datasets are available, runs
+one demo inline, and lets you run any of the others. Colab gives each visitor a
+private copy, so they can experiment freely without affecting the original.
 
 | Script | Dataset | Description |
 |---|---|---|
