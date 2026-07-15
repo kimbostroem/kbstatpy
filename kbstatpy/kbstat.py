@@ -1350,7 +1350,10 @@ class Kbstat:
         """Create the bold figure suptitle in a narrow/condensed font (see
         options.title_font). Call :meth:`_fit_suptitle_to_axes` after the layout
         is final to centre it over the plot box and shrink it to that width.
-        Returns the Text object."""
+        Returns the Text object, or None if `text` is empty (no suptitle is
+        added at all, so no vertical space is reserved for it)."""
+        if not text:
+            return None
         return fig.suptitle(text, fontweight='bold', fontsize=max_size,
                             fontfamily=self._title_font_family())
 
@@ -1789,9 +1792,16 @@ class Kbstat:
                 facet_label = f"{self._disp(facet_var)} [{facet_unit}]" if facet_unit and facet_unit != '1' else self._disp(facet_var)
                 ax.set_title(f"{facet_label} = {facet_val}", fontweight='bold')
 
-        # Super title
-        plot_title = f'{self.options.title} ({self._disp(y_var)})' \
-            if self.options.title else self._disp(y_var)
+        # Super title. title='none' suppresses it entirely (no vertical space
+        # reserved either, see _add_suptitle) while leaving the y-axis label
+        # untouched -- unlike blanking the variable's display name, which would
+        # blank the y-axis label too since both derive from self._disp(y_var).
+        if str(self.options.title).strip().lower() == 'none':
+            plot_title = ''
+        elif self.options.title:
+            plot_title = f'{self.options.title} ({self._disp(y_var)})'
+        else:
+            plot_title = self._disp(y_var)
         _data_suptitle = self._add_suptitle(fig, plot_title)
 
         # --- Post-loop: expand y-limits once, then draw brackets ---
@@ -1917,13 +1927,14 @@ class Kbstat:
         # collide with the top row; anchoring it just above the rendered top of the
         # panels (column titles included) keeps the same small gap at any height.
         fig.tight_layout()
-        fig.canvas.draw()
-        _inv = fig.transFigure.inverted()
-        _top_y = max(ax.get_tightbbox(fig.canvas.get_renderer()).transformed(_inv).y1
-                     for ax in fig.axes)
-        _data_suptitle.set_verticalalignment('bottom')
-        _data_suptitle.set_y(min(0.999, _top_y + 0.167 / fig_height))
-        self._fit_suptitle_to_axes(_data_suptitle, fig)
+        if _data_suptitle is not None:
+            fig.canvas.draw()
+            _inv = fig.transFigure.inverted()
+            _top_y = max(ax.get_tightbbox(fig.canvas.get_renderer()).transformed(_inv).y1
+                         for ax in fig.axes)
+            _data_suptitle.set_verticalalignment('bottom')
+            _data_suptitle.set_y(min(0.999, _top_y + 0.167 / fig_height))
+            self._fit_suptitle_to_axes(_data_suptitle, fig)
 
         self._show_fig(fig)
         return fig
@@ -1997,9 +2008,14 @@ class Kbstat:
         axes = axes.flatten()
 
         # Page title mirrors the data-plot title, prefixed with "Diagnostics of".
+        # title='none' only suppresses the *data-plot* title (see options.title);
+        # the diagnostics page is an internal QC figure and always keeps its
+        # identifying "Diagnostics of <DV>" label, so 'none' is treated like the
+        # falsy default here rather than printed literally.
         _diag_y = self._disp(self.options.y)
-        diag_title = (f'Diagnostics of {self.options.title} ({_diag_y})'
-                      if self.options.title else f'Diagnostics of {_diag_y}')
+        _title_prefix = self.options.title if str(self.options.title).strip().lower() != 'none' else ''
+        diag_title = (f'Diagnostics of {_title_prefix} ({_diag_y})'
+                      if _title_prefix else f'Diagnostics of {_diag_y}')
         _diag_suptitle = self._add_suptitle(fig, diag_title)
 
         n_diag = len(self.model.residuals)

@@ -73,7 +73,11 @@ class KbstatOptions:
     # Data-plot title prefix. When set, the title becomes '<title> (<DV>)',
     # e.g. title='Static' -> 'Static (Torque Amplitude)'. In a multi-y run each
     # variable still gets its own display name in the parentheses. Empty (default)
-    # keeps the plain dependent-variable name as the title.
+    # keeps the plain dependent-variable name as the title. title='none' (case-
+    # insensitive) suppresses the title entirely -- no text and no vertical space
+    # reserved for it -- while leaving the y-axis label untouched (the y-axis
+    # label and title both otherwise derive from the same variable display name,
+    # so this is the only way to drop the title alone).
     title: str = ''
     # Font family for plot titles (suptitles), distinct from the body font.
     # Empty (default) derives the title font from the body font (see `font`):

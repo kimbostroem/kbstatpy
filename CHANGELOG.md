@@ -1,5 +1,11 @@
 # Changes
 
+## [1.8.0] - 2026-07-15
+
+### Features
+
+- `options.title` accepts `'none'` (case-insensitive) to suppress the data-plot title entirely: no text, and no vertical space reserved for it (the panel keeps the same size as with a title, closing the gap). The y-axis label is untouched, since it and the title otherwise both derive from the same variable display name (`options.rename`) and previously could not be controlled independently. The diagnostics page keeps its own "Diagnostics of <DV>" label regardless, since `'none'` only targets the reader-facing data plot.
+
 ## [1.7.1] - 2026-06-30
 
 ### Bugs
