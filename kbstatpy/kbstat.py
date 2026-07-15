@@ -134,18 +134,32 @@ class Kbstat:
         return None
 
     def _apply_font(self):
-        """Apply options.font to matplotlib rcParams unless it is unset ('' / 'auto').
-        Narrows the fallback chain to families that are both installed and have
-        a genuine bold face before handing it to matplotlib, extracting one
-        from a .ttc collection first if needed (see _extract_ttc_bold_face).
-        This does double duty: absent families never trigger matplotlib's
-        'font not found' warnings, and families that would otherwise silently
-        render our bold-emphasised labels/titles as regular weight are fixed
-        up or skipped — matplotlib's family-match score keeps a family over a
-        later, genuinely-bold-capable one even when 'bold' is requested."""
+        """Apply options.font to matplotlib rcParams (see Kbstat.apply_font)."""
         f = self._body_font()
-        if not f:
+        if f:
+            Kbstat.apply_font(f)
+
+    @staticmethod
+    def apply_font(font='Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'):
+        """Apply kbstat's house font-resolution to matplotlib's rcParams, without
+        needing a Kbstat/KbstatOptions instance. Narrows the fallback chain (a
+        string, comma-separated, or an already-split list) to families that are
+        both installed and have a genuine bold face, extracting one from a .ttc
+        collection first if needed (see _extract_ttc_bold_face). This does double
+        duty: absent families never trigger matplotlib's 'font not found'
+        warnings, and families that would otherwise silently render bold-
+        emphasised labels/titles as regular weight are fixed up or skipped --
+        matplotlib's family-match score keeps a family over a later, genuinely-
+        bold-capable one even when 'bold' is requested.
+
+        Same semantics as KbstatOptions.font: '' or 'auto' (case-insensitive)
+        is a no-op, leaving matplotlib's own default untouched. Useful to make a
+        hand-built matplotlib figure (not produced via Kbstat.run_save()) match
+        kbstat's own DataPlots visually -- call this once before building it,
+        then bold the labels/ticks that should match (fontweight='bold')."""
+        if not font or (isinstance(font, str) and font.strip().lower() == 'auto'):
             return
+        f = Kbstat._split_csv(font) if isinstance(font, str) else list(font)
         key = tuple(f)
         cache = Kbstat._resolved_body_font
         if key not in cache:
@@ -167,7 +181,7 @@ class Kbstat:
                     resolved.append(fam)
                     continue
                 ttc = ttc_path_by_name.get(fam)
-                bold_path = self._extract_ttc_bold_face(ttc, fam) if ttc else None
+                bold_path = Kbstat._extract_ttc_bold_face(ttc, fam) if ttc else None
                 if bold_path:
                     fm.fontManager.addfont(bold_path)
                     resolved.append(fam)

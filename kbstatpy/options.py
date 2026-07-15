@@ -98,7 +98,9 @@ class KbstatOptions:
     # matplotlib tries each in order, so a missing family never warns and never
     # silently drops to an unexpected face. '' or 'auto' uses matplotlib's own
     # default (DejaVu Sans); a single family name (e.g. 'Arial') forces just
-    # that one. The title font derives from this (see title_font).
+    # that one. The title font derives from this (see title_font). To match this
+    # style in a hand-built matplotlib figure that bypasses Kbstat.run_save()
+    # entirely, call the public Kbstat.apply_font() before building it.
     font: str = 'Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'
     # Previous default (matplotlib's own, DejaVu Sans) — restore this line to
     # roll back the Helvetica-first chain above:
