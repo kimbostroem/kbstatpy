@@ -6,6 +6,7 @@ import polars as pl
 from pymer4.models import lm as Lm
 from pymer4.models import lmer as Lmer
 import rpy2.robjects as ro
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats as stats
@@ -98,13 +99,80 @@ class Kbstat:
             return None
         return self._split_csv(f)
 
+    # Cache of resolved body-font fallback chains, keyed by the requested chain.
+    # Filtering out not-installed families here (once) means matplotlib's
+    # findfont never has to try and warn about them on every plot.
+    _resolved_body_font = {}
+
+    @staticmethod
+    def _extract_ttc_bold_face(ttc_path, family_name):
+        """Extract the Bold sub-face of `family_name` from a .ttc collection
+        into a standalone cached .ttf, so matplotlib can actually render it.
+        matplotlib's FT2Font wrapper always opens face index 0 of a .ttc, so a
+        Bold sub-face bundled alongside Regular (e.g. macOS's Helvetica.ttc)
+        is otherwise invisible to it even though the glyphs exist on disk.
+        Returns the cached path, or None if extraction isn't possible (e.g.
+        fontTools missing, or no matching Bold sub-face)."""
+        import hashlib
+        cache_dir = os.path.join(matplotlib.get_cachedir(), 'kbstatpy_fonts')
+        digest = hashlib.sha1(ttc_path.encode()).hexdigest()[:10]
+        out_path = os.path.join(cache_dir, f'{family_name.replace(" ", "_")}-Bold-{digest}.ttf')
+        if os.path.exists(out_path):
+            return out_path
+        try:
+            from fontTools.ttLib import TTCollection
+            os.makedirs(cache_dir, exist_ok=True)
+            tt = TTCollection(ttc_path)
+            for font in tt.fonts:
+                names = font['name']
+                if (names.getDebugName(1) or '').strip().lower() == family_name.lower() \
+                        and (names.getDebugName(2) or '').strip().lower() == 'bold':
+                    font.save(out_path)
+                    return out_path
+        except Exception:
+            return None
+        return None
+
     def _apply_font(self):
         """Apply options.font to matplotlib rcParams unless it is unset ('' / 'auto').
-        Sets font.family to the fallback list so matplotlib tries each family in
-        order and never warns as long as one (e.g. DejaVu Sans) is present."""
+        Narrows the fallback chain to families that are both installed and have
+        a genuine bold face before handing it to matplotlib, extracting one
+        from a .ttc collection first if needed (see _extract_ttc_bold_face).
+        This does double duty: absent families never trigger matplotlib's
+        'font not found' warnings, and families that would otherwise silently
+        render our bold-emphasised labels/titles as regular weight are fixed
+        up or skipped — matplotlib's family-match score keeps a family over a
+        later, genuinely-bold-capable one even when 'bold' is requested."""
         f = self._body_font()
-        if f:
-            plt.rcParams['font.family'] = f
+        if not f:
+            return
+        key = tuple(f)
+        cache = Kbstat._resolved_body_font
+        if key not in cache:
+            from matplotlib import font_manager as fm
+            weights_by_name = {}
+            ttc_path_by_name = {}
+            for fam in fm.fontManager.ttflist:
+                weights_by_name.setdefault(fam.name, set()).add(fam.weight)
+                if fam.fname.lower().endswith('.ttc'):
+                    ttc_path_by_name.setdefault(fam.name, fam.fname)
+            def _has_bold(name):
+                return any(isinstance(w, (int, float)) and w >= 600
+                           for w in weights_by_name.get(name, ()))
+            resolved = []
+            for fam in f:
+                if fam not in weights_by_name:
+                    continue
+                if _has_bold(fam):
+                    resolved.append(fam)
+                    continue
+                ttc = ttc_path_by_name.get(fam)
+                bold_path = self._extract_ttc_bold_face(ttc, fam) if ttc else None
+                if bold_path:
+                    fm.fontManager.addfont(bold_path)
+                    resolved.append(fam)
+            cache[key] = resolved or f
+        plt.rcParams['font.family'] = cache[key]
 
     @staticmethod
     def _split_csv(value):
@@ -1702,13 +1770,17 @@ class Kbstat:
                 ax.set_xlabel('')
             else:  # 'variable_below_levels' (default): levels as ticks, variable name below
                 ax.set_xticklabels([str(lev) for lev in x_levels])
-                ax.set_xlabel(x_name)
+                ax.set_xlabel(x_name, fontweight='bold')
+            # Bold the categorical level labels on the x-axis (numeric y-ticks stay
+            # regular weight) to match the emphasised axis labelling.
+            for _lbl in ax.get_xticklabels():
+                _lbl.set_fontweight('bold')
             # y-axis label: leftmost column only; row label replaces it when there are multiple rows
             if col_idx == 0:
                 if n_rows > 1:
                     ax.set_ylabel(f'{self._disp(row_var)} = {row_val}', fontweight='bold')
                 else:
-                    ax.set_ylabel(y_label)
+                    ax.set_ylabel(y_label, fontweight='bold')
             else:
                 ax.set_ylabel('')
             # column header: top row only
