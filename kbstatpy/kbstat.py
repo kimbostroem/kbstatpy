@@ -88,15 +88,20 @@ class Kbstat:
     # ------------------------------------------------------------------
 
     def _body_font(self):
-        """The configured body font, or None when unset: '' or 'auto' (case-
-        insensitive) both mean 'use matplotlib's default font'."""
+        """The configured body font as an ordered family list, or None when unset:
+        '' or 'auto' (case-insensitive) both mean 'use matplotlib's default font'.
+        A comma-separated string is split into a fallback chain, so matplotlib
+        tries each family in turn (e.g. Helvetica on macOS, Arial on Windows, a
+        libre clone on Linux, DejaVu Sans as the guaranteed final fallback)."""
         f = self.options.font
         if not f or (isinstance(f, str) and f.strip().lower() == 'auto'):
             return None
-        return f
+        return self._split_csv(f)
 
     def _apply_font(self):
-        """Apply options.font to matplotlib rcParams unless it is unset ('' / 'auto')."""
+        """Apply options.font to matplotlib rcParams unless it is unset ('' / 'auto').
+        Sets font.family to the fallback list so matplotlib tries each family in
+        order and never warns as long as one (e.g. DejaVu Sans) is present."""
         f = self._body_font()
         if f:
             plt.rcParams['font.family'] = f

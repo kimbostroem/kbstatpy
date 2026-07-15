@@ -86,10 +86,19 @@ class KbstatOptions:
     color_scheme: str = 'Set1'
     color_sat: float = 0.9
     color_alpha: float = 0.5
-    # Matplotlib font family for body text on all plots. '' or 'auto' (default)
-    # use matplotlib's default font; otherwise a family name (e.g. 'Arial').
-    # The title font derives from this (see title_font).
-    font: str = ''
+    # Matplotlib font family (or ordered fallback chain) for body text on all
+    # plots. The default is a Helvetica-first chain that degrades gracefully
+    # across platforms: Helvetica (macOS) -> Arial (Windows, metric-compatible
+    # with Helvetica) -> Nimbus Sans / TeX Gyre Heros (libre Helvetica clones,
+    # common on Linux) -> DejaVu Sans (matplotlib's built-in, always present).
+    # matplotlib tries each in order, so a missing family never warns and never
+    # silently drops to an unexpected face. '' or 'auto' uses matplotlib's own
+    # default (DejaVu Sans); a single family name (e.g. 'Arial') forces just
+    # that one. The title font derives from this (see title_font).
+    font: str = 'Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'
+    # Previous default (matplotlib's own, DejaVu Sans) — restore this line to
+    # roll back the Helvetica-first chain above:
+    # font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
     # How the x-axis of the data plot labels the first factor's levels:
     #   'variable_below_levels' (default) level names as tick labels, with the

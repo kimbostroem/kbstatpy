@@ -150,7 +150,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `color_scheme` | str | `'Set1'` | Seaborn/matplotlib color palette for data plots |
 | `color_sat` | float | `0.9` | Violin colour saturation (0–1) |
 | `color_alpha` | float | `0.5` | Violin fill transparency (0 = transparent, 1 = opaque) |
-| `font` | str | `''` | Matplotlib font family for all plots. `''` or `'auto'` use matplotlib's default (`'DejaVu Sans'`). Sans-serif (standard for scientific figures): `'Arial'`, `'Helvetica'`, `'Verdana'`, `'Calibri'`, `'Roboto'`, `'Liberation Sans'` (Arial substitute, always available on Linux). Serif (matches journal body text): `'Times New Roman'`, `'Georgia'`, `'Palatino'` |
+| `font` | str | `'Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'` | Matplotlib font family, or a comma-separated fallback chain tried in order. The default gives a Helvetica look everywhere while degrading gracefully: Helvetica (macOS) → Arial (Windows, metric-compatible) → Nimbus Sans / TeX Gyre Heros (libre Helvetica clones on Linux) → DejaVu Sans (matplotlib's built-in, always present), so a missing family never warns. `''` or `'auto'` use matplotlib's own default (`'DejaVu Sans'`); a single name (e.g. `'Arial'`) forces just that one. Serif (matches journal body text): `'Times New Roman'`, `'Georgia'`, `'Palatino'` |
 
 ### Supported distributions
 
