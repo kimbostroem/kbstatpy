@@ -159,8 +159,30 @@ class Kbstat:
         if f:
             Kbstat.apply_font(f)
 
+    _bundled_fonts_registered = False
+
     @staticmethod
-    def apply_font(font='Helvetica, Arial, Liberation Sans, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'):
+    def _register_bundled_fonts():
+        """Register the fonts bundled in kbstatpy/fonts/ with matplotlib (once), so
+        the house default (Latin Modern Sans) and the Helvetica clone (TeX Gyre
+        Heros) are available on every platform without any system font install."""
+        if Kbstat._bundled_fonts_registered:
+            return
+        Kbstat._bundled_fonts_registered = True
+        try:
+            import glob
+            from matplotlib import font_manager as fm
+            font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
+            for path in glob.glob(os.path.join(font_dir, '*.otf')):
+                try:
+                    fm.fontManager.addfont(path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    @staticmethod
+    def apply_font(font='Latin Modern Sans, DejaVu Sans'):
         """Apply kbstat's house font-resolution to matplotlib's rcParams, without
         needing a Kbstat/KbstatOptions instance. Narrows the fallback chain (a
         string, comma-separated, or an already-split list) to families that are
@@ -179,7 +201,14 @@ class Kbstat:
         then bold the labels/ticks that should match (fontweight='bold')."""
         if not font or (isinstance(font, str) and font.strip().lower() == 'auto'):
             return
+        Kbstat._register_bundled_fonts()
         f = Kbstat._split_csv(font) if isinstance(font, str) else list(font)
+        # A request for Helvetica/Arial falls back to the bundled Helvetica clone
+        # (TeX Gyre Heros) where the real font is absent (Linux/Colab), rather than
+        # dropping all the way to the visibly-different DejaVu Sans.
+        _helv = [i for i, fam in enumerate(f) if str(fam).strip().lower() in ('helvetica', 'arial')]
+        if _helv and 'TeX Gyre Heros' not in f:
+            f.insert(_helv[-1] + 1, 'TeX Gyre Heros')
         key = tuple(f)
         cache = Kbstat._resolved_body_font
         if key not in cache:

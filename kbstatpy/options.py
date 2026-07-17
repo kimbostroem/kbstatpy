@@ -91,21 +91,19 @@ class KbstatOptions:
     color_sat: float = 0.9
     color_alpha: float = 0.5
     # Matplotlib font family (or ordered fallback chain) for body text on all
-    # plots. The default is a Helvetica-first chain that degrades gracefully
-    # across platforms, always to a metric-compatible grotesque before the last
-    # resort: Helvetica (macOS) -> Arial (Windows) -> Liberation Sans (the Arial
-    # clone shipped by almost every Linux distro) -> Nimbus Sans / TeX Gyre Heros
-    # (libre Helvetica clones) -> DejaVu Sans (matplotlib's built-in, always
-    # present but visibly different from Helvetica). matplotlib tries each in
-    # order, so a missing family never warns and never silently drops to an
-    # unexpected face. On a bare Linux box with none of the clones installed it
-    # still reaches DejaVu; installing e.g. `fonts-liberation` (as the Colab demo
-    # setup does) gets an Arial/Helvetica look. '' or 'auto' uses matplotlib's own
-    # default (DejaVu Sans); a single family name (e.g. 'Arial') forces just that
-    # one. The title font derives from this (see title_font). To match this style
-    # in a hand-built matplotlib figure that bypasses Kbstat.run_save() entirely,
-    # call the public Kbstat.apply_font() before building it.
-    font: str = 'Helvetica, Arial, Liberation Sans, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'
+    # plots. The default is Latin Modern Sans -- the sans-serif of LaTeX's Computer
+    # Modern family -- which kbstatpy bundles and registers on import, so it renders
+    # identically on every platform with no system font install. Override with any
+    # family name or comma-separated chain, e.g. 'Helvetica' or 'Arial': kbstatpy
+    # also bundles TeX Gyre Heros (a Helvetica clone) and falls back to it wherever
+    # the requested Helvetica/Arial is absent (Linux/Colab), so those keep a
+    # Helvetica look instead of dropping to the visibly-different DejaVu Sans.
+    # matplotlib tries each family in order, so a missing one never warns. '' or
+    # 'auto' uses matplotlib's own default (DejaVu Sans). The title font derives
+    # from this (see title_font). To match this style in a hand-built matplotlib
+    # figure that bypasses Kbstat.run_save() entirely, call the public
+    # Kbstat.apply_font() before building it.
+    font: str = 'Latin Modern Sans, DejaVu Sans'
     # Previous default (matplotlib's own, DejaVu Sans) — restore this line to
     # roll back the Helvetica-first chain above:
     # font: str = ''

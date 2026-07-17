@@ -33,5 +33,8 @@ dependencies = [
 [tool.setuptools]
 packages = ["kbstatpy"]
 
+[tool.setuptools.package-data]
+kbstatpy = ["fonts/*.otf", "fonts/*.txt"]
+
 [tool.setuptools.dynamic]
 version = { attr = "kbstatpy.__version__" }
