@@ -95,9 +95,10 @@ class KbstatOptions:
     # Modern family -- which kbstatpy bundles and registers on import, so it renders
     # identically on every platform with no system font install. Override with any
     # family name or comma-separated chain, e.g. 'Helvetica' or 'Arial': kbstatpy
-    # also bundles TeX Gyre Heros (a Helvetica clone) and falls back to it wherever
-    # the requested Helvetica/Arial is absent (Linux/Colab), so those keep a
-    # Helvetica look instead of dropping to the visibly-different DejaVu Sans.
+    # also bundles TeX Gyre Heros and TeX Gyre Termes (Helvetica and Times clones)
+    # and falls back to them wherever the requested Helvetica/Arial/Times is absent
+    # (Linux/Colab), so those keep their intended look instead of dropping to the
+    # visibly-different DejaVu Sans.
     # Convenient case-insensitive aliases: 'Sans'/'Modern' -> Latin Modern Sans,
     # 'Times' -> Times New Roman; any family name is also matched case-insensitively.
     # matplotlib tries each family in order, so a missing one never warns. '' or

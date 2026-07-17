@@ -195,7 +195,17 @@ class Kbstat:
         'times': 'Times New Roman',
         'heros': 'TeX Gyre Heros',
         'helvetica clone': 'TeX Gyre Heros',
+        'termes': 'TeX Gyre Termes',
     }
+
+    # Bundled metric-compatible clones injected as a fallback when a proprietary
+    # family is requested but absent (Linux/Colab): the request keeps the real
+    # font where present (macOS/Windows) and degrades to the clone otherwise,
+    # instead of dropping to the visibly-different DejaVu Sans.
+    _CLONE_FALLBACKS = [
+        (('helvetica', 'arial'), 'TeX Gyre Heros'),
+        (('times', 'times new roman'), 'TeX Gyre Termes'),
+    ]
 
     @staticmethod
     def apply_font(font='Latin Modern Sans, DejaVu Sans'):
@@ -222,12 +232,12 @@ class Kbstat:
         # Resolve friendly aliases ('Sans'/'Modern' -> Latin Modern Sans,
         # 'Times' -> Times New Roman, ...), case-insensitively.
         f = [Kbstat._FONT_ALIASES.get(str(x).strip().lower(), x) for x in f]
-        # A request for Helvetica/Arial falls back to the bundled Helvetica clone
-        # (TeX Gyre Heros) where the real font is absent (Linux/Colab), rather than
-        # dropping all the way to the visibly-different DejaVu Sans.
-        _helv = [i for i, fam in enumerate(f) if str(fam).strip().lower() in ('helvetica', 'arial')]
-        if _helv and 'TeX Gyre Heros' not in f:
-            f.insert(_helv[-1] + 1, 'TeX Gyre Heros')
+        # Insert the bundled clone after any requested proprietary family so it
+        # degrades gracefully where that font is absent (see _CLONE_FALLBACKS).
+        for _names, _clone in Kbstat._CLONE_FALLBACKS:
+            _idx = [i for i, fam in enumerate(f) if str(fam).strip().lower() in _names]
+            if _idx and _clone not in f:
+                f.insert(_idx[-1] + 1, _clone)
         key = tuple(f)
         cache = Kbstat._resolved_body_font
         if key not in cache:
