@@ -164,9 +164,11 @@ class KbstatOptions:
     #            fitted model), reported alongside the factor-omnibus A:B already in
     #            the ANOVA. Leads with the focused linear trend.
     # Level order = x_order[B] if set, else B's existing (first-appearance) order.
-    # The linear trend uses equal-spaced polynomial positions along that order; the
-    # profile plot's x-axis uses the level labels' numeric values when all parse as
-    # numbers (real spacing), else equal-spaced ranks. Meaningful only when B interacts with
+    # The trend uses B's numeric positions: the level labels' numeric values when
+    # all parse as numbers (so unequal spacing, e.g. dose 1/2/10, is honoured), else
+    # equal-spaced ranks. The trend estimate is the per-unit slope of the profiled
+    # contrast across B, and its test reduces to the equal-spaced polynomial trend
+    # when spacing is equal. Meaningful only when B interacts with
     # the profiled factor and has >=3 ordered levels (warns otherwise). Writes
     # LevelProfile.xlsx and a profile plot. '' (default) = off.
     profile_across: str = ''

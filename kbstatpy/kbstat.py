@@ -946,11 +946,14 @@ class Kbstat:
                         partners.append(f)
         return partners
 
-    def _profile_trend(self, r_obj, B, partners):
-        """Layer 2 trend rows: the linear-trend component of each partner factor's
-        interaction with B (emmeans poly x pairwise contrast on the fitted model,
-        equal-spaced along B's ordered levels), plus the factor-omnibus A:B pulled
-        from the ANOVA table. Returns a list of dict rows."""
+    def _profile_trend(self, r_obj, B, partners, positions):
+        """Layer 2 trend rows: each partner factor's interaction with B as a focused
+        1-df linear trend, plus the factor-omnibus A:B from the ANOVA table. The
+        trend is a custom linear contrast over B whose weights are proportional to
+        the (centered) numeric positions — so its test matches the equal-spaced
+        polynomial trend when spacing is equal, and honours real numeric spacing
+        otherwise. Weights are slope-normalised, so the estimate is the per-unit
+        slope of A's contrast across B. Returns a list of dict rows."""
         import rpy2.robjects.pandas2ri as p2ri
         import re
         rows = []
@@ -972,31 +975,31 @@ class Kbstat:
                             'p': float(ar.get('p', np.nan)) if 'p' in ar.index else np.nan,
                         })
                         break
-            # Linear-trend component via poly x pairwise interaction contrast.
+            # Linear-trend component: a custom linear contrast over B with weights
+            # proportional to the centered numeric positions (slope-normalised, so
+            # the estimate is the per-unit slope of A's contrast across B). Reduces
+            # to emmeans' equal-spaced 'poly' linear trend when spacing is equal.
             try:
-                ro.globalenv['kbstat_cmp_model'] = r_obj
-                emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {B} * {A})')
-                ct = ro.r('as.data.frame')(
-                    ro.r('contrast')(emm, interaction=ro.StrVector(['poly', 'pairwise'])))
-                df = p2ri.rpy2py(ct)
-                # This glmmTMB/pymer4 path returns integer codes rather than
-                # labels: the '<B>_poly' column is 1=linear, 2=quadratic, ...;
-                # the '<A>_pairwise' column codes the pairwise A contrasts.
-                poly_col = next((c for c in df.columns if str(c).endswith('_poly')), None)
-                pw_col = next((c for c in df.columns if str(c).endswith('_pairwise')), None)
-                ratio_col = next((c for c in ('t.ratio', 'z.ratio') if c in df.columns), None)
-                if poly_col is not None:
-                    polyvals = df[poly_col].astype(str).str.strip().str.lower()
-                    lin = df[polyvals.isin(['1', 'linear'])]
+                pmean = sum(positions) / len(positions)
+                ss = sum((p - pmean) ** 2 for p in positions)
+                if ss > 0:
+                    w = ','.join(repr((p - pmean) / ss) for p in positions)
+                    ro.globalenv['kbstat_cmp_model'] = r_obj
+                    df = p2ri.rpy2py(ro.r(
+                        f'as.data.frame(emmeans::contrast(emmeans::emmeans('
+                        f'kbstat_cmp_model, ~ {B} * {A}), interaction = list('
+                        f'{B} = list(linear = c({w})), {A} = "pairwise")))'))
+                    pw_col = next((c for c in df.columns if str(c).endswith('_pairwise')), None)
+                    ratio_col = next((c for c in ('t.ratio', 'z.ratio') if c in df.columns), None)
                     acol = self.data[A]
                     alev = [str(v) for v in (acol.cat.categories if hasattr(acol, 'cat')
                                              else pd.unique(acol.dropna()))]
                     label = f'{alev[0]} - {alev[1]}' if len(alev) == 2 else ''
-                    for _, rr in lin.iterrows():
+                    for _, rr in df.iterrows():
                         rows.append({
                             'factor': A,
-                            'component': 'linear trend (A:B_pos, 1 df)',
-                            'contrast': label or str(rr[pw_col]) if pw_col else label,
+                            'component': 'linear trend (A:B slope, 1 df)',
+                            'contrast': label or (str(rr[pw_col]) if pw_col else ''),
                             'estimate': float(rr['estimate']) if 'estimate' in df.columns else np.nan,
                             'stat': float(rr[ratio_col]) if ratio_col else np.nan,
                             'df1': 1.0,
@@ -1050,7 +1053,7 @@ class Kbstat:
             _, ph_df, _ = self._pairwise_for(r_obj, A, [B])
             if ph_df is not None and len(ph_df):
                 per_level[A] = ph_df
-        trend_rows = self._profile_trend(r_obj, B, partners)
+        trend_rows = self._profile_trend(r_obj, B, partners, positions)
         trend_df = None
         if trend_rows:
             trend_df = pd.DataFrame(trend_rows)
