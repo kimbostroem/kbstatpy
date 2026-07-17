@@ -98,6 +98,8 @@ class KbstatOptions:
     # also bundles TeX Gyre Heros (a Helvetica clone) and falls back to it wherever
     # the requested Helvetica/Arial is absent (Linux/Colab), so those keep a
     # Helvetica look instead of dropping to the visibly-different DejaVu Sans.
+    # Convenient case-insensitive aliases: 'Sans'/'Modern' -> Latin Modern Sans,
+    # 'Times' -> Times New Roman; any family name is also matched case-insensitively.
     # matplotlib tries each family in order, so a missing one never warns. '' or
     # 'auto' uses matplotlib's own default (DejaVu Sans). The title font derives
     # from this (see title_font). To match this style in a hand-built matplotlib

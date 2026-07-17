@@ -181,6 +181,22 @@ class Kbstat:
         except Exception:
             pass
 
+    # Friendly aliases for options.font: short/common names -> the canonical
+    # matplotlib family, matched case-insensitively. Beyond these, apply_font also
+    # matches any family name case-insensitively; it does NOT fuzzy-guess partial
+    # names, which would be ambiguous ('modern' could be Latin Modern Sans, Roman
+    # or Mono; 'sans' substring-matches dozens of families).
+    _FONT_ALIASES = {
+        'sans': 'Latin Modern Sans',
+        'modern': 'Latin Modern Sans',
+        'latin modern': 'Latin Modern Sans',
+        'computer modern': 'Latin Modern Sans',
+        'lm sans': 'Latin Modern Sans',
+        'times': 'Times New Roman',
+        'heros': 'TeX Gyre Heros',
+        'helvetica clone': 'TeX Gyre Heros',
+    }
+
     @staticmethod
     def apply_font(font='Latin Modern Sans, DejaVu Sans'):
         """Apply kbstat's house font-resolution to matplotlib's rcParams, without
@@ -203,6 +219,9 @@ class Kbstat:
             return
         Kbstat._register_bundled_fonts()
         f = Kbstat._split_csv(font) if isinstance(font, str) else list(font)
+        # Resolve friendly aliases ('Sans'/'Modern' -> Latin Modern Sans,
+        # 'Times' -> Times New Roman, ...), case-insensitively.
+        f = [Kbstat._FONT_ALIASES.get(str(x).strip().lower(), x) for x in f]
         # A request for Helvetica/Arial falls back to the bundled Helvetica clone
         # (TeX Gyre Heros) where the real font is absent (Linux/Colab), rather than
         # dropping all the way to the visibly-different DejaVu Sans.
@@ -219,11 +238,16 @@ class Kbstat:
                 weights_by_name.setdefault(fam.name, set()).add(fam.weight)
                 if fam.fname.lower().endswith('.ttc'):
                     ttc_path_by_name.setdefault(fam.name, fam.fname)
+            # Case-insensitive lookup so e.g. 'latin modern sans' matches the
+            # installed 'Latin Modern Sans'.
+            lower_actual = {name.lower(): name for name in weights_by_name}
             def _has_bold(name):
                 return any(isinstance(w, (int, float)) and w >= 600
                            for w in weights_by_name.get(name, ()))
             resolved = []
             for fam in f:
+                if fam not in weights_by_name:
+                    fam = lower_actual.get(str(fam).strip().lower(), fam)
                 if fam not in weights_by_name:
                     continue
                 if _has_bold(fam):
