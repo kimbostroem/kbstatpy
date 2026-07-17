@@ -160,7 +160,7 @@ class Kbstat:
             Kbstat.apply_font(f)
 
     @staticmethod
-    def apply_font(font='Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'):
+    def apply_font(font='Helvetica, Arial, Liberation Sans, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'):
         """Apply kbstat's house font-resolution to matplotlib's rcParams, without
         needing a Kbstat/KbstatOptions instance. Narrows the fallback chain (a
         string, comma-separated, or an already-split list) to families that are

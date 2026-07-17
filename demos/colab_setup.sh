@@ -42,6 +42,14 @@ DEMOS_PARENT=$(python3 -c "import importlib.util, os; s = importlib.util.find_sp
 ln -sfn "$REPO/demos" "$DEMOS_PARENT/demos"
 echo "Linked demo data -> $DEMOS_PARENT/demos"
 
+# 3b. Install a Helvetica-alike font (Liberation Sans, an Arial-metric clone) so
+#     plots render in kbstatpy's house style instead of falling back to DejaVu.
+#     Must happen before matplotlib is first imported (the notebook cells do that);
+#     clearing matplotlib's font cache makes it re-scan and pick the new font up.
+echo "Installing a Helvetica-alike font (fonts-liberation) ..."
+apt-get install -y -q fonts-liberation >/dev/null 2>&1 || echo "  (font install skipped; plots will use DejaVu Sans)"
+rm -rf ~/.cache/matplotlib >/dev/null 2>&1 || true
+
 # 4. Install the R packages kbstatpy uses. The HTTPUserAgent makes Posit Package
 #    Manager serve precompiled binaries instead of source (fast, no compiler noise).
 echo "Installing R packages (first run only, ~1-2 min) ..."

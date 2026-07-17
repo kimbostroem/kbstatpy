@@ -92,16 +92,20 @@ class KbstatOptions:
     color_alpha: float = 0.5
     # Matplotlib font family (or ordered fallback chain) for body text on all
     # plots. The default is a Helvetica-first chain that degrades gracefully
-    # across platforms: Helvetica (macOS) -> Arial (Windows, metric-compatible
-    # with Helvetica) -> Nimbus Sans / TeX Gyre Heros (libre Helvetica clones,
-    # common on Linux) -> DejaVu Sans (matplotlib's built-in, always present).
-    # matplotlib tries each in order, so a missing family never warns and never
-    # silently drops to an unexpected face. '' or 'auto' uses matplotlib's own
-    # default (DejaVu Sans); a single family name (e.g. 'Arial') forces just
-    # that one. The title font derives from this (see title_font). To match this
-    # style in a hand-built matplotlib figure that bypasses Kbstat.run_save()
-    # entirely, call the public Kbstat.apply_font() before building it.
-    font: str = 'Helvetica, Arial, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'
+    # across platforms, always to a metric-compatible grotesque before the last
+    # resort: Helvetica (macOS) -> Arial (Windows) -> Liberation Sans (the Arial
+    # clone shipped by almost every Linux distro) -> Nimbus Sans / TeX Gyre Heros
+    # (libre Helvetica clones) -> DejaVu Sans (matplotlib's built-in, always
+    # present but visibly different from Helvetica). matplotlib tries each in
+    # order, so a missing family never warns and never silently drops to an
+    # unexpected face. On a bare Linux box with none of the clones installed it
+    # still reaches DejaVu; installing e.g. `fonts-liberation` (as the Colab demo
+    # setup does) gets an Arial/Helvetica look. '' or 'auto' uses matplotlib's own
+    # default (DejaVu Sans); a single family name (e.g. 'Arial') forces just that
+    # one. The title font derives from this (see title_font). To match this style
+    # in a hand-built matplotlib figure that bypasses Kbstat.run_save() entirely,
+    # call the public Kbstat.apply_font() before building it.
+    font: str = 'Helvetica, Arial, Liberation Sans, Nimbus Sans, TeX Gyre Heros, DejaVu Sans'
     # Previous default (matplotlib's own, DejaVu Sans) — restore this line to
     # roll back the Helvetica-first chain above:
     # font: str = ''
