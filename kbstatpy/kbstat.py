@@ -241,6 +241,17 @@ class Kbstat:
         # sqrt label) shares the LaTeX look. Left untouched for any other font.
         if cache[key] and str(cache[key][0]).strip().lower() == 'latin modern sans':
             plt.rcParams['mathtext.fontset'] = 'cm'
+        # House plot sizes. The default body font (Latin Modern Sans) reads small
+        # at a given point size, so enlarge the labelling uniformly across all
+        # plots. Set via rcParams so the data, diagnostics and profile plots (which
+        # rely on the defaults) all match; plots that set explicit sizes (the dense
+        # correlation grids) keep their own. Tick numbers stay modest at 11.
+        plt.rcParams.update({
+            'axes.titlesize': 14,
+            'axes.labelsize': 14,
+            'xtick.labelsize': 11,
+            'ytick.labelsize': 11,
+        })
 
     @staticmethod
     def _split_csv(value):
@@ -1165,7 +1176,7 @@ class Kbstat:
             ax.set_xticklabels(order)
             ax.set_xlabel(self._disp(B))
             ax.set_ylabel(ylab)
-            ax.legend(title=self._disp(A), fontsize=8)
+            ax.legend(title=self._disp(A), fontsize=11)
         st = self._add_suptitle(fig, f'{ylab} profiled across {self._disp(B)}')
         fig.tight_layout()
         self._fit_suptitle_to_axes(st, fig)
@@ -1668,7 +1679,7 @@ class Kbstat:
                  if fam in available), base_name)
         return cache[key]
 
-    def _add_suptitle(self, fig, text, max_size=14):
+    def _add_suptitle(self, fig, text, max_size=17):
         """Create the bold figure suptitle in a narrow/condensed font (see
         options.title_font). Call :meth:`_fit_suptitle_to_axes` after the layout
         is final to centre it over the plot box and shrink it to that width.
@@ -1971,7 +1982,7 @@ class Kbstat:
                 pct = 100.0 * n_out / n_tot if n_tot else 0.0
                 ax.text(0.02, 0.02, f'{pct:.1f}% outliers ({n_out} of {n_tot})',
                         transform=ax.transAxes, ha='left', va='bottom',
-                        fontsize=8, color='black', zorder=7)
+                        fontsize=9, color='black', zorder=7)
             elif show_out != 'none' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
@@ -2070,7 +2081,7 @@ class Kbstat:
                     n = len(subset)
                     y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
                     ax.text(i, ci_hi + y_range * 0.02, f'n={n}', ha='center', va='bottom',
-                            fontsize=8, color='0.4', zorder=7)
+                            fontsize=9, color='0.4', zorder=7)
 
             # y-limit expansion and bracket drawing are deferred to after the
             # panel loop so that sharey=True doesn't cause compounding expansions.
