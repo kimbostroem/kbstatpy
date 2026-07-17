@@ -273,19 +273,6 @@ cd kbstatpy
 python3 demos/scripts/demo_01_unpaired.py
 ```
 
-### Try the demos on Google Colab
-
-You can run every demo in the browser — no local install and no R to set up on
-your own machine — on a free [Google Colab](https://colab.research.google.com)
-runtime:
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
-
-The [`demos/kbstatpy_colab.ipynb`](demos/kbstatpy_colab.ipynb) notebook installs
-the R packages and kbstatpy, clones this repo so all datasets are available, runs
-one demo inline, and lets you run any of the others. Colab gives each visitor a
-private copy, so they can experiment freely without affecting the original.
-
 | Script | Dataset | Description |
 |---|---|---|
 | `demo_01_unpaired.py` | `sleep.csv` | Unpaired t-test equivalent — two independent groups, plain LM |
@@ -333,6 +320,40 @@ to regenerate them if you change `export_datasets.R`:
 ```bash
 Rscript export_datasets.R
 ```
+
+### Try the demos on Google Colab
+
+Every demo is also a **notebook you can open and run in the browser** — no local
+install, no R to set up on your own machine — on a free
+[Google Colab](https://colab.research.google.com) runtime. Open one and run it
+top to bottom: the first cell installs everything (~3–5 min, once per session) and
+the analysis — tables and figures — renders inline. Running or editing a cell
+gives you your own private copy, so you can experiment freely.
+
+New here? The guided playground walks through one demo and points to the rest:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
+
+Or open any individual demo directly — each installs itself and renders its
+results inline:
+
+| Demo | Open in Colab |
+|---|---|
+| 1 · Unpaired *t*-test equivalent | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_01_unpaired.ipynb) |
+| 2 · Paired *t*-test equivalent | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_02_paired.ipynb) |
+| 3 · Two-way ANOVA equivalent | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_03_twoway.ipynb) |
+| 4 · One-way RM-ANOVA (LMM) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_04_lmm.ipynb) |
+| 5 · Standalone correlation analysis | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_05_correlation.ipynb) |
+| 6 · LMM with random slopes | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_06_lmm_slopes.ipynb) |
+| 7 · LMM with log-transform | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_07_lmm_transform.ipynb) |
+| 8 · GLMM (gamma, log link) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_08_glmm_gamma.ipynb) |
+| 9 · LMM with partial interaction | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_09_lmm_partial_interaction.ipynb) |
+| 10 · Outlier removal (pre/post-fit) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_10_outliers.ipynb) |
+| 11 · GLMM (binomial, logit link) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_11_glmm_binomial.ipynb) |
+| 12 · Multiple dependent variables + correlation | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_12_multi_y.ipynb) |
+| 13 · Family-wise correction across DVs | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_13_family_correction.ipynb) |
+| 14 · LM with mixed predictors + VIF | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_14_lm_vif.ipynb) |
+| 15 · `posthoc_compare` across factors | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_15_posthoc_compare.ipynb) |
 
 ---
 
