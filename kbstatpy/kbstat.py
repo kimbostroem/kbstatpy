@@ -1261,7 +1261,7 @@ class Kbstat:
             return (series < q1 - 1.5 * iqr) | (series > q3 + 1.5 * iqr)
 
         if self.options.x:
-            flags = self.data.groupby(self.options.x)[y].transform(_iqr_mask)
+            flags = self.data.groupby(self.options.x, observed=True)[y].transform(_iqr_mask)
         else:
             flags = _iqr_mask(self.data[y])
 
@@ -2692,7 +2692,10 @@ class Kbstat:
             return float(inv(np.array([val]))[0]) if inv is not None else val
 
         rows = []
-        groups = self.data.groupby(factors)
+        # observed=True: report only factor-level combinations that actually
+        # occur. With categorical factors the default (observed=False) returns
+        # the full cartesian product, padding the table with empty N=0/NaN cells.
+        groups = self.data.groupby(factors, observed=True)
         for keys, group in groups:
             if not isinstance(keys, tuple):
                 keys = (keys,)
