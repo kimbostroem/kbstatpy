@@ -1350,15 +1350,21 @@ class Kbstat:
         if self.options.title_font:
             return self.options.title_font
         base = self._body_font() or plt.rcParams.get('font.family', 'sans-serif')
-        base_name = base[0] if isinstance(base, (list, tuple)) else str(base)
+        chain = list(base) if isinstance(base, (list, tuple)) else [base]
+        key = tuple(chain)
         cache = Kbstat._resolved_title_font
-        if base_name not in cache:
+        if key not in cache:
             from matplotlib import font_manager as fm
             available = {f.name for f in fm.fontManager.ttflist}
-            cache[base_name] = next(
+            # Base the title on the first family in the chain that is actually
+            # installed, never a merely-requested one (e.g. Helvetica on Linux).
+            # Handing matplotlib an absent family warns for every title at render
+            # time — the body chain is pruned the same way in apply_font.
+            base_name = next((fam for fam in chain if fam in available), 'sans-serif')
+            cache[key] = next(
                 (fam for fam in (f'{base_name} Condensed', f'{base_name} Narrow')
                  if fam in available), base_name)
-        return cache[base_name]
+        return cache[key]
 
     def _add_suptitle(self, fig, text, max_size=14):
         """Create the bold figure suptitle in a narrow/condensed font (see
