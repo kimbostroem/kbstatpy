@@ -208,7 +208,7 @@ class Kbstat:
     ]
 
     @staticmethod
-    def apply_font(font='Latin Modern Sans, DejaVu Sans'):
+    def apply_font(font='Helvetica, DejaVu Sans'):
         """Apply kbstat's house font-resolution to matplotlib's rcParams, without
         needing a Kbstat/KbstatOptions instance. Narrows the fallback chain (a
         string, comma-separated, or an already-split list) to families that are

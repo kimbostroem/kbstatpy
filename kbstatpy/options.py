@@ -91,22 +91,22 @@ class KbstatOptions:
     color_sat: float = 0.9
     color_alpha: float = 0.5
     # Matplotlib font family (or ordered fallback chain) for body text on all
-    # plots. The default is Latin Modern Sans -- the sans-serif of LaTeX's Computer
-    # Modern family -- which kbstatpy bundles and registers on import, so it renders
-    # identically on every platform with no system font install. Override with any
-    # family name or comma-separated chain, e.g. 'Helvetica' or 'Arial': kbstatpy
-    # also bundles TeX Gyre Heros and TeX Gyre Termes (Helvetica and Times clones)
-    # and falls back to them wherever the requested Helvetica/Arial/Times is absent
-    # (Linux/Colab), so those keep their intended look instead of dropping to the
-    # visibly-different DejaVu Sans.
-    # Convenient case-insensitive aliases: 'Sans'/'Modern' -> Latin Modern Sans,
-    # 'Times' -> Times New Roman; any family name is also matched case-insensitively.
-    # matplotlib tries each family in order, so a missing one never warns. '' or
-    # 'auto' uses matplotlib's own default (DejaVu Sans). The title font derives
-    # from this (see title_font). To match this style in a hand-built matplotlib
-    # figure that bypasses Kbstat.run_save() entirely, call the public
-    # Kbstat.apply_font() before building it.
-    font: str = 'Latin Modern Sans, DejaVu Sans'
+    # plots. The default is Helvetica: the real font on macOS/Windows, and the
+    # bundled TeX Gyre Heros clone on Linux/Colab, so it renders as Helvetica on
+    # every platform with no system font install. kbstatpy also bundles Latin
+    # Modern Sans (LaTeX's Computer Modern sans) and TeX Gyre Termes (a Times
+    # clone), all registered on import. Override with any family name or
+    # comma-separated chain; a request for Helvetica/Arial or Times falls back to
+    # its bundled clone where the real font is absent, rather than dropping to the
+    # visibly-different DejaVu Sans. Convenient case-insensitive aliases:
+    # 'Sans'/'Modern' -> Latin Modern Sans (the LaTeX look), 'Times' -> Times New
+    # Roman; any family name is also matched case-insensitively. matplotlib tries
+    # each family in order, so a missing one never warns. '' or 'auto' uses
+    # matplotlib's own default (DejaVu Sans). The title font derives from this (see
+    # title_font). To match this style in a hand-built matplotlib figure that
+    # bypasses Kbstat.run_save() entirely, call the public Kbstat.apply_font()
+    # before building it.
+    font: str = 'Helvetica, DejaVu Sans'
     # Previous default (matplotlib's own, DejaVu Sans) — restore this line to
     # roll back the Helvetica-first chain above:
     # font: str = ''
