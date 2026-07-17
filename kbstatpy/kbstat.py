@@ -32,6 +32,8 @@ class ModelResult:
     data: object = None           # the data the model was fitted on
     fig_data: object = None       # data plot figure
     fig_diagnostics: object = None  # diagnostics figure
+    profile_across: object = None   # level-wise profile result dict, or None
+    fig_profile_across: object = None  # profile plot figure, or None
 
     def __repr__(self):
         # Concise: the default dataclass repr dumps the full summary text,
@@ -364,6 +366,8 @@ class Kbstat:
                 data=worker.data,
                 fig_data=worker.fig_data,
                 fig_diagnostics=worker.fig_diagnostics,
+                profile_across=getattr(worker, 'profile_across_result', None),
+                fig_profile_across=getattr(worker, 'fig_profile_across', None),
             ))
 
         # Across-y multiple-comparison correction (one family per model term).
@@ -432,6 +436,8 @@ class Kbstat:
                 data=self.data,
                 fig_data=self.fig_data,
                 fig_diagnostics=self.fig_diagnostics,
+                profile_across=getattr(self, 'profile_across_result', None),
+                fig_profile_across=getattr(self, 'fig_profile_across', None),
             ))
         return out
 
@@ -449,6 +455,8 @@ class Kbstat:
             self.fit()
         self.anova()
         self.posthoc()
+        if self.options.profile_across:
+            self.profile_across()
         self.plot_diagnostics()
         self.plot_data()
 
@@ -901,6 +909,231 @@ class Kbstat:
             rows.append(row)
         return pd.DataFrame(rows)
 
+    def _profile_level_order(self, B):
+        """Ordered level labels for factor B: options.x_order[B] if given, else B's
+        existing categorical / first-appearance order (as strings)."""
+        xo = self.options.x_order
+        order = None
+        if isinstance(xo, dict):
+            order = xo.get(B)
+        elif isinstance(xo, list) and self.options.x and B == self.options.x[0]:
+            order = xo
+        if order:
+            return [str(v) for v in order]
+        col = self.data[B]
+        cats = col.cat.categories if hasattr(col, 'cat') else pd.unique(col.dropna())
+        return [str(v) for v in cats]
+
+    def _profile_positions(self, order):
+        """Numeric positions for the ordered levels: the labels' numeric values when
+        all parse as numbers (respecting real spacing), else equal-spaced ranks."""
+        try:
+            return [float(str(l)) for l in order]
+        except (ValueError, TypeError):
+            return [float(i + 1) for i in range(len(order))]
+
+    def _profile_partners(self, B):
+        """Fixed factors that share an interaction term with B."""
+        ia = self.options.interaction
+        if ia and not isinstance(ia[0], list):
+            ia = [ia]
+        factors = list(self.options.x or [])
+        partners = []
+        for pair in (ia or []):
+            if B in pair:
+                for f in pair:
+                    if f != B and f in factors and f not in partners:
+                        partners.append(f)
+        return partners
+
+    def _profile_trend(self, r_obj, B, partners):
+        """Layer 2 trend rows: the linear-trend component of each partner factor's
+        interaction with B (emmeans poly x pairwise contrast on the fitted model,
+        equal-spaced along B's ordered levels), plus the factor-omnibus A:B pulled
+        from the ANOVA table. Returns a list of dict rows."""
+        import rpy2.robjects.pandas2ri as p2ri
+        import re
+        rows = []
+        if r_obj is None:
+            return rows
+        for A in partners:
+            # Factor-omnibus A:B from the already-computed ANOVA (order-independent).
+            if self.anova_table is not None:
+                for _, ar in self.anova_table.iterrows():
+                    term = str(ar.get('Term', ''))
+                    parts = set(re.split(r'[:*x×]', term.replace(' ', '')))
+                    if A in parts and B in parts and len(parts) == 2:
+                        rows.append({
+                            'factor': A, 'component': 'omnibus (A:B, factor)',
+                            'estimate': np.nan,
+                            'stat': float(ar.get('F', np.nan)) if 'F' in ar.index else np.nan,
+                            'df1': float(ar.get('DF1', np.nan)) if 'DF1' in ar.index else np.nan,
+                            'df2': float(ar.get('DF2', np.nan)) if 'DF2' in ar.index else np.nan,
+                            'p': float(ar.get('p', np.nan)) if 'p' in ar.index else np.nan,
+                        })
+                        break
+            # Linear-trend component via poly x pairwise interaction contrast.
+            try:
+                ro.globalenv['kbstat_cmp_model'] = r_obj
+                emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {B} * {A})')
+                ct = ro.r('as.data.frame')(
+                    ro.r('contrast')(emm, interaction=ro.StrVector(['poly', 'pairwise'])))
+                df = p2ri.rpy2py(ct)
+                # This glmmTMB/pymer4 path returns integer codes rather than
+                # labels: the '<B>_poly' column is 1=linear, 2=quadratic, ...;
+                # the '<A>_pairwise' column codes the pairwise A contrasts.
+                poly_col = next((c for c in df.columns if str(c).endswith('_poly')), None)
+                pw_col = next((c for c in df.columns if str(c).endswith('_pairwise')), None)
+                ratio_col = next((c for c in ('t.ratio', 'z.ratio') if c in df.columns), None)
+                if poly_col is not None:
+                    polyvals = df[poly_col].astype(str).str.strip().str.lower()
+                    lin = df[polyvals.isin(['1', 'linear'])]
+                    acol = self.data[A]
+                    alev = [str(v) for v in (acol.cat.categories if hasattr(acol, 'cat')
+                                             else pd.unique(acol.dropna()))]
+                    label = f'{alev[0]} - {alev[1]}' if len(alev) == 2 else ''
+                    for _, rr in lin.iterrows():
+                        rows.append({
+                            'factor': A,
+                            'component': 'linear trend (A:B_pos, 1 df)',
+                            'contrast': label or str(rr[pw_col]) if pw_col else label,
+                            'estimate': float(rr['estimate']) if 'estimate' in df.columns else np.nan,
+                            'stat': float(rr[ratio_col]) if ratio_col else np.nan,
+                            'df1': 1.0,
+                            'df2': float(rr['df']) if 'df' in df.columns else float('inf'),
+                            'p': float(rr['p.value']) if 'p.value' in df.columns else np.nan,
+                        })
+            except Exception:
+                pass
+        return rows
+
+    def profile_across(self):
+        """Level-wise profile analysis across the ordered factor options.profile_across.
+
+        See the KbstatOptions.profile_across docstring for the full description.
+        Populates self.profile_across_result (a dict) and self.fig_profile_across.
+        Requires a fitted model with post-hoc already run (needs self._emm_df_full).
+        """
+        self.profile_across_result = None
+        self.fig_profile_across = None
+        pa = self.options.profile_across
+        if isinstance(pa, (list, tuple)):
+            pa = pa[0] if pa else ''
+        B = str(pa or '').strip()
+        if not B:
+            return None
+        if self.model is None:
+            raise RuntimeError('Call fit()/posthoc() before profile_across()')
+        factors = list(self.options.x or [])
+        if B not in factors:
+            warnings.warn(
+                f"profile_across='{B}' is not a fixed-effect factor (x={factors}); "
+                "skipping the profile analysis.", stacklevel=2)
+            return None
+        order = self._profile_level_order(B)
+        positions = self._profile_positions(order)
+        partners = self._profile_partners(B)
+        if len(order) < 3:
+            warnings.warn(
+                f"profile_across='{B}' has only {len(order)} level(s); the linear "
+                "trend across <3 levels is degenerate (equals the single contrast). "
+                "Interpret with care.", stacklevel=2)
+        if not partners:
+            warnings.warn(
+                f"profile_across='{B}' does not interact with any fixed factor, so "
+                "the per-level profile is flat by construction and no trend is "
+                f"defined. Add {B} to an interaction (e.g. interaction='A, {B}').",
+                stacklevel=2)
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        per_level = {}
+        for A in partners:
+            _, ph_df, _ = self._pairwise_for(r_obj, A, [B])
+            if ph_df is not None and len(ph_df):
+                per_level[A] = ph_df
+        trend_rows = self._profile_trend(r_obj, B, partners)
+        trend_df = None
+        if trend_rows:
+            trend_df = pd.DataFrame(trend_rows)
+            _cols = ['factor', 'contrast', 'component', 'estimate', 'stat', 'df1', 'df2', 'p']
+            trend_df = trend_df.reindex(columns=[c for c in _cols if c in trend_df.columns])
+        self.profile_across_result = {
+            'factor': B,
+            'order': order,
+            'positions': positions,
+            'partners': partners,
+            'per_level': per_level,
+            'trend': trend_df,
+        }
+        try:
+            self.fig_profile_across = self._plot_profile_across()
+        except Exception:
+            self.fig_profile_across = None
+        return self.profile_across_result
+
+    def _plot_profile_across(self):
+        """Profile plot: response EMMs across the ordered factor B (x-axis), one
+        line per level of each interacting partner factor, with 95% CI error bars.
+        Reads the labelled A x B EMM grid built in posthoc() (self._emm_df_full)."""
+        import matplotlib.pyplot as plt
+        res = self.profile_across_result
+        if not res or not res['partners']:
+            return None
+        emm = self._emm_df_full
+        if emm is None or getattr(emm, 'empty', True):
+            return None
+        B, order, positions = res['factor'], res['order'], res['positions']
+        if B not in emm.columns:
+            return None
+        emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob') if c in emm.columns), None)
+        lo_col = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL') if c in emm.columns), None)
+        hi_col = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL') if c in emm.columns), None)
+        if emm_col is None:
+            return None
+        inv = self._inverse_fn
+
+        def bt(v):
+            return float(inv(np.array([v]))[0]) if inv is not None else float(v)
+
+        self._apply_font()
+        posmap = {lvl: positions[i] for i, lvl in enumerate(order)}
+        partners = res['partners']
+        fig, axes = plt.subplots(1, len(partners), figsize=(4.6 * len(partners), 4.0),
+                                 squeeze=False)
+        ylab = self._disp(self.options.y)
+        units = self._split_csv(self.options.y_units)
+        if units and units[0] not in ('', '1'):
+            ylab = f'{ylab} [{units[0]}]'
+        for ax, A in zip(axes[0], partners):
+            acol = self.data[A]
+            alev = [str(v) for v in (acol.cat.categories if hasattr(acol, 'cat')
+                                     else pd.unique(acol.dropna()))]
+            for al in alev:
+                sub = emm[emm[A].astype(str) == al]
+                xs, ys, lo, hi = [], [], [], []
+                for lvl in order:
+                    row = sub[sub[B].astype(str) == lvl]
+                    if len(row) == 0:
+                        continue
+                    r = row.iloc[0]
+                    xs.append(posmap[lvl]); ys.append(bt(r[emm_col]))
+                    if lo_col and hi_col:
+                        lo.append(ys[-1] - bt(r[lo_col])); hi.append(bt(r[hi_col]) - ys[-1])
+                if not xs:
+                    continue
+                if lo and hi:
+                    ax.errorbar(xs, ys, yerr=[lo, hi], marker='o', capsize=3, label=al)
+                else:
+                    ax.plot(xs, ys, marker='o', label=al)
+            ax.set_xticks([posmap[l] for l in order])
+            ax.set_xticklabels(order)
+            ax.set_xlabel(self._disp(B))
+            ax.set_ylabel(ylab)
+            ax.legend(title=self._disp(A), fontsize=8)
+        st = self._add_suptitle(fig, f'{ylab} profiled across {self._disp(B)}')
+        fig.tight_layout()
+        self._fit_suptitle_to_axes(st, fig)
+        return fig
+
     def correlate(self):
         """Compute pairwise Pearson and partial correlations, VIF, and scatter grids.
 
@@ -1209,6 +1442,20 @@ class Kbstat:
                     self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
             if res.fig_diagnostics is not None:
                 self._write_fig(res.fig_diagnostics, d, 'Diagnostics', html=True, tight=False)
+            if res.profile_across is not None:
+                pa = res.profile_across
+                sheets = []
+                if pa.get('trend') is not None:
+                    sheets.append(('Trend', pa['trend']))
+                for A, tbl in (pa.get('per_level') or {}).items():
+                    sheets.append((f'Profile_{A}'[:31], self._disp_cols(tbl)))
+                if sheets:
+                    with pd.ExcelWriter(os.path.join(d, 'LevelProfile.xlsx')) as writer:
+                        for name, tbl in sheets:
+                            tbl.to_excel(writer, sheet_name=name, index=False)
+                    print(f'Saved LevelProfile.xlsx to {d}')
+            if res.fig_profile_across is not None:
+                self._write_fig(res.fig_profile_across, d, 'LevelProfile', html=False, tight=True)
 
         if output.multiple_comparisons is not None:
             mc_path = os.path.join(out_dir, 'MultipleComparisons.xlsx')
@@ -2635,6 +2882,23 @@ class Kbstat:
                       f'  Denominator df method: {self._df_method_label()}', '']
             lines += [ph.to_string(index=False), '']
 
+        # --- Level-wise profile ---
+        pa = getattr(self, 'profile_across_result', None)
+        if pa:
+            lines += ['LEVEL-WISE PROFILE', '------------------',
+                      f'  Ordered factor    : {pa["factor"]} '
+                      f'(levels: {", ".join(pa["order"])}; positions: '
+                      f'{", ".join(str(p) for p in pa["positions"])})',
+                      f'  Profiled factor(s): '
+                      f'{", ".join(pa["partners"]) if pa["partners"] else "(none — factor is not in an interaction; profile is flat)"}',
+                      '']
+            for A, tbl in (pa.get('per_level') or {}).items():
+                t = tbl.to_pandas() if hasattr(tbl, 'to_pandas') else tbl
+                lines += [f'  Layer 1 — {A} contrast within each {pa["factor"]} level:',
+                          t.to_string(index=False), '']
+            if pa.get('trend') is not None:
+                lines += ['  Layer 2 — trend across levels (focused linear trend vs factor omnibus):',
+                          pa['trend'].to_string(index=False), '']
 
         # --- Diagnostics note ---
         _resid = getattr(self, '_resid_label', None)
