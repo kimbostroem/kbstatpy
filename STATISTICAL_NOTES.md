@@ -19,6 +19,7 @@
   - [Multiple dependent variables (Demo 12)](#multiple-dependent-variables-demo-12)
   - [Family-wise correction across dependent variables (Demo 13)](#family-wise-correction-across-dependent-variables-demo-13)
   - [Multicollinearity diagnostics — VIF (Demo 14)](#multicollinearity-diagnostics-vif-demo-14)
+  - [Comparing any factor, per cell (Demo 15)](#comparing-any-factor-per-cell-demo-15)
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
@@ -196,6 +197,12 @@ This corrects within a single run. When the family of tests spans several separa
 Demo 14 illustrates the typical situation in biomechanical and physiological research: a categorical predictor (number of cylinders) and two correlated continuous covariates (horsepower, weight). The categorical predictor appears in the violin plot; the numeric covariates are checked for collinearity via VIF and visualised in the correlation scatter grid with VIF values on the diagonal.
 
 Detecting collinearity before interpreting individual predictor effects is essential — highly correlated predictors inflate standard errors and destabilise coefficient estimates even when no formal assumption is violated. See [VIF and multicollinearity](#vif-and-multicollinearity) for the mathematical definition and thresholds.
+
+### Comparing any factor, per cell (Demo 15)
+
+By default the post-hoc pairwise comparisons run on the first fixed-effect factor. `options.posthoc_compare` points them at any factor instead — or several — each replotted as if it were the first variable (its levels on the x-axis, the remaining factors as facet panels), with its own significance brackets and `Posthoc_<factor>.xlsx`.
+
+The statistically important part is that these comparisons are **conditional (per cell)**, not marginal: a factor's levels are compared *within each combination of the other factors*, so every facet panel carries its own brackets and the answer can differ between panels. That is exactly the contrast a significant interaction calls for — the **simple effects** of one factor at each level of another — rather than a marginal comparison that averages over the interacting factor and can mislead, or even reverse, when the interaction is strong. Per-cell p-values are Holm-corrected within the cell; the table additionally carries a marginal block (conditioning columns set to `any`) for reference. See [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans) for the mechanics and the caution about interpreting marginal main-effect estimates when an interaction is present.
 
 ### Level-wise profile analysis (Demo 16)
 
