@@ -1,5 +1,30 @@
 # Changes
 
+## [1.9.0] - 2026-07-17
+
+### Features
+
+- **Level-wise profile analysis** via `options.profile_across`. Names an ordered categorical factor and, on top of the usual analyses, profiles how the factor(s) interacting with it behave across its levels: per-level pairwise contrasts from the single fitted model (Layer 1), and the interaction as both a factor omnibus and a focused 1-df linear trend across the ordered positions (Layer 2 — a position-weighted contrast that honours real numeric spacing and reduces to the equal-spaced polynomial trend). Writes `LevelProfile.xlsx` and a profile plot; new `ModelResult` fields. Demo 16, README, and STATISTICAL_NOTES added.
+- **Bundled fonts, cross-platform.** kbstatpy now ships and registers Latin Modern Sans, TeX Gyre Heros, and TeX Gyre Termes (GUST Font License) on import, so plots render identically on every platform with no system font install. A request for `'Helvetica'`/`'Arial'` or `'Times'` keeps the real font on macOS/Windows and falls back to its bundled clone (TeX Gyre Heros / Termes) on Linux/Colab, instead of dropping to DejaVu Sans. Added friendly case-insensitive `options.font` aliases (`'Sans'`/`'Modern'` → Latin Modern Sans, `'Times'` → Times New Roman) and case-insensitive family matching.
+- **Run the demos on Google Colab.** Added `demos/kbstatpy_colab.ipynb` (a one-click playground) and per-demo "Open in Colab" links; each demo notebook self-installs via `demos/colab_setup.sh` (clones the repo, installs kbstatpy and the R packages, links the datasets). README "Open in Colab" badge and section.
+
+### Changes
+
+- Enlarged the data, diagnostics, and profile plots' label/title/tick sizes (axis labels and panel titles 14, tick numbers 11, figure title 17); significance brackets unchanged, and the dense correlation grids keep their own sizes.
+- The descriptive-statistics table now uses `observed=True`, reporting only the factor-level combinations that occur rather than the full cartesian product padded with empty `N=0` cells.
+- When the body font resolves to Latin Modern Sans, `mathtext.fontset='cm'` so in-plot math (e.g. the Scale-Location √ label) matches the LaTeX look.
+
+### Bugs
+
+- Fixed a matplotlib "font family not found" warning for plot titles on platforms without Helvetica: the title font now resolves to an installed family, like the body font.
+- Silenced a pandas `FutureWarning` from the categorical groupby (`observed=True`).
+- Concise `__repr__` for `Output`/`ModelResult`/`CorrelationResult` (the dataclass default dumped the full summary text, DataFrames, and figure objects).
+
+### Documentation
+
+- STATISTICAL_NOTES: added Level-wise profile analysis (Demo 16) and Comparing any factor per cell (Demo 15), plus a note on why the two-level post-hoc is still reported.
+- README: the `profile_across` option and section, bundled-font behaviour and aliases, the Colab section, and demo 16.
+
 ## [1.8.1] - 2026-07-16
 
 ### Features
