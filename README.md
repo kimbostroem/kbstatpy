@@ -1,6 +1,6 @@
 # kbstatpy
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
+[![Release](https://img.shields.io/github/v/release/kimbostroem/kbstatpy?label=release&color=blue)](https://github.com/kimbostroem/kbstatpy/releases) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
 
 A Python library for generalised linear mixed model (GLMM) analysis with post-hoc pairwise comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB `kbstat` library.
 
@@ -23,6 +23,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
   - [Try the demos on Google Colab](#try-the-demos-on-google-colab)
 - [Statistical notes](#statistical-notes)
 - [Known issues and workarounds](#known-issues-and-workarounds)
+- [Changelog](CHANGELOG.md) · [Releases](https://github.com/kimbostroem/kbstatpy/releases)
 
 ---
 
