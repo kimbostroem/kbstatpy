@@ -31,7 +31,10 @@ pip install -q "$REPO"
 
 # 3. The demos are not shipped inside the wheel, but options.demo_dir looks for
 #    them next to the installed package — so link the clone's demos folder there.
-DEMOS_PARENT=$(python3 -c "import os, kbstatpy; print(os.path.dirname(os.path.dirname(kbstatpy.__file__)))")
+#    Use find_spec (locates the package WITHOUT importing it): importing kbstatpy
+#    here would pull in pymer4 -> importr("lme4"), and the R packages below are
+#    not installed yet.
+DEMOS_PARENT=$(python3 -c "import importlib.util, os; s = importlib.util.find_spec('kbstatpy'); print(os.path.dirname(os.path.dirname(s.origin)))")
 ln -sfn "$REPO/demos" "$DEMOS_PARENT/demos"
 echo "Linked demo data -> $DEMOS_PARENT/demos"
 
