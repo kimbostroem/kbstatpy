@@ -236,6 +236,11 @@ class Kbstat:
                     resolved.append(fam)
             cache[key] = resolved or f
         plt.rcParams['font.family'] = cache[key]
+        # Match mathtext to the body font when it resolves to Latin Modern Sans
+        # (Computer Modern), so any $...$ in the plots (e.g. the Scale-Location
+        # sqrt label) shares the LaTeX look. Left untouched for any other font.
+        if cache[key] and str(cache[key][0]).strip().lower() == 'latin modern sans':
+            plt.rcParams['mathtext.fontset'] = 'cm'
 
     @staticmethod
     def _split_csv(value):
