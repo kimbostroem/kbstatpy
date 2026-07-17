@@ -33,6 +33,12 @@ class ModelResult:
     fig_data: object = None       # data plot figure
     fig_diagnostics: object = None  # diagnostics figure
 
+    def __repr__(self):
+        # Concise: the default dataclass repr dumps the full summary text,
+        # the DataFrames, and the Figure objects — unreadable when echoed in
+        # a notebook. The tables/figures remain accessible as attributes.
+        return f"ModelResult(y={self.y!r}, formula={self.formula!r})"
+
 
 @dataclass
 class CorrelationResult:
@@ -45,6 +51,11 @@ class CorrelationResult:
     fig_partial_scatter: object = None
     fig_partial_table: object = None
 
+    def __repr__(self):
+        tables = [n for n in ('correlation_table', 'partial_table', 'vif_table')
+                  if getattr(self, n) is not None]
+        return f"CorrelationResult(tables={tables})"
+
 
 @dataclass
 class Output:
@@ -53,6 +64,13 @@ class Output:
     results: list = field(default_factory=list)   # list[ModelResult]
     correlation: object = None                     # CorrelationResult or None
     multiple_comparisons: object = None            # across-y correction table or None
+
+    def __repr__(self):
+        ys = ', '.join(repr(r.y) for r in self.results)
+        extras = [n for n in ('correlation', 'multiple_comparisons')
+                  if getattr(self, n) is not None]
+        suffix = f'; {" & ".join(extras)}' if extras else ''
+        return f"<kbstatpy.Output: {len(self.results)} model(s) [{ys}]{suffix}>"
 
 
 class Kbstat:
