@@ -28,14 +28,22 @@ echo "Installing R packages (first run only, ~2-4 min) ..."
 Rscript -e '
 codename <- tryCatch(system("lsb_release -cs", intern = TRUE), error = function(e) "jammy")
 if (length(codename) == 0 || codename == "") codename <- "jammy"
-options(repos = c(CRAN = sprintf("https://packagemanager.posit.co/cran/__linux__/%s/latest", codename)))
+options(
+    repos = c(CRAN = sprintf("https://packagemanager.posit.co/cran/__linux__/%s/latest", codename)),
+    # Posit Package Manager only serves precompiled Linux *binaries* when R sends
+    # this User-Agent; without it, install.packages falls back to source tarballs
+    # and recompiles RcppEigen/TMB/etc. from scratch (slow + endless Eigen warnings).
+    HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
+                            paste(getRversion(), R.version["platform"],
+                                  R.version["arch"], R.version["os"]))
+)
 pkgs <- c("lme4", "lmerTest", "glmmTMB", "emmeans", "pbkrtest", "DHARMa",
           "tibble", "broom", "broom.mixed", "report", "see", "parameters",
           "performance", "effectsize", "insight", "datawizard", "bayestestR")
 missing <- pkgs[!pkgs %in% rownames(installed.packages())]
 if (length(missing)) {
-    cat("Installing R packages:", paste(missing, collapse = ", "), "\n")
-    install.packages(missing)
+    cat("Installing R packages (binary):", paste(missing, collapse = ", "), "\n")
+    install.packages(missing, quiet = TRUE)
 } else {
     cat("R packages already present.\n")
 }
