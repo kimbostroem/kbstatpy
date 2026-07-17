@@ -15,10 +15,14 @@ BASE="/content"; [ -d "$BASE" ] || BASE="$PWD"
 # installed package as an empty namespace ("cannot import name ... unknown location").
 REPO="$BASE/kbstatpy-src"
 
-# 1. Clone the repo (skip if it is already here).
+# 1. Clone the repo, or refresh an existing checkout to the latest master so a
+#    re-run always picks up the newest code (no need to delete the runtime).
 if [ ! -d "$REPO" ]; then
     echo "Cloning kbstatpy ..."
     git clone --depth 1 https://github.com/kimbostroem/kbstatpy.git "$REPO"
+else
+    echo "Updating kbstatpy to latest master ..."
+    git -C "$REPO" fetch -q --depth 1 origin master && git -C "$REPO" reset -q --hard FETCH_HEAD
 fi
 
 # 2. Install kbstatpy. A *regular* (non-editable) install lands in site-packages,
