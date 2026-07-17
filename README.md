@@ -17,6 +17,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 - [Data transformation](#data-transformation)
 - [Correlation analysis](#correlation-analysis)
 - [Variance Inflation Factor (VIF)](#variance-inflation-factor-vif)
+- [Level-wise profile analysis](#level-wise-profile-analysis)
 - [Output files](#output-files)
 - [Demo scripts](#demo-scripts)
   - [Try the demos on Google Colab](#try-the-demos-on-google-colab)
@@ -146,6 +147,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
 | `posthoc_correction` | str | `'holm'` | P-value correction for pairwise comparisons *within* a model (`'holm'`, `'bonferroni'`, `'fdr'`, …) |
 | `posthoc_compare` | str | `'auto'` | Which fixed-effect factor(s) to run pairwise level comparisons on. Each listed factor is plotted as if it were the first x-variable — its levels on the x-axis, the others as facet panels — with significance brackets. Comparisons are conditional (per cell): a factor's levels are compared within each combination of the other factors, so every facet panel gets its own brackets (and its own block of rows in `Posthoc_<var>.xlsx`, with the conditioning factors as leading columns), plus a marginal block (every conditioning column set to `'any'`) averaged over them. Comma-separated for multiple factors; `''` or `'none'` turns comparisons off (violins only, no brackets); `'auto'` (default) compares the first x-variable. Output files are suffixed with the variable name, e.g. `DataPlots_condition.*` / `Posthoc_condition.xlsx`. `'auto'` and `'none'` are reserved — a factor may not be named either |
+| `profile_across` | str | `''` | Level-wise profile analysis across one ordered categorical factor B (must be in `x`). In addition to the normal analyses, profiles how the factor(s) that interact with B behave across B's ordered levels: each interacting factor's pairwise contrast *within* every level of B (Layer 1), and the interaction as a focused 1-df **linear trend** across B's positions reported next to the factor-omnibus (Layer 2). Level order from `x_order[B]` else B's existing order; positions = numeric label values if all parse, else equal-spaced ranks. Writes `LevelProfile.xlsx` + a profile plot. Meaningful when B interacts with the profiled factor and has ≥3 ordered levels (warns otherwise). See [Level-wise profile analysis](#level-wise-profile-analysis) |
 | `y_correction` | str | `'none'` | Multiple-comparison correction applied *across* the dependent variables of a multi-y run, one family per model term: `'none'`, `'bonferroni'`, `'holm'`, `'FDR'` (Benjamini–Hochberg), `'FDR_correlated'` (Benjamini–Yekutieli, valid under dependence). Case-insensitive. Writes `MultipleComparisons.xlsx`. Only acts when `y` has more than one component (see [Multi-y](#multi-y)) |
 | `plot_style` | str | `'auto'` | Data plot style: `'violin'` (violin + jitter), `'bar'` (observed mean bars with EMM overlay), or `'auto'` (bar for binary outcomes, violin for all others) |
 | `title` | str | `''` | Data-plot title prefix. When set, the title becomes `'<title> (<DV>)'`, e.g. `title='Static'` → `'Static (Torque Amplitude)'`. Empty (default) shows just the plain dependent-variable name as the title. `'none'` (case-insensitive) suppresses the title entirely — no text, and no vertical space reserved for it — while leaving the y-axis label untouched (the title and y-axis label otherwise both derive from the same variable display name, so this is the only way to drop the title alone) |
@@ -236,6 +238,50 @@ Results are printed to the console and saved to **`VIF.xlsx`**.
 
 ---
 
+## Level-wise profile analysis
+
+When one factor is an **ordered series of levels** — spinal segments, joints along
+a limb, dose steps, time points — the question is often not "is there an effect at
+some level?" but "how does another factor's effect change *across* the ordered
+levels?" The pattern across levels is itself the finding. Set `options.profile_across`
+to that ordered factor:
+
+```python
+options.x            = 'supp, dose'
+options.interaction  = 'supp, dose'          # B must interact with the profiled factor
+options.x_order      = 'dose: low, medium, high'   # fixes the level order for the trend
+options.profile_across = 'dose'
+```
+
+On top of the usual analyses, kbstatpy then profiles the factor(s) that interact
+with B (here `supp`) across B's ordered levels, in two layers:
+
+- **Layer 1 — per level.** Each interacting factor's pairwise contrast computed
+  *within* every level of B (the level-by-level profile), with per-level estimate,
+  CI, and p — marginal over any further factors.
+- **Layer 2 — trend.** The interaction as a focused **1-df linear trend** across
+  B's ordered positions (an emmeans polynomial interaction contrast on the fitted
+  model), reported alongside the factor-omnibus `A:B` already in the ANOVA. Leading
+  with the trend follows the principle that *a focused trend beats a diffuse
+  omnibus*.
+
+Level order is taken from `x_order[B]` if set, else B's existing order; numeric
+positions are the level labels' numeric values when all parse as numbers (real
+spacing), otherwise equal-spaced ranks. The analysis is meaningful only when B
+interacts with the profiled factor (otherwise the profile is flat by construction)
+and has ≥3 ordered levels (with 2, the "trend" is just the single contrast); both
+cases warn. This produces:
+
+- **`LevelProfile.pdf/.png`** — the profile plot: response EMMs across B, one line
+  per level of the profiled factor, with 95 % CI error bars.
+- **`LevelProfile.xlsx`** — a `Trend` sheet (linear-trend and factor-omnibus tests)
+  plus a `Profile_<factor>` sheet per interacting factor (the per-level contrasts).
+
+See `demos/scripts/demo_16_profile.py` for a worked example (the OJ-vs-VC advantage
+in `ToothGrowth` attenuating monotonically across dose).
+
+---
+
 ## Output files
 
 All files are written into a per-variable subdirectory of `out_dir` (named after the dependent variable):
@@ -256,6 +302,8 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `PartialCorrelationTable.pdf/.png` | Colour-coded lower-triangle table for partial correlations |
 | `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
 | `VIF.xlsx` | Variance Inflation Factors for numeric predictors (when applicable) |
+| `LevelProfile.pdf/.png` | Profile plot for `profile_across`: response EMMs across the ordered factor, one line per level of the profiled factor, with 95 % CI error bars |
+| `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
 
 `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike. Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
@@ -264,7 +312,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 
 ## Demo scripts
 
-Fifteen worked examples are included in the `demos/` folder; each demo's script
+Sixteen worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -290,6 +338,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_13_family_correction.py` | `mtcars.csv` | Family-wise correction across multiple dependent variables (`y_correction`) — six outcomes vs transmission, FDR-adjusted as one family per term |
 | `demo_14_lm_vif.py` | `mtcars.csv` | LM with mixed numeric/categorical predictors and automatic VIF |
 | `demo_15_posthoc_compare.py` | `toothgrowth.csv` | Compare several factors with `posthoc_compare` — one per-cell comparison plot + post-hoc table per factor, each plotted as if it were first |
+| `demo_16_profile.py` | `toothgrowth.csv` | Level-wise profile analysis with `profile_across` — how the supp effect changes across the ordered dose levels: per-level contrast (Layer 1) + focused linear-trend interaction (Layer 2) |
 
 **Equivalence to classical tests** (demos 1–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -313,6 +362,7 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 13** — family-wise correction across multiple dependent variables (`y_correction`), one family per model term
 - **Demo 14** — VIF flags collinearity among numeric predictors before it distorts coefficient estimates
 - **Demo 15** — `posthoc_compare` runs the pairwise comparisons (and brackets) on any chosen factor(s) instead of just the first, each plotted as if it were the first variable, and per cell (the factor is compared within each combination of the others, so every facet panel gets its own brackets)
+- **Demo 16** — `profile_across` profiles a factor's effect across an ordered factor's levels: per-level contrasts (Layer 1) plus the interaction as a focused 1-df linear trend reported against the diffuse omnibus (Layer 2) — the "pattern across levels is the finding" view
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:
@@ -354,6 +404,7 @@ results inline:
 | 13 · Family-wise correction across DVs | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_13_family_correction.ipynb) |
 | 14 · LM with mixed predictors + VIF | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_14_lm_vif.ipynb) |
 | 15 · `posthoc_compare` across factors | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_15_posthoc_compare.ipynb) |
+| 16 · Level-wise profile (`profile_across`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_16_profile.ipynb) |
 
 ---
 
