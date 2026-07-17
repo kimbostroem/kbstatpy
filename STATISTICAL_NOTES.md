@@ -263,6 +263,8 @@ P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction 
 
 For LMMs, `emmeans` reports t-ratios with Kenward-Roger or Satterthwaite degrees of freedom (per `df_method`, matching the omnibus). For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
+For a single factor with only two levels there is exactly one pairwise comparison, so the post-hoc *test* is redundant with the omnibus: F = t², the same df and p-value, and the multiple-comparison correction is a no-op. kbstatpy still reports it, because the post-hoc table is the only place the **effect estimate** appears — the between-group difference with its direction and 95 % confidence interval (and, for GLMMs, the back-transformed ratio: an odds ratio, a rate ratio). The ANOVA says *whether* there is an effect and *how large in standardised terms* (partial η², SMD); the post-hoc says *by how much, in which direction, on the response scale* — usually the number one actually reports. So the redundancy is confined to the hypothesis test, not the information.
+
 ### Why estimated marginal means?
 
 A **raw group mean** is the arithmetic average of all observations in that group. It is easy to compute and straightforward to interpret — but it is sensitive to every source of variation in the data, including imbalances that have nothing to do with the factor of interest.
