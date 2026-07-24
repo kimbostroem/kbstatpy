@@ -556,11 +556,19 @@ class Kbstat:
         has_random = bool(self._parse_formula(formula)['id'])
         has_slopes = bool(self._parse_formula(formula)['slopes'])
         data_pl = pl.from_pandas(data_to_use)
+        # Dispersion model (glmmTMB dispformula): normalise the option to a formula.
+        disp = (self.options.dispersion or '').strip()
+        dispformula = ('' if not disp
+                       else disp if disp.startswith('~') else f'~ {disp}')
         if family == 'gaussian' and not has_random:
             # Plain linear model — no random effects
+            if dispformula:
+                warnings.warn("options.dispersion is ignored for gaussian (LM) models")
             self.model = Lm(formula, data=data_pl)
         elif family == 'gaussian':
             # LMM via lmer/lmerTest (keeps Satterthwaite degrees of freedom)
+            if dispformula:
+                warnings.warn("options.dispersion is ignored for gaussian (LMM) models")
             self.model = Lmer(formula, data=data_pl)
         else:
             # All non-Gaussian GLMMs use glmmTMB. lme4::glmer returns mis-scaled
@@ -568,7 +576,8 @@ class Kbstat:
             # inverse Gaussian); glmmTMB estimates the dispersion explicitly and
             # gives a correct covariance, and it handles random slopes natively.
             self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link,
-                                 max_iterations=self.options.max_iterations)
+                                 max_iterations=self.options.max_iterations,
+                                 dispformula=dispformula)
         self.model.fit(summarize=False)
         self._df_runtime = None                 # re-resolve df method for the (re)fitted model
         if not getattr(self, '_df_validated', False):

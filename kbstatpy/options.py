@@ -43,6 +43,13 @@ class KbstatOptions:
     # GLM settings
     distribution: str = 'normal'
     link: str = 'auto'
+    # Dispersion model for the glmmTMB families (Gamma, inverse Gaussian, etc.):
+    # the right-hand side of glmmTMB's dispformula. '' (default) = constant
+    # dispersion (~1). Give a factor name, e.g. 'JointGroup', to let the
+    # dispersion vary by that factor (dispformula = ~ JointGroup), which is useful
+    # when pooled groups differ widely in scale/scatter. Ignored for gaussian
+    # (LM/LMM) models.
+    dispersion: str = ''
     fit_method: str = 'MPL'
     # Maximum optimizer iterations / function evaluations for the glmmTMB fit
     # (non-Gaussian GLMMs). Large fixed-effect models — e.g. a factor*factor

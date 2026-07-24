@@ -6,6 +6,7 @@
 
 - **Spearman correlations.** New `options.correlation_method` (`'pearson'`, the default, or `'spearman'`) selects the method for both the raw and the partial correlations; Spearman partial correlations are the partial correlations computed on the ranks. The figure titles name the method.
 - **Adjust correlations for covariates.** New `options.correlation_control` names variable(s) (e.g. `'Age'`) to partial out of every correlation before it is computed: the raw table then reports adjusted correlations and the partial table additionally controls for them. The control variables are kept out of the matrix, and the figure titles note the adjustment (e.g. "Partial Correlations (adjusted for Age)").
+- **Per-group dispersion for the glmmTMB families.** New `options.dispersion` sets the right-hand side of glmmTMB's `dispformula` (e.g. `'JointGroup'` → `dispformula = ~ JointGroup`), letting the dispersion vary by a factor instead of the default constant `~1`. Useful when pooled groups differ widely in scale/scatter; ignored for gaussian (LM/LMM) models.
 
 ### Changes
 
