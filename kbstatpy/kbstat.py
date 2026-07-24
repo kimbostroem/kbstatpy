@@ -1217,15 +1217,17 @@ class Kbstat:
         return fig
 
     def correlate(self):
-        """Compute pairwise Pearson and partial correlations, VIF, and scatter grids.
+        """Compute pairwise raw and partial correlations, VIF, and scatter grids.
 
-        Variables are taken from options.correlation (must be numeric).
+        Variables are taken from options.correlation (must be numeric); the
+        correlation method (options.correlation_method) is 'pearson' or 'spearman'.
         VIF is computed for numeric variables in options.x + options.covariate.
         Partial correlations are produced when len(vars) >= 3; with only 2 variables
-        there is nothing to control for and partial == raw.
+        there is nothing to control for and partial == raw. Spearman partial
+        correlations are the partial correlations computed on the ranks.
         """
         import itertools
-        from scipy.stats import pearsonr
+        from scipy.stats import pearsonr, spearmanr
         from sklearn.linear_model import LinearRegression
 
         if self.data is None:
@@ -1234,6 +1236,13 @@ class Kbstat:
         vars_ = self.options.correlation
         if not vars_:
             return
+
+        method = (self.options.correlation_method or 'pearson').lower()
+        if method not in ('pearson', 'spearman'):
+            raise ValueError("correlation_method must be 'pearson' or 'spearman' "
+                             f"(got {self.options.correlation_method!r})")
+        corr_fn = pearsonr if method == 'pearson' else spearmanr
+        method_label = method.capitalize()
 
         # --- VIF: for numeric predictors (x and covariate) ---
         vif_table = None
@@ -1259,11 +1268,11 @@ class Kbstat:
             for row in vif_rows:
                 print(f"VIF  {row['variable']:<24}: {row['VIF']:.3f}  ({row['verdict']})")
 
-        # --- Raw Pearson correlation table ---
+        # --- Raw correlation table (Pearson or Spearman) ---
         rows = []
         for v1, v2 in itertools.combinations(vars_, 2):
             xy = self.data[[v1, v2]].dropna()
-            r, p = pearsonr(xy[v1].astype(float), xy[v2].astype(float))
+            r, p = corr_fn(xy[v1].astype(float), xy[v2].astype(float))
             rows.append({
                 'var_1':        v1,
                 'var_2':        v2,
@@ -1279,6 +1288,8 @@ class Kbstat:
         residuals = {}
         if len(vars_) >= 3:
             clean = self.data[vars_].dropna().astype(float)
+            if method == 'spearman':
+                clean = clean.rank()             # Spearman partial = partial correlation on ranks
             for v in vars_:
                 others = [o for o in vars_ if o != v]
                 e = clean[v].values - LinearRegression().fit(
@@ -1299,8 +1310,8 @@ class Kbstat:
 
         # Build the figures for display; persistence is deferred to save().
         n_pairs = len(self.correlation_table)
-        corr_title   = 'Correlation'   if n_pairs == 1 else 'Correlations'
-        pcorr_title  = 'Partial Correlation'   if n_pairs == 1 else 'Partial Correlations'
+        corr_title   = f'{method_label} Correlation'   if n_pairs == 1 else f'{method_label} Correlations'
+        pcorr_title  = f'{method_label} Partial Correlation'   if n_pairs == 1 else f'{method_label} Partial Correlations'
 
         fig_scatter = self._plot_corr_scatter(
             self.correlation_table, vars_,
@@ -1332,134 +1343,153 @@ class Kbstat:
 
     def _plot_corr_scatter(self, corr_df, vars_, data_arrays, title,
                            xlabel_suffix='', ylabel_suffix=''):
-        """Scatter plot grid for a correlation table. Returns the figure."""
+        """Lower-triangle scatter matrix mirroring the correlation table: variable
+        names on the diagonal, and a mini scatter (with regression line and the
+        r-value) in each lower-triangle cell. Returns the figure."""
         self._apply_font()
-        pairs = [(vars_[i], vars_[j])
-                 for i in range(len(vars_)) for j in range(i + 1, len(vars_))]
-        n_pairs = len(pairs)
-        ncols = min(n_pairs, max(2, int(np.ceil(np.sqrt(n_pairs)))))
-        nrows = int(np.ceil(n_pairs / ncols))
-        fig, axes = plt.subplots(nrows, ncols, figsize=(3.2 * ncols, 3.2 * nrows),
-                                 squeeze=False)
+        k = len(vars_)
+        disp = [self._disp(v) for v in vars_]
         color = sns.color_palette()[0]
 
-        for idx, (v1, v2) in enumerate(pairs):
-            ax = axes[idx // ncols][idx % ncols]
-            x_data = np.asarray(data_arrays[v1], dtype=float)
-            y_data = np.asarray(data_arrays[v2], dtype=float)
-            mask = ~(np.isnan(x_data) | np.isnan(y_data))
-            x_data, y_data = x_data[mask], y_data[mask]
+        fs_lab = max(6.0, min(9.0, 72.0 / max(k, 1)))    # diagonal labels
+        fs_r   = max(5.5, min(8.0, 66.0 / max(k, 1)))    # r annotation
+        cell_in = 1.0 if k <= 6 else (0.75 if k <= 12 else 0.6)   # inches per cell
+        pad = 0.08                                       # gap around each scatter
 
-            ax.scatter(x_data, y_data, color=color, alpha=0.6, s=20, linewidths=0)
-            m, b = np.polyfit(x_data, y_data, 1)
-            x_line = np.array([x_data.min(), x_data.max()])
-            ax.plot(x_line, m * x_line + b, color='red', linewidth=1.2)
+        # Diagonal labels run rightwards into the empty upper triangle; widen the
+        # canvas so the longest is not clipped in the PDF (PNG is saved tight).
+        char_w = 0.62 * fs_lab / 72.0 / cell_in          # ~data units per character
+        max_right = max((i + 0.12 + len(disp[i]) * char_w) for i in range(k))
+        x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
+        # Diagonal labels sit just above their own column of scatters (label_off),
+        # and the title sits just above the topmost label, so little space is
+        # wasted between the title, the first name and the grid.
+        label_off = 0.25
+        title_y = (k - 1) + label_off + 0.55
+        y_lo, y_hi = -0.1, title_y + 0.45
 
-            r_row = corr_df[(corr_df['var_1'] == v1) & (corr_df['var_2'] == v2)]
-            if len(r_row):
-                r_val = r_row.iloc[0]['r']
-                p_val = r_row.iloc[0]['p']
-                stars = r_row.iloc[0]['significance']
-                ax.set_title(f"r = {r_val:.3f}{stars}    p = {p_val:.4f}",
-                             fontsize=7, color='0.3', fontstyle='italic', pad=3)
+        fig = plt.figure(figsize=((x_hi - x_lo) * cell_in, (y_hi - y_lo) * cell_in))
+        ax = fig.add_axes((0, 0, 1, 1))
+        ax.set_xlim(x_lo, x_hi)
+        ax.set_ylim(y_lo, y_hi)
+        ax.axis('off')
 
-            ax.set_xlabel(self._disp(v1) + xlabel_suffix, fontsize=8)
-            ax.set_ylabel(self._disp(v2) + ylabel_suffix, fontsize=8)
-            ax.tick_params(labelsize=6)
+        for i in range(k):
+            yc = k - 1 - i                                # row band bottom; row 0 on top
+            ax.text(i + 0.12, yc + label_off, disp[i], ha='left', va='center',
+                    fontsize=fs_lab, fontweight='bold')
+            for j in range(i):                            # lower triangle: x=var j, y=var i
+                sub = ax.inset_axes((j + pad, yc + pad, 1 - 2 * pad, 1 - 2 * pad),
+                                    transform=ax.transData)
+                xd = np.asarray(data_arrays[vars_[j]], dtype=float)
+                yd = np.asarray(data_arrays[vars_[i]], dtype=float)
+                m_ = ~(np.isnan(xd) | np.isnan(yd))
+                xd, yd = xd[m_], yd[m_]
+                sub.scatter(xd, yd, color=color, alpha=0.5, s=6, linewidths=0)
+                if len(xd) >= 2 and np.std(xd) > 0:
+                    mm, bb = np.polyfit(xd, yd, 1)
+                    xl = np.array([xd.min(), xd.max()])
+                    sub.plot(xl, mm * xl + bb, color='red', linewidth=0.9)
+                sub.set_xticks([])
+                sub.set_yticks([])
+                for sp in sub.spines.values():
+                    sp.set_edgecolor('0.75')
+                    sp.set_linewidth(0.5)
 
-        for idx in range(n_pairs, nrows * ncols):
-            axes[idx // ncols][idx % ncols].set_visible(False)
+                res = self._corr_lookup(corr_df, vars_[j], vars_[i])
+                if res is not None:
+                    r_val, _p, stars, sig = res
+                    if sig:
+                        tcol = '#b2182b' if r_val > 0 else '#2166ac'
+                        rtxt, weight = f"{r_val:.2f}{stars}", 'bold'
+                    else:
+                        tcol, rtxt, weight = '0.55', f"{r_val:.2f}", 'normal'
+                    sub.text(0.05, 0.95, rtxt, transform=sub.transAxes,
+                             ha='left', va='top', fontsize=fs_r,
+                             color=tcol, fontweight=weight,
+                             bbox=dict(boxstyle='round,pad=0.15', facecolor='white',
+                                       alpha=0.6, edgecolor='none'))
 
-        fig.suptitle(title, fontweight='bold', fontsize=11,
-                     fontfamily=self._title_font_family())
-        plt.tight_layout()
+        ax.text((x_lo + x_hi) / 2, title_y, title,
+                ha='center', va='center', fontweight='bold', fontsize=13,
+                fontfamily=self._title_font_family(),
+                bbox=dict(boxstyle='square,pad=0.7', facecolor='none', edgecolor='none'))
         self._show_fig(fig)
         return fig
 
+    def _corr_lookup(self, corr_df, v1, v2):
+        """Return (r, p, stars, significant) for the unordered pair (v1, v2)."""
+        row = corr_df[(corr_df['var_1'] == v1) & (corr_df['var_2'] == v2)]
+        if len(row) == 0:
+            row = corr_df[(corr_df['var_1'] == v2) & (corr_df['var_2'] == v1)]
+        if len(row) == 0:
+            return None
+        r_val = float(row.iloc[0]['r'])
+        p_val = float(row.iloc[0]['p'])
+        stars = str(row.iloc[0]['significance'])
+        if stars in ('n.s.', 'nan', 'None'):
+            stars = ''
+        return r_val, p_val, stars, (p_val < 0.05)
+
     def _plot_corr_table(self, corr_df, vars_, title):
-        """Colour-coded lower-triangle correlation heatmap table. Returns the figure."""
+        """Compact lower-triangle correlation table: variable names on the matrix
+        diagonal, small cells (echoes the Matlab correlationTable layout).
+        Returns the figure."""
         self._apply_font()
         import matplotlib.patches as mpatches
         cmap = plt.cm.RdBu_r
 
-        row_vars = vars_[1:]
-        col_vars = vars_[:-1]
-        nr = len(row_vars)
-        nc = len(col_vars)
+        k = len(vars_)
+        disp = [self._disp(v) for v in vars_]
+        fs = max(5.0, min(9.0, 72.0 / max(k, 1)))
+        cell_in = 0.55                      # inches per matrix cell (compact)
 
-        cell_size  = 1.4
-        header_size = 1.8
-        top_margin  = 1.5
-        fig_w = header_size + nc * cell_size
-        fig_h = top_margin  + nr * cell_size
-        fig_t, ax_t = plt.subplots(figsize=(fig_w, fig_h))
-        ax_t.set_xlim(-0.15, nc + 0.15)
-        ax_t.axis('off')
+        # Diagonal labels are left-anchored and run rightwards into the empty
+        # upper triangle; size the canvas so the longest one is not clipped in
+        # the PDF (the PNG is saved with bbox_inches='tight' regardless).
+        char_w = 0.62 * fs / 72.0 / cell_in            # ~data units per character
+        max_right = max((i + 0.22 + len(disp[i]) * char_w) for i in range(k))
+        x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
+        y_lo, y_hi = -0.1, k + 0.1
 
-        bg_sig   = '0.93'
-        bg_empty = '1.0'
-        fs = max(5, min(9, 72 / len(vars_)))
+        fig, ax = plt.subplots(figsize=((x_hi - x_lo) * cell_in,
+                                        (y_hi - y_lo) * cell_in + 0.55))
+        ax.set_xlim(x_lo, x_hi)
+        ax.set_ylim(y_lo, y_hi)
+        ax.invert_yaxis()                    # row 0 at top
+        ax.set_aspect('equal')
+        ax.axis('off')
 
-        for ri, v_row in enumerate(row_vars):
-            for ci, v_col in enumerate(col_vars):
-                x = ci
-                y = nr - 1 - ri
-                orig_row = vars_.index(v_row)
-                orig_col = vars_.index(v_col)
+        for i in range(k):                   # row i == variable i
+            for j in range(i):               # strict lower triangle (col j < i)
+                res = self._corr_lookup(corr_df, vars_[j], vars_[i])
+                if res is None:
+                    continue
+                r_val, p_val, stars, sig = res
+                if sig:
+                    facecolor = cmap((r_val + 1) / 2)
+                    textcolor = 'white' if abs(r_val) > 0.5 else '0.15'
+                    label = f"{r_val:.2f}{stars}"
+                    weight = 'bold'
+                else:
+                    facecolor = '1.0'
+                    textcolor = '0.45'
+                    label = f"{r_val:.2f}"
+                    weight = 'normal'
+                ax.add_patch(mpatches.Rectangle(
+                    (j, i), 1, 1, facecolor=facecolor,
+                    edgecolor='0.8', linewidth=0.4))
+                ax.text(j + 0.5, i + 0.5, label, ha='center', va='center',
+                        fontsize=fs, color=textcolor, fontweight=weight)
+            # variable name on its diagonal cell, extending right
+            ax.text(i + 0.2, i + 0.5, disp[i], ha='left', va='center',
+                    fontsize=fs + 0.5, fontweight='bold')
 
-                if orig_col < orig_row:
-                    r_row = corr_df[
-                        (corr_df['var_1'] == v_col) & (corr_df['var_2'] == v_row)]
-                    if len(r_row) == 0:
-                        r_row = corr_df[
-                            (corr_df['var_1'] == v_row) & (corr_df['var_2'] == v_col)]
-                    if len(r_row):
-                        r_val = float(r_row.iloc[0]['r'])
-                        p_val = float(r_row.iloc[0]['p'])
-                        stars = str(r_row.iloc[0]['significance'])
-                        sig   = p_val < 0.05
-                    else:
-                        r_val, p_val, stars, sig = 0.0, 1.0, '', False
-
-                    if sig:
-                        facecolor = cmap((r_val + 1) / 2)
-                        textcolor = 'white' if abs(r_val) > 0.5 else '0.2'
-                        label     = f"{r_val:.3f}{stars}"
-                    else:
-                        facecolor = bg_sig
-                        textcolor = '0.6'
-                        label     = 'n.s.'
-
-                    ax_t.add_patch(mpatches.FancyBboxPatch(
-                        (x + 0.04, y + 0.04), 0.92, 0.92,
-                        boxstyle='square,pad=0', linewidth=0.4,
-                        edgecolor='0.7', facecolor=facecolor,
-                        transform=ax_t.transData))
-                    if label:
-                        ax_t.text(x + 0.5, y + 0.5, label,
-                                  ha='center', va='center',
-                                  fontsize=fs, color=textcolor, fontweight='bold')
-
-                elif orig_col == orig_row:
-                    ax_t.add_patch(mpatches.FancyBboxPatch(
-                        (x + 0.04, y + 0.04), 0.92, 0.92,
-                        boxstyle='square,pad=0', linewidth=0.4,
-                        edgecolor='0.7', facecolor=bg_empty,
-                        transform=ax_t.transData))
-
-        for ci, v in enumerate(col_vars):
-            ax_t.text(ci + 0.5, nr + 0.1, self._disp(v), ha='center', va='bottom',
-                      fontsize=fs, fontweight='bold', rotation=45)
-        for ri, v in enumerate(row_vars):
-            ax_t.text(-0.1, nr - 1 - ri + 0.5, self._disp(v), ha='right', va='center',
-                      fontsize=fs, fontweight='bold')
-
-        ax_t.set_ylim(-0.15, nr + 0.7)
-        ax_t.set_title(title, fontweight='bold', fontsize=13, pad=8,
-                       fontfamily=self._title_font_family())
+        ax.set_title(title, fontweight='bold', fontsize=13, pad=8,
+                     fontfamily=self._title_font_family())
         plt.tight_layout()
-        self._show_fig(fig_t)
-        return fig_t
+        self._show_fig(fig)
+        return fig
 
     def save(self):
         """Persist ``self.output`` (produced by :meth:`run`) to ``out_dir``.

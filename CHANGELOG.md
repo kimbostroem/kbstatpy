@@ -1,5 +1,15 @@
 # Changes
 
+## [Unreleased]
+
+### Features
+
+- **Spearman correlations.** New `options.correlation_method` (`'pearson'`, the default, or `'spearman'`) selects the method for both the raw and the partial correlations; Spearman partial correlations are the partial correlations computed on the ranks. The figure titles name the method.
+
+### Changes
+
+- **Redesigned the correlation figures for a compact, unified look.** The correlation and partial-correlation tables are now a tight lower-triangle matrix with the variable names on the diagonal, replacing the larger layout with separate header bands. The scatter output is now a lower-triangle scatter-plot matrix that mirrors that table — variable names on the diagonal and a mini scatter with regression line and the r-value in each cell — instead of a square grid of all pairwise panels. The r-values sit on a semi-transparent white background so they stay readable over the points.
+
 ## [1.9.0] - 2026-07-17
 
 ### Features
