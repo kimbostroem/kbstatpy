@@ -16,6 +16,10 @@
 
 - Partial-correlation p-values now use the correct degrees of freedom, `df = n - 2 - g` (g = number of conditioning variables), instead of `n - 2`; the coefficients are unchanged.
 
+### Documentation
+
+- Added Demo 17 (`dispersion` / `dispformula`): a Gamma model on `ToothGrowth` fitted with constant vs by-dose dispersion, showing the lower AIC when groups differ in relative scatter. Script, notebook, README table/list, and Colab playground entry.
+
 ## [1.9.0] - 2026-07-17
 
 ### Features
