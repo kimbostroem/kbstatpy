@@ -281,8 +281,8 @@ class Kbstat:
         # rely on the defaults) all match; plots that set explicit sizes (the dense
         # correlation grids) keep their own. Tick numbers stay modest at 11.
         plt.rcParams.update({
-            'axes.titlesize': 14,
-            'axes.labelsize': 14,
+            'axes.titlesize': 13,
+            'axes.labelsize': 13,
             'xtick.labelsize': 11,
             'ytick.labelsize': 11,
         })
@@ -1788,7 +1788,7 @@ class Kbstat:
                  if fam in available), base_name)
         return cache[key]
 
-    def _add_suptitle(self, fig, text, max_size=17):
+    def _add_suptitle(self, fig, text, max_size=15):
         """Create the bold figure suptitle in a narrow/condensed font (see
         options.title_font). Call :meth:`_fit_suptitle_to_axes` after the layout
         is final to centre it over the plot box and shrink it to that width.
@@ -2091,7 +2091,7 @@ class Kbstat:
                 pct = 100.0 * n_out / n_tot if n_tot else 0.0
                 ax.text(0.02, 0.02, f'{pct:.1f}% outliers ({n_out} of {n_tot})',
                         transform=ax.transAxes, ha='left', va='bottom',
-                        fontsize=9, color='black', zorder=7)
+                        fontsize=10, color='black', zorder=7)
             elif show_out != 'none' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
