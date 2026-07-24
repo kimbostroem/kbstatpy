@@ -1221,10 +1221,13 @@ class Kbstat:
 
         Variables are taken from options.correlation (must be numeric); the
         correlation method (options.correlation_method) is 'pearson' or 'spearman'.
-        VIF is computed for numeric variables in options.x + options.covariate.
-        Partial correlations are produced when len(vars) >= 3; with only 2 variables
-        there is nothing to control for and partial == raw. Spearman partial
-        correlations are the partial correlations computed on the ranks.
+        options.correlation_control names variable(s) (e.g. 'Age') to partial out
+        of every correlation first: the raw table then holds adjusted correlations
+        and the partial table additionally controls for them; the control variables
+        are not shown in the matrix. VIF is computed for numeric variables in
+        options.x + options.covariate. Partial correlations are produced when
+        len(vars) >= 3. Spearman correlations (raw and partial) are computed on the
+        ranks. Partial/adjusted p-values use df = n - 2 - g (g conditioning vars).
         """
         import itertools
         from scipy.stats import pearsonr, spearmanr
@@ -1243,6 +1246,30 @@ class Kbstat:
                              f"(got {self.options.correlation_method!r})")
         corr_fn = pearsonr if method == 'pearson' else spearmanr
         method_label = method.capitalize()
+
+        # Control variables partialled out of every correlation before it is
+        # computed (e.g. Age); adjusts both tables and stays out of the matrix.
+        raw_ctrl = self.options.correlation_control
+        control = (self._split_csv(raw_ctrl) if isinstance(raw_ctrl, str)
+                   else list(raw_ctrl or []))
+        control = [c for c in control if c]
+        for c in control:
+            if c not in self.data.columns:
+                raise ValueError(f"correlation_control variable {c!r} not found in the data")
+        adj_note = (f' (adjusted for {", ".join(self._disp(c) for c in control)})'
+                    if control else '')
+
+        # Listwise-complete working frame (ranked for Spearman) for residualising.
+        _cols = list(dict.fromkeys(list(vars_) + control))
+        work = self.data[_cols].dropna().astype(float)
+        if method == 'spearman':
+            work = work.rank()
+
+        def _residualise(target, predictors):
+            if not predictors:
+                return work[target].to_numpy(dtype=float)
+            reg = LinearRegression().fit(work[predictors], work[target])
+            return work[target].to_numpy(dtype=float) - reg.predict(work[predictors])
 
         # --- VIF: for numeric predictors (x and covariate) ---
         vif_table = None
@@ -1268,41 +1295,46 @@ class Kbstat:
             for row in vif_rows:
                 print(f"VIF  {row['variable']:<24}: {row['VIF']:.3f}  ({row['verdict']})")
 
-        # --- Raw correlation table (Pearson or Spearman) ---
+        # --- Raw correlation table (adjusted for the control vars if given) ---
         rows = []
         for v1, v2 in itertools.combinations(vars_, 2):
-            xy = self.data[[v1, v2]].dropna()
-            r, p = corr_fn(xy[v1].astype(float), xy[v2].astype(float))
+            if control:
+                r, p = _partial_corr_p(_residualise(v1, control),
+                                       _residualise(v2, control), len(control))
+            else:
+                xy = self.data[[v1, v2]].dropna()
+                r, p = corr_fn(xy[v1].astype(float), xy[v2].astype(float))
             rows.append({
                 'var_1':        v1,
                 'var_2':        v2,
-                'r':            round(r, 4),
-                'p':            round(p, 4),
+                'r':            round(float(r), 4),
+                'p':            round(float(p), 4),
                 'significance': _sig_stars(p),
                 'effectSize':   _r_label(r),
             })
         self.correlation_table = pd.DataFrame(rows)
+        # For the scatter grid: adjusted residuals when controlling, else raw values.
+        raw_arrays = ({v: _residualise(v, control) for v in vars_} if control
+                      else {v: self.data[v].astype(float).values for v in vars_})
 
-        # --- Partial correlation table (only meaningful when n >= 3) ---
+        # --- Partial correlation table (controls for the other vars + controls) ---
         partial_table = None
         residuals = {}
         if len(vars_) >= 3:
-            clean = self.data[vars_].dropna().astype(float)
-            if method == 'spearman':
-                clean = clean.rank()             # Spearman partial = partial correlation on ranks
+            # Each variable is residualised on all the others (plus the control
+            # vars); the pair's conditioning-set size is (k - 2) + #control.
+            g_par = (len(vars_) - 2) + len(control)
             for v in vars_:
-                others = [o for o in vars_ if o != v]
-                e = clean[v].values - LinearRegression().fit(
-                    clean[others], clean[v]).predict(clean[others])
-                residuals[v] = e
+                preds = [o for o in vars_ if o != v] + control
+                residuals[v] = _residualise(v, preds)
             part_rows = []
             for v1, v2 in itertools.combinations(vars_, 2):
-                r, p = pearsonr(residuals[v1], residuals[v2])
+                r, p = _partial_corr_p(residuals[v1], residuals[v2], g_par)
                 part_rows.append({
                     'var_1':        v1,
                     'var_2':        v2,
-                    'r':            round(r, 4),
-                    'p':            round(p, 4),
+                    'r':            round(float(r), 4),
+                    'p':            round(float(p), 4),
                     'significance': _sig_stars(p),
                     'effectSize':   _r_label(r),
                 })
@@ -1310,13 +1342,11 @@ class Kbstat:
 
         # Build the figures for display; persistence is deferred to save().
         n_pairs = len(self.correlation_table)
-        corr_title   = f'{method_label} Correlation'   if n_pairs == 1 else f'{method_label} Correlations'
-        pcorr_title  = f'{method_label} Partial Correlation'   if n_pairs == 1 else f'{method_label} Partial Correlations'
+        corr_title   = f'{method_label} Correlation{adj_note}'   if n_pairs == 1 else f'{method_label} Correlations{adj_note}'
+        pcorr_title  = f'{method_label} Partial Correlation{adj_note}'   if n_pairs == 1 else f'{method_label} Partial Correlations{adj_note}'
 
         fig_scatter = self._plot_corr_scatter(
-            self.correlation_table, vars_,
-            {v: self.data[v].astype(float).values for v in vars_},
-            corr_title)
+            self.correlation_table, vars_, raw_arrays, corr_title)
 
         fig_partial_scatter = None
         if partial_table is not None:
@@ -3187,6 +3217,24 @@ def _effect_label_eta(eta):
     if eta < 0.35:
         return 'large'
     return 'very large'
+
+
+def _partial_corr_p(e1, e2, n_cond):
+    """Pearson correlation of two residual vectors with the partial-correlation
+    t-test: t = r * sqrt(df / (1 - r^2)), df = n - 2 - n_cond, where n_cond is the
+    number of variables conditioned on. Returns (r, two-sided p)."""
+    from scipy.stats import t as _tdist
+    e1 = np.asarray(e1, dtype=float)
+    e2 = np.asarray(e2, dtype=float)
+    n = len(e1)
+    r = float(np.corrcoef(e1, e2)[0, 1])
+    df = n - 2 - n_cond
+    if df <= 0:
+        return r, float('nan')
+    if abs(r) >= 1.0:
+        return r, 0.0
+    tstat = r * np.sqrt(df / (1.0 - r * r))
+    return r, float(2.0 * _tdist.sf(abs(tstat), df))
 
 
 def _r_label(r):

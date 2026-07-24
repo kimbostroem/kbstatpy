@@ -31,6 +31,7 @@ class KbstatOptions:
     x_units: object = ''      # unit label(s) for x factors, e.g. '1, mg' — '1' means no units
     correlation: object = ''  # variables for pairwise correlation analysis (list or comma-separated)
     correlation_method: str = 'pearson'  # 'pearson' | 'spearman' — for the raw and partial correlations
+    correlation_control: object = ''  # variable(s) to partial out of every correlation, e.g. 'Age' (list or comma-separated); adjusts both the raw and partial tables and is not shown in the matrix
     y_transform: str = ''     # optional transform expression using 'y' as placeholder, e.g. 'log(y)'
     x: list = field(default_factory=list)
     x_order: object = None   # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels

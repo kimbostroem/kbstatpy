@@ -5,10 +5,15 @@
 ### Features
 
 - **Spearman correlations.** New `options.correlation_method` (`'pearson'`, the default, or `'spearman'`) selects the method for both the raw and the partial correlations; Spearman partial correlations are the partial correlations computed on the ranks. The figure titles name the method.
+- **Adjust correlations for covariates.** New `options.correlation_control` names variable(s) (e.g. `'Age'`) to partial out of every correlation before it is computed: the raw table then reports adjusted correlations and the partial table additionally controls for them. The control variables are kept out of the matrix, and the figure titles note the adjustment (e.g. "Partial Correlations (adjusted for Age)").
 
 ### Changes
 
 - **Redesigned the correlation figures for a compact, unified look.** The correlation and partial-correlation tables are now a tight lower-triangle matrix with the variable names on the diagonal, replacing the larger layout with separate header bands. The scatter output is now a lower-triangle scatter-plot matrix that mirrors that table — variable names on the diagonal and a mini scatter with regression line and the r-value in each cell — instead of a square grid of all pairwise panels. The r-values sit on a semi-transparent white background so they stay readable over the points.
+
+### Bugs
+
+- Partial-correlation p-values now use the correct degrees of freedom, `df = n - 2 - g` (g = number of conditioning variables), instead of `n - 2`; the coefficients are unchanged.
 
 ## [1.9.0] - 2026-07-17
 
