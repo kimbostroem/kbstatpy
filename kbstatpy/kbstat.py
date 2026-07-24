@@ -1480,14 +1480,17 @@ class Kbstat:
         char_w = 0.62 * fs / 72.0 / cell_in            # ~data units per character
         max_right = max((i + 0.22 + len(disp[i]) * char_w) for i in range(k))
         x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
-        y_lo, y_hi = -0.1, k + 0.1
+        # A small top band holds the title; small bottom margin. Filling the figure
+        # with the axes (proportional figsize) keeps cells square and the margins
+        # tight and symmetric — no equal-aspect slack at the bottom.
+        title_band = 0.7
+        y_lo, y_hi = -title_band, k + 0.15
 
-        fig, ax = plt.subplots(figsize=((x_hi - x_lo) * cell_in,
-                                        (y_hi - y_lo) * cell_in + 0.55))
+        fig = plt.figure(figsize=((x_hi - x_lo) * cell_in, (y_hi - y_lo) * cell_in))
+        ax = fig.add_axes((0, 0, 1, 1))
         ax.set_xlim(x_lo, x_hi)
         ax.set_ylim(y_lo, y_hi)
         ax.invert_yaxis()                    # row 0 at top
-        ax.set_aspect('equal')
         ax.axis('off')
 
         for i in range(k):                   # row i == variable i
@@ -1515,9 +1518,9 @@ class Kbstat:
             ax.text(i + 0.2, i + 0.5, disp[i], ha='left', va='center',
                     fontsize=fs + 0.5, fontweight='bold')
 
-        ax.set_title(title, fontweight='bold', fontsize=13, pad=8,
-                     fontfamily=self._title_font_family())
-        plt.tight_layout()
+        ax.text((x_lo + x_hi) / 2, -title_band / 2, title,
+                ha='center', va='center', fontweight='bold', fontsize=13,
+                fontfamily=self._title_font_family())
         self._show_fig(fig)
         return fig
 
