@@ -152,11 +152,11 @@ class KbstatOptions:
     # plot. With 'none'/'text' the outlier points are not drawn, so the y-axis
     # autoscales to the non-outlier data — useful when extreme outliers otherwise
     # squash the plot.
-    #   'plot'   (default) draw each outlier as a red X marker
+    #   'plot'   draw each outlier as a red X marker
     #   'none'   omit outliers entirely
-    #   'text'   omit the points but annotate the count and percentage of
-    #            outliers as text at the bottom (south) of each panel
-    show_outliers: str = 'plot'
+    #   'text'   (default) omit the points but annotate the count and percentage
+    #            of outliers as text at the bottom (south) of each panel
+    show_outliers: str = 'text'
     figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep'; all save files.
     #                                      In notebooks show_close/show_keep both render inline once.
 
