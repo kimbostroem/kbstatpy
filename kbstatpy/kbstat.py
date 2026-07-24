@@ -280,9 +280,15 @@ class Kbstat:
         # plots. Set via rcParams so the data, diagnostics and profile plots (which
         # rely on the defaults) all match; plots that set explicit sizes (the dense
         # correlation grids) keep their own. Tick numbers stay modest at 11.
+        # Bold titles and axis labels house-wide (weight set here so the data,
+        # diagnostics and profile plots all match; numeric tick labels stay
+        # regular). Plots that draw titles via ax.text (the correlation grids)
+        # set their own weight and are unaffected.
         plt.rcParams.update({
             'axes.titlesize': 13,
             'axes.labelsize': 13,
+            'axes.titleweight': 'bold',
+            'axes.labelweight': 'bold',
             'xtick.labelsize': 11,
             'ytick.labelsize': 11,
         })

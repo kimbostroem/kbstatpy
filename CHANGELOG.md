@@ -10,7 +10,7 @@
 
 ### Changes
 
-- **Tuned default plot font sizes.** Panel/subplot titles and axis labels 14 → 13, the figure suptitle's starting size 17 → 15 (it still auto-shrinks to fit the plot width), and the outlier-count annotation 9 → 10; tick numbers unchanged at 11.
+- **Tuned default plot font sizes and unified title/label weight.** Panel/subplot titles and axis labels 14 → 13, the figure suptitle's starting size 17 → 15 (it still auto-shrinks to fit the plot width), and the outlier-count annotation 9 → 10; tick numbers unchanged at 11. Titles and axis labels are now bold house-wide (via `axes.titleweight`/`axes.labelweight`), so the diagnostics and profile plots match the data plots; numeric tick labels stay regular weight and the correlation grids (which set their own text weight) are unaffected.
 - **Redesigned the correlation figures for a compact, unified look.** The correlation and partial-correlation tables are now a tight lower-triangle matrix with the variable names on the diagonal, replacing the larger layout with separate header bands. The scatter output is now a lower-triangle scatter-plot matrix that mirrors that table — variable names on the diagonal and a mini scatter with regression line and the r-value in each cell — instead of a square grid of all pairwise panels. The r-values sit on a semi-transparent white background so they stay readable over the points.
 
 ### Bugs
