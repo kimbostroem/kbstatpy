@@ -154,6 +154,47 @@ class GlmmTMB:
             return f'{self.family}(link="{self.link}")'
         return self.family
 
+    def is_singular(self, tol: float = 1e-4) -> bool:
+        """True if the fitted random-effect covariance is degenerate.
+
+        Flags a fit whose optimisation Hessian is not positive-definite, whose
+        marginal likelihood is non-finite, or whose conditional random-effect
+        block has a variance at (near) zero or a correlation at (near) ±1 — the
+        signatures of a correlated random-slope structure the data cannot
+        support. Errors are swallowed and reported as "not singular" so a
+        detection hiccup never aborts the fit.
+        """
+        try:
+            pd_hess = bool(ro.r(f'isTRUE({_R_MODEL}$sdr$pdHess)')[0])
+        except Exception:
+            pd_hess = True
+        try:
+            ll = float(ro.r(f'as.numeric(logLik({_R_MODEL}))')[0])
+        except Exception:
+            ll = float('nan')
+        if (not pd_hess) or (not np.isfinite(ll)):
+            return True
+        try:
+            ro.r(f'''
+            .__kbstat_sing__ <- tryCatch({{
+                vc <- VarCorr({_R_MODEL})$cond
+                bad <- FALSE
+                for (m in vc) {{
+                    sds <- attr(m, "stddev")
+                    cr  <- attr(m, "correlation")
+                    if (!is.null(sds) && length(sds) && any(sds < {tol})) bad <- TRUE
+                    if (!is.null(cr)) {{
+                        off <- cr[upper.tri(cr)]
+                        if (length(off) && any(abs(off) > 1 - {tol})) bad <- TRUE
+                    }}
+                }}
+                bad
+            }}, error = function(e) FALSE)
+            ''')
+            return bool(ro.r('.__kbstat_sing__')[0])
+        except Exception:
+            return False
+
     def _check_convergence(self):
         """Warn if glmmTMB did not converge cleanly (so unreliable fits surface)."""
         try:

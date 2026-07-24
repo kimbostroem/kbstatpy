@@ -91,6 +91,11 @@ class Kbstat:
         self.AIC    = None
         self.BIC    = None
         self.logLik = None
+        # Resolved random-slope covariance structure (set in fit()): None until a
+        # fit runs, then True (correlated) or False (uncorrelated/diagonal).
+        self._slope_correlated_effective = None
+        self._slope_re_autoflipped = False   # 'auto' fell back to diagonal
+        self._slope_re_singular = False      # slope_correlated=True fit was singular
         self._display_names: dict = {}   # internal col → display label (from options.rename)
         self.fig_diagnostics = None
         self.fig_data = None
@@ -550,6 +555,11 @@ class Kbstat:
         if self.data is None:
             self._load_data()
         self._normalize_options()
+        # Reset the resolved random-slope structure so a re-fit (e.g. after
+        # postfit outlier removal) re-decides the correlated/diagonal choice.
+        self._slope_correlated_effective = None
+        self._slope_re_autoflipped = False
+        self._slope_re_singular = False
         formula = self._build_formula()
         self._backfill_options_from_formula(formula)
         self._validate_options_vs_formula(formula)
@@ -561,20 +571,77 @@ class Kbstat:
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
         has_random = bool(self._parse_formula(formula)['id'])
         has_slopes = bool(self._parse_formula(formula)['slopes'])
-        data_pl = pl.from_pandas(data_to_use)
         # Dispersion model (glmmTMB dispformula): normalise the option to a formula.
         disp = (self.options.dispersion or '').strip()
         dispformula = ('' if not disp
                        else disp if disp.startswith('~') else f'~ {disp}')
+        if dispformula and family == 'gaussian':
+            warnings.warn("options.dispersion is ignored for gaussian (LM/LMM) models")
+            dispformula = ''
+
+        # Random-slope covariance structure. Honour slope_correlated: 'auto' (the
+        # default) falls back to an uncorrelated (diagonal) structure when the
+        # correlated fit is singular; True keeps it but warns and points at 'auto'.
+        # Skipped for an explicit formula (the caller owns the RE structure there).
+        mode = self.options.slope_correlated
+        handle_re = has_slopes and mode is not False and not self.options.formula
+        if not handle_re:
+            self._construct_and_fit(formula, data_to_use, family, link,
+                                    dispformula, has_random)
+        else:
+            # First attempt: the correlated structure (for both 'auto' and True).
+            # glmmTMB fits it and flags a degenerate covariance after the fact;
+            # lme4 instead raises for an over-parameterised RE. Treat either as a
+            # singular correlated structure.
+            try:
+                self._construct_and_fit(formula, data_to_use, family, link,
+                                        dispformula, has_random)
+                singular = self._fit_is_singular()
+            except Exception:
+                if mode != 'auto':
+                    warnings.warn(
+                        "The correlated random-effect structure could not be "
+                        "fitted (it is over-parameterised / unidentifiable). "
+                        "Consider slope_correlated='auto' (auto-fallback) or "
+                        "False (uncorrelated/diagonal).", stacklevel=2)
+                    raise
+                singular = True     # 'auto': an unfittable correlated model triggers fallback
+            if mode == 'auto' and singular:
+                self._slope_correlated_effective = False
+                self._slope_re_autoflipped = True
+                formula = self._build_formula()          # now diagonal
+                warnings.warn(
+                    "slope_correlated='auto': the correlated random-effect "
+                    "structure was singular or unfittable; refitting with an "
+                    f"uncorrelated (diagonal) structure -> {formula}", stacklevel=2)
+                self._construct_and_fit(formula, data_to_use, family, link,
+                                        dispformula, has_random)
+            elif mode is not False and mode != 'auto' and singular:  # explicit True
+                self._slope_re_singular = True
+                warnings.warn(
+                    "The correlated random-effect structure is singular "
+                    "(non-positive-definite Hessian / boundary correlation), "
+                    "so AIC/logLik may be NaN and the estimates unstable. "
+                    "Consider slope_correlated='auto' (auto-fallback) or "
+                    "False (uncorrelated/diagonal).", stacklevel=2)
+
+        self._df_runtime = None                 # re-resolve df method for the (re)fitted model
+        if not getattr(self, '_df_validated', False):
+            self._validate_df_method()          # warn once if df_method is unavailable here
+            self._df_validated = True
+
+    def _construct_and_fit(self, formula, data_to_use, family, link, dispformula,
+                           has_random):
+        """Build the model object for `formula`, fit it, and extract fit stats.
+
+        Factored out of :meth:`fit` so the ``slope_correlated='auto'`` path can
+        refit with a diagonal random-effect term without duplicating the setup.
+        """
+        data_pl = pl.from_pandas(data_to_use)
         if family == 'gaussian' and not has_random:
-            # Plain linear model — no random effects
-            if dispformula:
-                warnings.warn("options.dispersion is ignored for gaussian (LM) models")
-            self.model = Lm(formula, data=data_pl)
+            self.model = Lm(formula, data=data_pl)           # plain LM
         elif family == 'gaussian':
             # LMM via lmer/lmerTest (keeps Satterthwaite degrees of freedom)
-            if dispformula:
-                warnings.warn("options.dispersion is ignored for gaussian (LMM) models")
             self.model = Lmer(formula, data=data_pl)
         else:
             # All non-Gaussian GLMMs use glmmTMB. lme4::glmer returns mis-scaled
@@ -585,10 +652,6 @@ class Kbstat:
                                  max_iterations=self.options.max_iterations,
                                  dispformula=dispformula)
         self.model.fit(summarize=False)
-        self._df_runtime = None                 # re-resolve df method for the (re)fitted model
-        if not getattr(self, '_df_validated', False):
-            self._validate_df_method()          # warn once if df_method is unavailable here
-            self._df_validated = True
 
         # Extract AIC, BIC, logLik from the R model object
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
@@ -601,6 +664,28 @@ class Kbstat:
                 self.AIC = self.BIC = self.logLik = None
         else:
             self.AIC = self.BIC = self.logLik = None
+
+    def _fit_is_singular(self) -> bool:
+        """True if the current random-slope fit has a degenerate RE covariance.
+
+        Uses glmmTMB's pdHess / boundary-correlation check for the GLMMs and
+        ``lme4::isSingular`` for gaussian LMMs. Any detection error is treated as
+        not-singular so it never aborts a fit.
+        """
+        if self.model is None:
+            return False
+        if isinstance(self.model, GlmmTMB):
+            try:
+                return bool(self.model.is_singular())
+            except Exception:
+                return self.logLik is None or not np.isfinite(self.logLik)
+        r_obj = getattr(self.model, 'model_obj', getattr(self.model, 'r_model', None))
+        if r_obj is None:
+            return False
+        try:
+            return bool(ro.r('lme4::isSingular')(r_obj)[0])
+        except Exception:
+            return False
 
     # Accepted options.df_method values (normalized) -> canonical request.
     _DF_ALIASES = {
@@ -2629,6 +2714,12 @@ class Kbstat:
         # panels are documented in the README and STATISTICAL_NOTES (and in
         # Summary.txt), so they are not repeated here to keep the footer compact.
         parts = [f'Formula: {self._build_formula()}']
+        # Note the RE structure only when it departs from the plain correlated
+        # default (diagonal, auto-selected, or a flagged singular fit); the plain
+        # case is already evident from the formula.
+        re_note = self._re_structure_note(short=True)
+        if re_note and (not self._effective_slope_correlated() or self._slope_re_singular):
+            parts.append(f'RE: {re_note}')
         if self.AIC is not None:
             parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
         footer = '     |     '.join(parts)
@@ -2816,6 +2907,40 @@ class Kbstat:
                 f"{self.options.x}. Each slope must be one of the fixed-effect variables."
             )
 
+    def _effective_slope_correlated(self) -> bool:
+        """Resolve slope_correlated (True/False/'auto') to a concrete bool.
+
+        Once a fit has run, returns the structure actually used (set in
+        :meth:`fit`). Before that — and for the first attempt of an 'auto' run —
+        both True and 'auto' build the correlated structure; only False builds
+        the diagonal one.
+        """
+        if self._slope_correlated_effective is not None:
+            return self._slope_correlated_effective
+        mode = self.options.slope_correlated
+        return True if mode == 'auto' else bool(mode)
+
+    def _re_structure_note(self, short: bool = False):
+        """Human-readable description of the random-slope covariance structure and
+        any auto-fallback / singularity, or None when there is no random slope or
+        an explicit formula is in force (the caller owns the structure there)."""
+        if self.options.formula:
+            return None
+        if not self._parse_formula(self._build_formula())['slopes']:
+            return None
+        if self._effective_slope_correlated():
+            if self._slope_re_singular:
+                return ('correlated slopes (SINGULAR)' if short else
+                        "correlated random slopes — SINGULAR fit; consider "
+                        "slope_correlated='auto' or False")
+            return 'correlated slopes' if short else 'correlated random slopes'
+        if self._slope_re_autoflipped:
+            return ('uncorrelated slopes (auto)' if short else
+                    "uncorrelated (diagonal) random slopes — auto-selected after "
+                    "the correlated structure was singular")
+        return ('uncorrelated slopes' if short else
+                'uncorrelated (diagonal) random slopes (slope_correlated=False)')
+
     def _build_formula(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one."""
         if self.options.formula:
@@ -2847,7 +2972,7 @@ class Kbstat:
             slopes = self.options.slope
             if slopes:
                 random_term = ' + '.join(['1'] + slopes)
-                if self.options.slope_correlated:
+                if self._effective_slope_correlated():
                     re_term = f'({random_term} | {subject})'
                 elif str(self.options.distribution).lower() in ('normal', 'gaussian', ''):
                     re_term = f'({random_term} || {subject})'      # lme4 diagonal
@@ -2988,6 +3113,9 @@ class Kbstat:
         ]
         if self.options.id:
             lines.append(f'  Random grouping factor : {self.options.id}')
+        re_note = self._re_structure_note()
+        if re_note:
+            lines.append(f'  Random-slope structure : {re_note}')
         lines.append(f'  Contrast coding        : effects (contr.sum)')
         if self.model is not None:
             lines.append(f'  {"Deg.-of-freedom method":<22} : {self._df_method_label()}')

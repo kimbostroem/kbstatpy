@@ -38,13 +38,20 @@ class KbstatOptions:
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column
     id: str = ''
     slope: list = field(default_factory=list)
-    # Random-effect correlation structure for the slopes. True (default) fits a
-    # full covariance among the random intercept and slopes, (1 + s | id). False
-    # fits an uncorrelated (diagonal) structure — glmmTMB diag(1 + s | id) for the
-    # non-gaussian families, lme4's (1 + s || id) for gaussian LMMs — which drops
-    # the correlation parameters and avoids the near-singular fits that a
-    # many-level factor slope can otherwise produce.
-    slope_correlated: bool = True
+    # Random-effect correlation structure for the slopes. Accepts True, False, or
+    # 'auto' (the default).
+    #   True   fits the full covariance among the random intercept and slopes,
+    #          (1 + s | id). If that fit is singular a warning suggests 'auto'/False.
+    #   False  fits an uncorrelated (diagonal) structure — glmmTMB diag(1 + s | id)
+    #          for the non-gaussian families, lme4's (1 + s || id) for gaussian
+    #          LMMs — which drops the correlation parameters and avoids the
+    #          near-singular fits a many-level factor slope can otherwise produce.
+    #   'auto' fits the correlated structure first and, only if it comes back
+    #          singular (non-positive-definite Hessian / boundary correlation /
+    #          non-finite likelihood), refits with the uncorrelated (diagonal)
+    #          structure. The fallback is reported in Summary.txt and the
+    #          diagnostics footer. Ignored when an explicit `formula` is supplied.
+    slope_correlated: object = 'auto'
     interaction: list = field(default_factory=list)
 
     # GLM settings
