@@ -26,6 +26,10 @@
 - STATISTICAL_NOTES.md: documented the Spearman correlation option and covariate adjustment (with the g-adjusted partial-correlation degrees of freedom) in the correlation section, and added a "Per-group dispersion (`dispformula`)" section (Demo 17).
 - README.md and STATISTICAL_NOTES.md document `slope_correlated`: the README options table gains a row, and the "Random slopes in GLMMs" section explains the correlated/diagonal/`'auto'` choice, when the correlated slope goes singular, and the lme4 `||` caveat (it does not decorrelate the levels within a categorical slope, unlike glmmTMB's `diag()`).
 
+### Known limitations
+
+- **Diagonal random slopes for a *categorical* factor in a gaussian LMM are not fully uncorrelated.** `slope_correlated=False`/`'auto'` emits lme4's `(1 + s || id)` for gaussian LMMs, but lme4's `||` decorrelates only the intercept from the slope and distinct slope terms — it does *not* drop the correlations among the levels *within* a single categorical slope (it expands to `(1 | id) + (0 + factor | id)`, keeping that block correlated). glmmTMB's `diag()` decorrelates fully, so the non-gaussian families are unaffected; only gaussian LMMs with a categorical random slope see the limitation. A genuinely diagonal structure there needs the factor expanded into indicator terms (afex-style `expand_re = TRUE`), which is not done automatically. Possible future work: either that expansion, or a small engine-override option to fit a gaussian model via glmmTMB (which would gain the correct `diag()` at the cost of lme4's Kenward-Roger / Satterthwaite denominator df). Deferred until a real case needs it.
+
 ## [1.9.0] - 2026-07-17
 
 ### Features
