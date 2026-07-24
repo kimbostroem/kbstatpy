@@ -1348,18 +1348,20 @@ class Kbstat:
         fig_scatter = self._plot_corr_scatter(
             self.correlation_table, vars_, raw_arrays, corr_title)
 
+        # Both partial figures carry the same clarifying second line.
+        pcorr_full = pcorr_title + '\n(residuals after removing all other variables)'
+
         fig_partial_scatter = None
         if partial_table is not None:
             fig_partial_scatter = self._plot_corr_scatter(
-                partial_table, vars_, residuals,
-                pcorr_title + '\n(residuals after removing all other variables)',
+                partial_table, vars_, residuals, pcorr_full,
                 xlabel_suffix=' (residual)', ylabel_suffix=' (residual)')
 
         fig_table = self._plot_corr_table(self.correlation_table, vars_, corr_title)
 
         fig_partial_table = None
         if partial_table is not None:
-            fig_partial_table = self._plot_corr_table(partial_table, vars_, pcorr_title)
+            fig_partial_table = self._plot_corr_table(partial_table, vars_, pcorr_full)
 
         return CorrelationResult(
             correlation_table=self.correlation_table,
@@ -1480,10 +1482,11 @@ class Kbstat:
         char_w = 0.62 * fs / 72.0 / cell_in            # ~data units per character
         max_right = max((i + 0.22 + len(disp[i]) * char_w) for i in range(k))
         x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
-        # A small top band holds the title; small bottom margin. Filling the figure
-        # with the axes (proportional figsize) keeps cells square and the margins
-        # tight and symmetric — no equal-aspect slack at the bottom.
-        title_band = 0.7
+        # A small top band holds the title (widened for a multi-line title); small
+        # bottom margin. Filling the figure with the axes (proportional figsize)
+        # keeps cells square and the margins tight and symmetric — no equal-aspect
+        # slack at the bottom.
+        title_band = 0.7 + 0.4 * title.count('\n')
         y_lo, y_hi = -title_band, k + 0.15
 
         fig = plt.figure(figsize=((x_hi - x_lo) * cell_in, (y_hi - y_lo) * cell_in))
