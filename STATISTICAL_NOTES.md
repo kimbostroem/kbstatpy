@@ -21,6 +21,7 @@
   - [Multicollinearity diagnostics — VIF (Demo 14)](#multicollinearity-diagnostics-vif-demo-14)
   - [Comparing any factor, per cell (Demo 15)](#comparing-any-factor-per-cell-demo-15)
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
+  - [Per-group dispersion: `dispformula` (Demo 17)](#per-group-dispersion-dispformula-demo-17)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Kenward-Roger and Satterthwaite](#degrees-of-freedom-kenward-roger-and-satterthwaite)
@@ -107,6 +108,12 @@ A four-level within-subject factor is also a more honest demonstration than a tw
 Pearson r between two variables X and Y captures their total linear association, including any portion mediated by or confounded with a third variable Z. This is a classical analysis available in any statistics package.
 
 When three or more variables are correlated simultaneously, kbstatpy additionally computes **partial correlations** — the Pearson r between the residuals of regressing X on all other variables and the residuals of regressing Y on all other variables. This isolates the direct association between X and Y that cannot be explained by the remaining variables, and is particularly valuable when variables co-trend over time or share a common driver (as in the Longley macroeconomic data used in Demo 5).
+
+**Spearman option.** By default both the raw and the partial correlations are Pearson's. Setting `options.correlation_method = 'spearman'` switches them to **Spearman's rho** — rank correlations that capture any monotone (not only linear) association and are robust to outliers and skew. The Spearman partial correlation is the same residual-of-residuals construction performed on the **ranks**: each variable is rank-transformed, then residualised on the other ranked variables. The figure titles name the method.
+
+**Adjusting for covariates.** `options.correlation_control` names further variable(s) — e.g. `Age` — to partial out of *every* correlation before it is computed. The raw table then reports covariate-adjusted (first-order partial) correlations, and the partial table controls for the other correlation variables *and* those covariates; the control variables are kept out of the reported matrix, and the titles note the adjustment. This mirrors treating a variable as a covariate in the GLMMs.
+
+**Degrees of freedom.** A partial correlation's test uses the reduced degrees of freedom `df = n − 2 − g`, where g is the number of variables conditioned on (the other correlation variables plus any control variables). Testing a partial correlation against the naive `n − 2` would overstate its significance; kbstatpy uses the correct g-adjusted df.
 
 ---
 
@@ -213,6 +220,14 @@ Some factors are an **ordered series of levels** — spinal segments cranial→c
 **Layer 2 — the trend across levels.** The `A:B` interaction is reported two ways. The **factor omnibus** (k−1 df, straight from the Type III ANOVA) asks whether the A-effect differs across B's levels in *any* pattern — a diffuse test. The **focused linear trend** (1 df) asks the sharper question the ordered hypothesis actually poses: does the A-effect change *monotonically* along B? It is a custom linear contrast over B whose weights are the centred level **positions** — the labels' numeric values when they parse as numbers (so genuinely unequal spacing like dose 1 / 2 / 10 is honoured), otherwise equal-spaced ranks — and its estimate is the per-unit slope of A's contrast across B. Because it is a *contrast on the same factor model* (not a refit with B entered as a numeric covariate), it stays coherent with the omnibus and the Layer-1 profile — all three come from one fit — and reduces exactly to the equal-spaced orthogonal-polynomial linear trend when the spacing is equal. Leading with the focused trend follows the general principle that **a focused 1-df test beats a diffuse omnibus** when the alternative is directional: the trend can reach significance while the omnibus does not.
 
 **When it applies.** The profile is meaningful only when B **interacts** with the profiled factor: under the single-model approach an additive `A + B` model implies a constant A-effect across B by construction, so the profile would be flat and no trend is defined — kbstatpy warns in that case. It also expects B to be **ordered** (set `x_order` so the positions run in the intended direction) and to have **≥3 levels** (with two, the "trend" is just the single contrast, redundant with the omnibus). When B interacts with more than one factor (e.g. `A * B * C`), each interacting factor is profiled marginally across B and the higher-order `A:B:C` interaction is surfaced as a heterogeneity flag, since a large three-way means the marginal profile is averaging over real level-by-level differences. As with any data-driven pattern in a modest sample, the gradient is best treated as the finding rather than the per-level significance stars.
+
+### Per-group dispersion: `dispformula` (Demo 17)
+
+The continuous-dispersion families (Gamma, inverse Gaussian) carry a single dispersion parameter for the whole model — for a Gamma/log fit, a constant **coefficient of variation**: the scatter grows with the mean. When groups differ not only in level but in their *relative* scatter, one shared dispersion is a poor compromise. And because the fixed-effect standard errors are built from that dispersion, the inference at some groups is mis-scaled — the same class of failure as using the wrong GLMM engine, but arising from a mis-specified *variance* model rather than a mis-estimated one.
+
+`options.dispersion` sets the right-hand side of `glmmTMB`'s **`dispformula`**, so the dispersion may vary by a factor (e.g. `dispersion = 'JointGroup'` → `dispformula = ~ JointGroup`) instead of the default constant `~ 1`. `glmmTMB` then estimates a separate dispersion per level of that factor, and the standard errors, confidence intervals and p-values are scaled correctly per group. Crucially the **mean structure is unchanged** — the fixed-effect estimates and the estimated marginal means are identical; only the dispersion model, and therefore the inference, differs.
+
+Whether the richer dispersion model is warranted is an ordinary model-comparison question. Demo 17 fits a Gamma model (`ToothGrowth`, `len ~ supp * dose`) with constant vs by-dose dispersion and compares AIC: the by-dose fit is clearly preferred (AIC drops by ~14) because the doses differ markedly in relative scatter. The option is ignored for Gaussian LM/LMM models, which estimate their own residual variance directly, and it composes with the `glmmTMB` engine described below — the same explicit-dispersion machinery that fixes the SEs simply gains structure.
 
 ### Contrast coding: effects coding (`contr.sum`)
 

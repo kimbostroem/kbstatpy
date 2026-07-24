@@ -20,6 +20,7 @@
 ### Documentation
 
 - Added Demo 17 (`dispersion` / `dispformula`): a Gamma model on `ToothGrowth` fitted with constant vs by-dose dispersion, showing the lower AIC when groups differ in relative scatter. Script, notebook, README table/list, and Colab playground entry.
+- STATISTICAL_NOTES.md: documented the Spearman correlation option and covariate adjustment (with the g-adjusted partial-correlation degrees of freedom) in the correlation section, and added a "Per-group dispersion (`dispformula`)" section (Demo 17).
 
 ## [1.9.0] - 2026-07-17
 
