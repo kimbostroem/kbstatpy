@@ -7,6 +7,7 @@
 - **Spearman correlations.** New `options.correlation_method` (`'pearson'`, the default, or `'spearman'`) selects the method for both the raw and the partial correlations; Spearman partial correlations are the partial correlations computed on the ranks. The figure titles name the method.
 - **Adjust correlations for covariates.** New `options.correlation_control` names variable(s) (e.g. `'Age'`) to partial out of every correlation before it is computed: the raw table then reports adjusted correlations and the partial table additionally controls for them. The control variables are kept out of the matrix, and the figure titles note the adjustment (e.g. "Partial Correlations (adjusted for Age)").
 - **Per-group dispersion for the glmmTMB families.** New `options.dispersion` sets the right-hand side of glmmTMB's `dispformula` (e.g. `'JointGroup'` → `dispformula = ~ JointGroup`), letting the dispersion vary by a factor instead of the default constant `~1`. Useful when pooled groups differ widely in scale/scatter; ignored for gaussian (LM/LMM) models.
+- **Uncorrelated random slopes.** New `options.slope_correlated` (default `True`) controls the random-effect covariance structure. `True` keeps the full covariance among the random intercept and slopes, `(1 + s | id)`. `False` fits an uncorrelated (diagonal) structure — glmmTMB `diag(1 + s | id)` for the non-gaussian families, lme4's `(1 + s || id)` for gaussian LMMs — which drops the intercept-slope and slope-slope correlation parameters. Use it when a many-level factor slope drives the correlated fit to a singular (rank-deficient) random-effects covariance, which glmmTMB reports as a non-positive-definite Hessian and a NaN AIC/logLik; the diagonal fit still models the per-level random variance and converges cleanly.
 
 ### Changes
 
@@ -17,11 +18,13 @@
 
 - Partial-correlation p-values now use the correct degrees of freedom, `df = n - 2 - g` (g = number of conditioning variables), instead of `n - 2`; the coefficients are unchanged.
 - `Summary.txt` no longer lists the fit statistics twice for glmmTMB models (previously once rounded via the AIC/BIC/logLik attributes, then again at full precision from the model's fit-stats table); AIC/BIC/logLik/deviance are now printed once, each to 3 decimals.
+- The formula parser no longer mistakes the intercept controls `0` and `1` for random-slope variables. A random-effects term like `(0 + A | id)` or `(1 + A | id)` previously parsed `0`/`1` as slopes and failed validation with `Random slope variable(s) ['0'] not found in fixed-effect factors`; they are now recognised as intercept controls and stripped from the slope list. The parser also accepts the diagonal syntaxes `diag(1 + A | id)` (glmmTMB) and `(1 + A || id)` (lme4).
 
 ### Documentation
 
 - Added Demo 17 (`dispersion` / `dispformula`): a Gamma model on `ToothGrowth` fitted with constant vs by-dose dispersion, showing the lower AIC when groups differ in relative scatter. Script, notebook, README table/list, and Colab playground entry.
 - STATISTICAL_NOTES.md: documented the Spearman correlation option and covariate adjustment (with the g-adjusted partial-correlation degrees of freedom) in the correlation section, and added a "Per-group dispersion (`dispformula`)" section (Demo 17).
+- README.md and STATISTICAL_NOTES.md document `slope_correlated`: the README options table gains a row, and the "Random slopes in GLMMs" section explains when to drop to a diagonal random-effect structure to escape a singular correlated-slope fit.
 
 ## [1.9.0] - 2026-07-17
 

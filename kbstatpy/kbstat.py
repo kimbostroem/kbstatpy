@@ -2847,7 +2847,13 @@ class Kbstat:
             slopes = self.options.slope
             if slopes:
                 random_term = ' + '.join(['1'] + slopes)
-                return f'{y} ~ {rhs} + ({random_term} | {subject})'
+                if self.options.slope_correlated:
+                    re_term = f'({random_term} | {subject})'
+                elif str(self.options.distribution).lower() in ('normal', 'gaussian', ''):
+                    re_term = f'({random_term} || {subject})'      # lme4 diagonal
+                else:
+                    re_term = f'diag({random_term} | {subject})'   # glmmTMB diagonal
+                return f'{y} ~ {rhs} + {re_term}'
             return f'{y} ~ {rhs} + (1 | {subject})'
         return f'{y} ~ {rhs}'
 
@@ -2874,14 +2880,18 @@ class Kbstat:
         slopes = []
         for term in random_terms:
             if '|' in term:
-                left, right = term.split('|', 1)
+                # Normalise lme4's diagonal '||' to a single bar for splitting.
+                left, right = term.replace('||', '|').split('|', 1)
                 id_var = right.strip()
-                # Slopes are everything before | except the intercept (1)
-                slope_parts = [s.strip() for s in left.split('+') if s.strip() != '1']
+                # Slopes are everything before | except the intercept controls
+                # (1 keeps it, 0 drops it — neither is a slope variable).
+                slope_parts = [s.strip() for s in left.split('+')
+                               if s.strip() not in ('0', '1', '')]
                 slopes = slope_parts
 
-        # Remove random-effect groups from rhs to isolate fixed effects
-        fixed_rhs = re.sub(r'\+?\s*\([^)]+\)', '', rhs).strip().strip('+').strip()
+        # Remove random-effect groups from rhs to isolate fixed effects. The
+        # optional \w* also strips a covariance-structure prefix like diag(...).
+        fixed_rhs = re.sub(r'\+?\s*\w*\([^)]+\)', '', rhs).strip().strip('+').strip()
 
         # Collect unique main-effect variable names (ignore interaction terms with :)
         x = []

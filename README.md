@@ -133,6 +133,7 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `x_units` | list / str | `''` | Unit label(s) for x-axis tick groups; `'1'` means no units |
 | `id` | str | `''` | Random-effect grouping variable (e.g. subject ID) |
 | `slope` | list / str | `[]` | Variables with random slopes (e.g. `'A, B'` → `(1 + A + B \| id)`) |
+| `slope_correlated` | bool | `True` | Random-effect covariance structure for the slopes. `True` fits the full covariance `(1 + s \| id)`; `False` fits an uncorrelated (diagonal) structure — glmmTMB `diag(1 + s \| id)` for non-gaussian families, lme4 `(1 + s \|\| id)` for gaussian LMMs — which drops the correlation parameters and avoids the singular fits a many-level factor slope can otherwise produce. See [Random slopes in GLMMs](STATISTICAL_NOTES.md#random-slopes-in-glmms-pymer4-bug-and-workaround) |
 | `interaction` | list / str | `[]` | Interaction terms to include (e.g. `'A, B'` → `A:B` in formula) |
 | `covariate` | list / str | `[]` | Numeric covariates: included in the model but excluded from data plots and post-hoc |
 | `y_transform` | str | `''` | Transform expression using `y` as placeholder, e.g. `'log(y)'`. EMMs and CIs are back-transformed automatically |

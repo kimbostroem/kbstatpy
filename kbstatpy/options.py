@@ -38,6 +38,13 @@ class KbstatOptions:
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column
     id: str = ''
     slope: list = field(default_factory=list)
+    # Random-effect correlation structure for the slopes. True (default) fits a
+    # full covariance among the random intercept and slopes, (1 + s | id). False
+    # fits an uncorrelated (diagonal) structure — glmmTMB diag(1 + s | id) for the
+    # non-gaussian families, lme4's (1 + s || id) for gaussian LMMs — which drops
+    # the correlation parameters and avoids the near-singular fits that a
+    # many-level factor slope can otherwise produce.
+    slope_correlated: bool = True
     interaction: list = field(default_factory=list)
 
     # GLM settings
