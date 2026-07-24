@@ -19,7 +19,8 @@ The model is the crossed two-way `len ~ supp * dose`, fitted twice:
   1. default, one constant dispersion  (dispformula = ~ 1)
   2. dispersion varying by dose         (dispersion = 'dose'  ->  dispformula = ~ dose)
 
-The demo prints both models' AIC: letting the dispersion vary by dose lowers it by
+The demo prints both models' AIC side by side (each model's Summary.txt also lists
+AIC/BIC/logLik/deviance): letting the dispersion vary by dose lowers the AIC by
 roughly 14 here (a clearly better fit), and the group standard errors and
 confidence intervals shift accordingly. The mean structure (and the reported EMMs)
 is unchanged; only the dispersion model, and therefore the inference, differs.

@@ -2978,17 +2978,23 @@ class Kbstat:
         lines.append('')
 
         # --- Fit statistics ---
+        # Use a single source: the model's fit_stats table when present (glmmTMB:
+        # AIC/BIC/logLik/deviance), otherwise the AIC/BIC/logLik attributes
+        # (LM/LMM). Emit each stat once, formatted consistently.
         lines += ['FIT STATISTICS', '--------------']
-        if self.AIC is not None:
-            lines.append(f'  {"AIC":<24}: {self.AIC:.3f}')
-            lines.append(f'  {"BIC":<24}: {self.BIC:.3f}')
-            lines.append(f'  {"logLik":<24}: {self.logLik:.3f}')
+        stats = {}
         if hasattr(self.model, 'fit_stats') and self.model.fit_stats is not None:
             fs = self.model.fit_stats
             fs_df = fs.to_pandas() if hasattr(fs, 'to_pandas') else fs
-            for col in fs_df.columns:
-                val = fs_df[col].iloc[0] if len(fs_df) > 0 else '?'
-                lines.append(f'  {col:<24}: {val}')
+            if len(fs_df) > 0:
+                stats = {col: fs_df[col].iloc[0] for col in fs_df.columns}
+        elif self.AIC is not None:
+            stats = {'AIC': self.AIC, 'BIC': self.BIC, 'logLik': self.logLik}
+        for name, val in stats.items():
+            try:
+                lines.append(f'  {name:<24}: {float(val):.3f}')
+            except (TypeError, ValueError):
+                lines.append(f'  {name:<24}: {val}')
         lines.append('')
 
         # --- Fixed effects ---

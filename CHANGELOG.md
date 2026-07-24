@@ -15,6 +15,7 @@
 ### Bugs
 
 - Partial-correlation p-values now use the correct degrees of freedom, `df = n - 2 - g` (g = number of conditioning variables), instead of `n - 2`; the coefficients are unchanged.
+- `Summary.txt` no longer lists the fit statistics twice for glmmTMB models (previously once rounded via the AIC/BIC/logLik attributes, then again at full precision from the model's fit-stats table); AIC/BIC/logLik/deviance are now printed once, each to 3 decimals.
 
 ### Documentation
 
