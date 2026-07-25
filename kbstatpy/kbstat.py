@@ -2200,7 +2200,9 @@ class Kbstat:
                 pct = 100.0 * n_out / n_tot if n_tot else 0.0
                 ax.text(0.02, 0.02, f'{pct:.1f}% outliers ({n_out} of {n_tot})',
                         transform=ax.transAxes, ha='left', va='bottom',
-                        fontsize=10, color='black', zorder=7)
+                        fontsize=10, color='black', zorder=7,
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                                  alpha=0.7, edgecolor='none'))
             elif show_out == 'plot' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
@@ -2660,7 +2662,9 @@ class Kbstat:
         axes[0].set_ylabel("Density", labelpad=4)
         if diag_out == 'text' and n_cap:
             axes[0].text(0.02, 0.02, cap_note, transform=axes[0].transAxes,
-                         ha='left', va='bottom', fontsize=10, color='black', zorder=7)
+                         ha='left', va='bottom', fontsize=10, color='black', zorder=7,
+                         bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                                   alpha=0.7, edgecolor='none'))
 
         # ---------------------------------------------------------
         # Plot 2: Normal Q-Q Plot
@@ -2687,8 +2691,12 @@ class Kbstat:
         axes[1].set_xlabel("Theoretical quantiles", labelpad=4)
         axes[1].set_ylabel("Ordered Values", labelpad=4)
         if diag_out == 'text' and n_cap:
-            axes[1].text(0.02, 0.02, cap_note, transform=axes[1].transAxes,
-                         ha='left', va='bottom', fontsize=10, color='black', zorder=7)
+            # Bottom-right in the Q-Q so it clears the bottom-left-to-top-right
+            # reference diagonal.
+            axes[1].text(0.98, 0.02, cap_note, transform=axes[1].transAxes,
+                         ha='right', va='bottom', fontsize=10, color='black', zorder=7,
+                         bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                                   alpha=0.7, edgecolor='none'))
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
