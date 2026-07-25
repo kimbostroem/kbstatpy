@@ -148,15 +148,31 @@ class KbstatOptions:
     #   'variable_only'                 variable name only, no units
     #   'none'                          no y-axis label at all
     y_label: str = 'variable_with_units'
-    # How outliers (flagged by remove_outliers_prefit/postfit) appear in the data
-    # plot. With 'none'/'text' the outlier points are not drawn, so the y-axis
-    # autoscales to the non-outlier data — useful when extreme outliers otherwise
-    # squash the plot.
+    # How data outliers (flagged by remove_outliers_prefit/postfit) appear in the
+    # data plot. With 'text'/'hide' the outlier points are not drawn, so the
+    # y-axis autoscales to the non-outlier data — useful when extreme outliers
+    # otherwise squash the plot.
     #   'plot'   draw each outlier as a red X marker
-    #   'none'   omit outliers entirely
     #   'text'   (default) omit the points but annotate the count and percentage
     #            of outliers as text at the bottom (south) of each panel
-    show_outliers: str = 'text'
+    #   'hide'   omit outliers entirely, no annotation
+    data_outliers: str = 'text'
+    # How diagnostic outliers appear in the diagnostic distribution panels
+    # (histogram and Q-Q). These are the DHARMa quantile residuals that fall
+    # outside the entire simulated range: DHARMa caps them at z = +/-7, where they
+    # pile up as an edge spike in the histogram and a horizontal band at the top/
+    # bottom of the Q-Q. They flag a model-vs-data misfit (heavy tails) and are a
+    # DIFFERENT concept from the data outliers above (pre-fit data cleaning vs
+    # post-fit model adequacy). Same vocabulary as data_outliers:
+    #   'plot'   draw the capped points in a distinct colour (orange)
+    #   'text'   (default) omit the capped points and annotate the count and
+    #            percentage at the bottom of each distribution panel
+    #   'hide'   omit the capped points entirely, no annotation
+    diagnostic_outliers: str = 'text'
+    # Deprecated alias for data_outliers (the option name up to 1.10.0). None
+    # means unset; if given, it overrides data_outliers with a DeprecationWarning,
+    # and the old value 'none' is accepted as a synonym for 'hide'.
+    show_outliers: object = None
     figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep'; all save files.
     #                                      In notebooks show_close/show_keep both render inline once.
 

@@ -1,5 +1,15 @@
 # Changes
 
+## [Unreleased]
+
+### Features
+
+- **Control how diagnostic outliers are shown (`diagnostic_outliers`).** The diagnostic distribution panels (histogram and Q-Q) use DHARMa quantile residuals; observations outside the entire simulated range have no proper quantile and DHARMa caps them at z = ±7, where they pile up as an edge spike in the histogram and a horizontal band in the Q-Q. New `options.diagnostic_outliers` controls their display: `'text'` (default) omits the capped points and annotates the count/percentage at the bottom of each panel (so the axes autoscale to the bulk of the residuals), `'plot'` draws them in a distinct colour (orange), and `'hide'` omits them silently. This is a model-misfit / heavy-tail flag, deliberately kept as a separate concept (and separate colour) from the pre-fit data outliers.
+
+### Changes
+
+- **Renamed `show_outliers` to `data_outliers`** and gave it the same vocabulary as `diagnostic_outliers` (`'plot'` | `'text'` | `'hide'`), so the two outlier-display options are fully analogous. `show_outliers` still works as a deprecated alias (emits a `DeprecationWarning`), and its old value `'none'` maps to the new `'hide'`. Default is unchanged (`'text'`).
+
 ## [1.10.0] - 2026-07-25
 
 ### Features

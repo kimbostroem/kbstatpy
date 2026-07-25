@@ -412,6 +412,24 @@ class Kbstat:
         if isinstance(o.x_order, dict) and self._display_names:
             inv = {v: k for k, v in self._display_names.items()}
             o.x_order = {inv.get(k, k): v for k, v in o.x_order.items()}
+        # Outlier display options. Back-compat: show_outliers (<= 1.10.0) is now
+        # data_outliers; if set, it wins with a DeprecationWarning. Both
+        # data_outliers and diagnostic_outliers take 'plot' | 'text' | 'hide';
+        # the old 'none' maps to 'hide'. Unknown values fall back to 'text'.
+        if o.show_outliers is not None:
+            warnings.warn(
+                "options.show_outliers is deprecated; use data_outliers "
+                "('plot' | 'text' | 'hide'). The old 'none' maps to 'hide'.",
+                DeprecationWarning, stacklevel=2)
+            o.data_outliers = o.show_outliers
+            o.show_outliers = None
+        for attr in ('data_outliers', 'diagnostic_outliers'):
+            v = str(getattr(o, attr) or 'text').strip().lower()
+            if v == 'none':
+                v = 'hide'
+            if v not in ('plot', 'text', 'hide'):
+                v = 'text'
+            setattr(o, attr, v)
 
     def run(self):
         """Compute the full analysis and gather the results into ``self.output``.
@@ -2173,9 +2191,9 @@ class Kbstat:
                         }
 
             # --- LAYER 2b: Outliers (red X markers, count text, or hidden) ---
-            # Controlled by options.show_outliers: 'plot' (default), 'none', or
-            # 'text'. Unknown values fall back to 'plot'.
-            show_out = (self.options.show_outliers or 'plot').lower()
+            # Controlled by options.data_outliers: 'text' (default), 'plot', or
+            # 'hide' (normalized in _normalize_options).
+            show_out = self.options.data_outliers
             if show_out == 'text':
                 n_out = int(panel_outlier[y_var].notna().sum())
                 n_tot = n_out + int(panel_healthy[y_var].notna().sum())
@@ -2183,7 +2201,7 @@ class Kbstat:
                 ax.text(0.02, 0.02, f'{pct:.1f}% outliers ({n_out} of {n_tot})',
                         transform=ax.transAxes, ha='left', va='bottom',
                         fontsize=10, color='black', zorder=7)
-            elif show_out != 'none' and len(panel_outlier) > 0:
+            elif show_out == 'plot' and len(panel_outlier) > 0:
                 for xi, level in enumerate(x_levels):
                     subset = panel_outlier[panel_outlier[x_var] == level][y_var].dropna()
                     if len(subset) == 0:
@@ -2473,7 +2491,7 @@ class Kbstat:
         return fig
 
     def _diagnostic_residuals(self, r_obj):
-        """Residuals for the diagnostic panels, with a label describing their type.
+        """Residuals for the diagnostic panels: (values, label, capped_mask).
 
         Prefer DHARMa simulation-based quantile residuals transformed to the
         normal scale: under a correctly specified model these are ~N(0, 1) for
@@ -2481,6 +2499,11 @@ class Kbstat:
         Normal overlay and the Q-Q-vs-normal plot become honest checks. Fall back
         to deviance residuals (better-behaved than Pearson for GLMs) if DHARMa is
         unavailable or the simulation fails, and to Pearson only as a last resort.
+
+        ``capped_mask`` flags the DHARMa "outliers" — observations outside the
+        entire simulated range, whose scaled residual is 0 or 1 and which are
+        therefore capped at z = +/-7. It is all-False for the deviance/Pearson
+        fallbacks (no capping). The plot honours options.diagnostic_outliers.
         """
         try:
             if int(ro.r('as.integer(requireNamespace("DHARMa", quietly=TRUE))')[0]) == 1:
@@ -2491,18 +2514,23 @@ class Kbstat:
                                                              plot = FALSE, seed = 42)
                 ._kbstat_qres <- residuals(._kbstat_dharma, quantileFunction = qnorm,
                                            outlierValues = c(-7, 7))
+                ._kbstat_cap <- ._kbstat_dharma$scaledResiduals <= 0 |
+                                ._kbstat_dharma$scaledResiduals >= 1
                 ''')
                 res = np.asarray(ro.r('._kbstat_qres'), dtype=float)
                 if res.size and np.isfinite(res).any():
-                    return res, 'DHARMa quantile residuals'
+                    cap = np.asarray(ro.r('._kbstat_cap'), dtype=bool)
+                    if cap.shape != res.shape:
+                        cap = np.zeros(res.shape, dtype=bool)
+                    return res, 'DHARMa quantile residuals', cap
         except Exception:
             pass
         try:
-            return np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float), \
-                'deviance residuals'
+            r = np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float)
+            return r, 'deviance residuals', np.zeros(r.shape, dtype=bool)
         except Exception:
-            return np.asarray(ro.r('residuals')(r_obj, type='pearson'), dtype=float), \
-                'Pearson residuals'
+            r = np.asarray(ro.r('residuals')(r_obj, type='pearson'), dtype=float)
+            return r, 'Pearson residuals', np.zeros(r.shape, dtype=bool)
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
@@ -2513,7 +2541,8 @@ class Kbstat:
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
 
         if r_obj is not None:
-            self.model.residuals, self._resid_label = self._diagnostic_residuals(r_obj)
+            self.model.residuals, self._resid_label, self._resid_capped = \
+                self._diagnostic_residuals(r_obj)
         else:
             raise RuntimeError("Unable to find R model, rerun the fit")
 
@@ -2585,29 +2614,81 @@ class Kbstat:
         # Overlay N(mean, sd) of the residuals (not a KDE, which would merely
         # trace the bars) so departures from normality — skew, heavy tails — show
         # as gaps between the histogram and the dashed reference curve.
-        resid = np.asarray(self.model.residuals, dtype=float)
-        resid = resid[np.isfinite(resid)]
-        sns.histplot(resid, stat='density', ax=axes[0])
-        mu, sd = float(np.mean(resid)), float(np.std(resid, ddof=1))
-        if sd > 0:
-            xs = np.linspace(float(resid.min()), float(resid.max()), 200)
-            axes[0].plot(xs, stats.norm.pdf(xs, mu, sd), color='red', linestyle='--')
+        #
+        # DHARMa "outliers" (observations outside the whole simulated range) are
+        # capped at z = +/-7 and would otherwise pile up as an edge spike; how
+        # they appear is controlled by options.diagnostic_outliers ('plot' shows
+        # them in orange, 'text' omits them and annotates the count, 'hide' omits
+        # them silently). The Normal reference curve always uses the non-capped
+        # residuals so the +/-7 pile cannot inflate its spread.
+        resid_all = np.asarray(self.model.residuals, dtype=float)
+        capped_all = np.asarray(
+            getattr(self, '_resid_capped', np.zeros(resid_all.shape, dtype=bool)),
+            dtype=bool)
+        finite = np.isfinite(resid_all)
+        resid = resid_all[finite]
+        capped = (capped_all[finite] if capped_all.shape == resid_all.shape
+                  else np.zeros(resid.shape, dtype=bool))
+        diag_out = self.options.diagnostic_outliers
+        if diag_out not in ('plot', 'text', 'hide'):
+            diag_out = 'text'
+        main = resid[~capped]
+        n_cap = int(capped.sum())
+        n_tot = int(resid.size)
+        pct_cap = (100.0 * n_cap / n_tot) if n_tot else 0.0
+        cap_note = f'{pct_cap:.1f}% capped ({n_cap} of {n_tot})'
+
+        if diag_out == 'plot' and resid.size:
+            bins = np.histogram_bin_edges(resid, bins='auto')
+            sns.histplot(resid, bins=bins, stat='density', ax=axes[0])
+            cap_vals = resid[capped]
+            for p in axes[0].patches:          # recolour bars holding capped points
+                x0, x1 = p.get_x(), p.get_x() + p.get_width()
+                if n_cap and np.any((cap_vals >= x0) & (cap_vals <= x1)):
+                    p.set_facecolor('tab:orange')
+            ref = main if main.size else resid
+        else:                                  # 'text' / 'hide': plot non-capped only
+            sns.histplot(main, stat='density', ax=axes[0])
+            ref = main
+        if ref.size:
+            mu, sd = float(np.mean(ref)), float(np.std(ref, ddof=1))
+            if sd > 0:
+                xs = np.linspace(float(ref.min()), float(ref.max()), 200)
+                axes[0].plot(xs, stats.norm.pdf(xs, mu, sd), color='red', linestyle='--')
         axes[0].set_title("Histogram of Residuals")
         axes[0].set_xlabel("Residuals", labelpad=4)
         axes[0].set_ylabel("Density", labelpad=4)
+        if diag_out == 'text' and n_cap:
+            axes[0].text(0.02, 0.02, cap_note, transform=axes[0].transAxes,
+                         ha='left', va='bottom', fontsize=10, color='black', zorder=7)
 
         # ---------------------------------------------------------
         # Plot 2: Normal Q-Q Plot
         # ---------------------------------------------------------
-        stats.probplot(self.model.residuals, dist="norm", plot=axes[1])
-        axes[1].set_title("Normal Q-Q Plot")
-        # probplot draws with raw matplotlib (plain blue); recolour to match seaborn default
+        # Same diagnostic_outliers policy as the histogram: 'plot' shows the
+        # capped points in orange, 'text'/'hide' drop them (Q-Q of the non-capped
+        # residuals). seaborn_color = the muted blue used for the bulk of points.
         seaborn_color = sns.color_palette()[0]
-        axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
-                                   markeredgecolor='none')
-        axes[1].get_lines()[1].set(color='red', linestyle='--')
-        axes[1].set_xlabel(axes[1].get_xlabel(), labelpad=4)
-        axes[1].set_ylabel(axes[1].get_ylabel(), labelpad=4)
+        if diag_out == 'plot' and resid.size:
+            (osm, osr), (slope, intercept, _r) = stats.probplot(resid, dist="norm", fit=True)
+            cap_sorted = capped[np.argsort(resid, kind='stable')]
+            axes[1].plot(osm[~cap_sorted], osr[~cap_sorted], 'o', color=seaborn_color,
+                         markersize=6, markeredgecolor='none')
+            if cap_sorted.any():
+                axes[1].plot(osm[cap_sorted], osr[cap_sorted], 'o', color='tab:orange',
+                             markersize=6, markeredgecolor='none')
+            axes[1].plot(osm, slope * osm + intercept, color='red', linestyle='--')
+        else:                                  # 'text' / 'hide': non-capped only
+            stats.probplot(main, dist="norm", plot=axes[1])
+            axes[1].get_lines()[0].set(color=seaborn_color, markerfacecolor=seaborn_color,
+                                       markeredgecolor='none')
+            axes[1].get_lines()[1].set(color='red', linestyle='--')
+        axes[1].set_title("Normal Q-Q Plot")
+        axes[1].set_xlabel("Theoretical quantiles", labelpad=4)
+        axes[1].set_ylabel("Ordered Values", labelpad=4)
+        if diag_out == 'text' and n_cap:
+            axes[1].text(0.02, 0.02, cap_note, transform=axes[1].transAxes,
+                         ha='left', va='bottom', fontsize=10, color='black', zorder=7)
 
         # ---------------------------------------------------------
         # Plot 3: Residuals vs Fitted
