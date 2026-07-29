@@ -1,5 +1,11 @@
 # Changes
 
+## [1.11.3] - 2026-07-29
+
+### Changes
+
+- The correlation effect-size label (`_r_label`, used for Pearson r and Spearman rho in the `correlate()` output) now uses the same seven-bin `_cohen_label` scheme as the eta-squared and d labels, with the r/rho Cohen anchors 0.1/0.3/0.5 (matching MATLAB `effprint('r')`/`effprint('rho')`). It was the last effect-size labeler still on the old four-bin scheme (`negligible`/`small`/`medium`/`large`); now all of kbstatpy's effect-size labels (η², d/SMD, r, rho) share one consistent seven-bin ruler.
+
 ## [1.11.2] - 2026-07-29
 
 ### Changes

@@ -3564,17 +3564,10 @@ def _partial_corr_p(e1, e2, n_cond):
 
 
 def _r_label(r):
-    """Verbal effect size label for Pearson r (Cohen, 1988)."""
-    r = abs(r)
-    if np.isnan(r):
-        return ''
-    if r < 0.1:
-        return 'negligible'
-    if r < 0.3:
-        return 'small'
-    if r < 0.5:
-        return 'medium'
-    return 'large'
+    """Seven-bin label for a correlation coefficient (Pearson r or Spearman
+    rho), Cohen anchors 0.1/0.3/0.5, matching the MATLAB kbstat
+    ``effprint('r')`` / ``effprint('rho')`` scheme."""
+    return _cohen_label(r, (0.1, 0.3, 0.5))
 
 
 def _sig_stars(p):
