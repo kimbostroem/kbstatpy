@@ -1,5 +1,12 @@
 # Changes
 
+## [1.11.1] - 2026-07-29
+
+### Bugs
+
+- Post-hoc effect sizes are no longer degenerate for GLMMs. The pairwise SMD (Cohen's d) was computed as `2·|t|/√df`, but the non-Gaussian families are tested asymptotically (df = Inf), so every SMD collapsed to exactly 0. The SMD is now derived from the contrast `F = t²` with the residual df `n − p` as the denominator when the test df is infinite (finite Satterthwaite/Kenward-Roger df are still used for the Gaussian LMMs), reproducing the MATLAB kbstat convention so it is non-zero and interpretable. A partial eta-squared column (`etaSqp`) is added to the post-hoc table alongside it, computed from the same `F` and df. A `Summary.txt` note cautions that `n − p` treats the repeated within-subject observations as independent, so these effect sizes are liberal (approximate upper bounds); the p-values and EMMs are unaffected.
+- The post-hoc `diff` column (the response-scale difference of the two EMMs) came out `NaN` whenever a factor level name contained a special character (e.g. the hyphen in `Med-ADHD`): emmeans wraps such names in parentheses in the contrast label, and the level parser did not strip them, so the EMM lookup missed. The parser now strips a surrounding parenthesis pair, so `diff` is computed and the `<factor>_1` / `<factor>_2` columns show the bare level names.
+
 ## [1.11.0] - 2026-07-25
 
 ### Features
