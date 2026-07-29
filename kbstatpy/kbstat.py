@@ -1130,7 +1130,9 @@ class Kbstat:
                 'emm_2': _emm_ci_str(lev2, cell),
                 'diff': diff, 't': t_val, 'df': df_val,
                 'p': p_raw, 'pCorr': p_corr, 'SMD': smd, 'etaSqp': etasqp,
-                'effectSize': _d_label(smd), 'significance': _sig_stars(p_corr),
+                # Label from partial eta-squared (7-bin), mirroring the MATLAB
+                # kbstat emm post-hoc; SMD and etaSqp are both reported as numbers.
+                'effectSize': _effect_label_eta(etasqp), 'significance': _sig_stars(p_corr),
             })
             rows.append(row)
         return pd.DataFrame(rows)
@@ -3511,17 +3513,36 @@ def _f2smd(F, df1, df2, n_obs=None):
     return np.sqrt(4 * eta / (1 - eta))
 
 
+def _cohen_label(value, anchors):
+    """Seven-bin Cohen effect-size label, reproducing the MATLAB kbstat
+    ``effprint`` scheme. ``anchors`` = (small, medium, large) reference values
+    for the metric (partial eta-squared: 0.01/0.06/0.14; Cohen's d:
+    0.2/0.5/0.8). The bin edges are MATLAB's midpoint construction, giving
+    'very small', 'small', 'small to medium', 'medium', 'medium to large',
+    'large', 'very large' — so the eta-squared and the d labels use one
+    consistent scheme."""
+    try:
+        v = abs(float(value))
+    except (TypeError, ValueError):
+        return ''
+    if v != v:  # NaN
+        return ''
+    p1, p2, p3 = anchors
+    q2, q3 = (p1 + p2) / 2.0, (p2 + p3) / 2.0
+    edges = [p1 / 2.0, (p1 + q2) / 2.0, (q2 + p2) / 2.0,
+             (p2 + q3) / 2.0, (q3 + p3) / 2.0, (p3 + 1.0) / 2.0]
+    labels = ['very small', 'small', 'small to medium', 'medium',
+              'medium to large', 'large', 'very large']
+    for edge, lab in zip(edges, labels):
+        if v < edge:
+            return lab
+    return labels[-1]
+
+
 def _effect_label_eta(eta):
-    """Verbal effect size label from partial eta-squared."""
-    if eta < 0.01:
-        return 'negligible'
-    if eta < 0.06:
-        return 'small'
-    if eta < 0.14:
-        return 'medium'
-    if eta < 0.35:
-        return 'large'
-    return 'very large'
+    """Seven-bin partial-eta-squared label (Cohen anchors 0.01/0.06/0.14),
+    matching the MATLAB kbstat ``effprint('eta2')`` scheme."""
+    return _cohen_label(eta, (0.01, 0.06, 0.14))
 
 
 def _partial_corr_p(e1, e2, n_cond):
@@ -3619,21 +3640,7 @@ def _multiple_comparisons_table(results, method):
 
 
 def _d_label(d):
-    """Verbal Cohen's d effect size label (matches MATLAB effprint for type 'd')."""
-    d = abs(d)
-    if np.isnan(d):
-        return ''
-    if d < 0.05:
-        return 'very small'
-    if d < 0.225:
-        return 'small'
-    if d < 0.425:
-        return 'small to medium'
-    if d < 0.575:
-        return 'medium'
-    if d < 0.725:
-        return 'medium to large'
-    if d < 0.9:
-        return 'large'
-    return 'very large'
+    """Seven-bin Cohen's d label (anchors 0.2/0.5/0.8), matching the MATLAB
+    kbstat ``effprint('d')`` scheme."""
+    return _cohen_label(d, (0.2, 0.5, 0.8))
 
