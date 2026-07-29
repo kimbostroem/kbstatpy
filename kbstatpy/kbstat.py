@@ -1038,11 +1038,17 @@ class Kbstat:
             return emm_df if emm_df is not None else pd.DataFrame()
 
         def _parse_level(part, levels):
+            # emmeans wraps level names containing special characters (e.g. the
+            # hyphen in 'Med-ADHD') in parentheses in the contrast label; strip a
+            # surrounding pair so the level matches the EMM table — otherwise the
+            # EMM lookup misses and the response-scale difference comes out NaN.
+            p = part.strip()
+            p_np = p[1:-1] if len(p) >= 2 and p[0] == '(' and p[-1] == ')' else p
             for lev in levels:
                 ls = str(lev)
-                if part == ls or part == f'{factor_col}{ls}' or part == f'{factor_col} {ls}':
+                if p == ls or p_np == ls or p == f'{factor_col}{ls}' or p == f'{factor_col} {ls}':
                     return lev
-            return part
+            return p_np
 
         inv = self._inverse_fn  # None if no transform
 
@@ -1079,6 +1085,22 @@ class Kbstat:
             row = row[row[factor_col] == lev]
             return _bt(row.iloc[0][emm_col]) if len(row) else np.nan
 
+        # Residual degrees of freedom (n_obs - n_fixed_params) for the effect-size
+        # fallback when the contrast test is asymptotic (GLMM: df = Inf). This
+        # reproduces the MATLAB kbstat / Paper 2 convention (df2 = model DFE) so
+        # the SMD / partial eta-squared are not degenerate; see _f2smd below.
+        _rm = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        try:
+            _n_obs = int(ro.r('nobs')(_rm)[0])
+        except Exception:
+            _n_obs = int(len(getattr(self.model, 'fits', []) or
+                             getattr(self.model, 'residuals', []) or []))
+        try:
+            _p = int(len(self.model.coefs))
+        except Exception:
+            _p = 0
+        df_resid = float(_n_obs - _p) if (_n_obs and _p and _n_obs > _p) else float('nan')
+
         levels = emm_df[factor_col].astype(str).unique().tolist()
         rows = []
         for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
@@ -1089,7 +1111,14 @@ class Kbstat:
             ratio_col = 't.ratio' if 't.ratio' in cadj.index else 'z.ratio'
             t_val = float(cadj[ratio_col])
             df_val = float(cadj['df']) if 'df' in cadj.index else float('inf')
-            smd = 2 * abs(t_val) / np.sqrt(df_val) if df_val > 0 else np.nan
+            # Effect sizes from the 1-df contrast (F = t^2). A finite test df
+            # (LMM: Satterthwaite/KR) is used directly; an asymptotic GLMM df
+            # (Inf) falls back to the residual df n - p, so SMD / partial
+            # eta-squared are the (approximate, liberal) non-zero values the
+            # MATLAB kbstat / Paper 2 reported rather than 0 / undefined.
+            _F = t_val ** 2
+            etasqp = _f2eta_sq_p(_F, 1.0, df_val, n_obs=df_resid)
+            smd = _f2smd(_F, 1.0, df_val, n_obs=df_resid)
             p_raw = float(craw['p.value'])
             p_corr = float(cadj['p.value'])
             diff = _emm_val(lev1, cell) - _emm_val(lev2, cell)
@@ -1100,7 +1129,7 @@ class Kbstat:
                 'emm_1': _emm_ci_str(lev1, cell),
                 'emm_2': _emm_ci_str(lev2, cell),
                 'diff': diff, 't': t_val, 'df': df_val,
-                'p': p_raw, 'pCorr': p_corr, 'SMD': smd,
+                'p': p_raw, 'pCorr': p_corr, 'SMD': smd, 'etaSqp': etasqp,
                 'effectSize': _d_label(smd), 'significance': _sig_stars(p_corr),
             })
             rows.append(row)
@@ -3277,6 +3306,28 @@ class Kbstat:
             lines += [f'  Correction: {self.options.posthoc_correction}',
                       f'  Denominator df method: {self._df_method_label()}', '']
             lines += [ph.to_string(index=False), '']
+
+            # Caution about the df approximation behind the GLMM effect sizes.
+            _ph_inf = False
+            if 'df' in ph.columns:
+                _ph_inf = bool(np.any(np.isinf(
+                    pd.to_numeric(ph['df'], errors='coerce').to_numpy(dtype=float))))
+            if _ph_inf:
+                lines += [
+                    'NOTE: effect sizes for GLMM contrasts (SMD, etaSqp)',
+                    '---------------------------------------------------',
+                    'The pairwise tests above are asymptotic (df = Inf), so the standardized',
+                    'effect sizes — SMD (Cohen\'s d) and partial eta-squared (etaSqp) — cannot',
+                    'be derived from the test df. They are computed from the contrast F = t^2',
+                    'with the residual df n - p as the denominator (n observations, p fixed-',
+                    'effect columns), matching the MATLAB kbstat / Paper 2 convention so they',
+                    'are non-zero. CAUTION: n - p treats the repeated within-subject',
+                    'observations as independent, so it overstates the degrees of freedom and',
+                    'these effect sizes are correspondingly LIBERAL (approximate upper bounds).',
+                    'Read them as rough magnitudes, not exact values; the p-values and EMMs',
+                    'are unaffected.',
+                    '',
+                ]
 
         # --- Level-wise profile ---
         pa = getattr(self, 'profile_across_result', None)
