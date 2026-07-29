@@ -1,5 +1,12 @@
 # Changes
 
+## [1.11.2] - 2026-07-29
+
+### Changes
+
+- Effect-size verbal labels now use a single **seven-bin** scheme for both partial eta-squared and Cohen's d, reproducing the MATLAB kbstat `effprint` bins (`very small`, `small`, `small to medium`, `medium`, `medium to large`, `large`, `very large`). Previously the partial-eta-squared labeler used only four bins (and returned `negligible` below 0.01) while the d labeler used seven bins with slightly-off thresholds (0.05/0.225 instead of MATLAB's 0.10/0.275), so the ANOVA table (eta-squared) and the post-hoc table (d) could describe the same magnitude with different words. Both now derive from a shared `_cohen_label` with the metric's Cohen anchors (eta-squared 0.01/0.06/0.14, d 0.2/0.5/0.8), so a value and its equivalent in the other metric label consistently.
+- The post-hoc effect-size label is now taken from the contrast's partial eta-squared (matching the MATLAB `emm` post-hoc), not from the SMD; both `SMD` and `etaSqp` are still reported as numeric columns.
+
 ## [1.11.1] - 2026-07-29
 
 ### Bugs
