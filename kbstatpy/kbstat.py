@@ -1415,6 +1415,10 @@ class Kbstat:
             if self.options.y_scale == 'log':
                 if self._log_scale_ok(ax, 'profile plot'):
                     ax.set_yscale('log')
+                    # Say so on the axis: the ticks carry untransformed values, so
+                    # only the spacing reveals the scale. Only added when the log
+                    # axis was actually applied, never when it fell back.
+                    ax.set_ylabel(f'{ylab}  (log scale)')
             ax.legend(title=self._disp(A), fontsize=11)
         st = self._add_suptitle(fig, f'{ylab} profiled across {self._disp(B)}')
         fig.tight_layout()
@@ -2484,6 +2488,13 @@ class Kbstat:
             for row in axes:
                 for ax in row:
                     ax.set_yscale('log')
+                    # Mark the scale on the axis label, mirroring the
+                    # '(original scale)' note used for y_transform. Keyed to the
+                    # scale actually applied, so a fallback to linear never gets
+                    # labelled 'log'. Panels whose ylabel is a facet row label
+                    # rather than the response label are left alone.
+                    if y_label and ax.get_ylabel() == y_label:
+                        ax.set_ylabel(f'{y_label}  (log scale)', fontweight='bold')
         _yt = (lambda v: np.log10(v)) if logy else (lambda v: v)      # to axis space
         _yi = (lambda t: 10.0 ** t) if logy else (lambda t: t)        # back to data
         y_lo, y_hi = ref_ax.get_ylim()   # data-driven limits before any expansion

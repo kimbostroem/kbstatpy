@@ -146,6 +146,26 @@ def test_profile_plot_has_no_x_axis_label():
         f'profile plot should carry no x-axis label, got {labels!r}')
 
 
+def test_log_axis_is_marked_on_the_label():
+    """The ticks carry untransformed values, so the label must say 'log scale' —
+    otherwise only the spacing reveals it. And a linear axis must NOT say it."""
+    k = fit('log')
+    fig = k.fig_data if not isinstance(k.fig_data, dict) else list(k.fig_data.values())[0]
+    labels = [ax.get_ylabel() for ax in _panel_axes(fig) if ax.get_ylabel()]
+    assert any('log scale' in lab for lab in labels), \
+        f'no log-scale note on any data-plot y-label: {labels!r}'
+    prof = [ax.get_ylabel() for ax in k.fig_profile_across.axes if ax.get_ylabel()]
+    assert any('log scale' in lab for lab in prof), \
+        f'no log-scale note on the profile y-label: {prof!r}'
+
+    lin = fit('linear')
+    figl = lin.fig_data if not isinstance(lin.fig_data, dict) else list(lin.fig_data.values())[0]
+    lin_labels = ([ax.get_ylabel() for ax in _panel_axes(figl)]
+                  + [ax.get_ylabel() for ax in lin.fig_profile_across.axes])
+    assert not any('log scale' in lab for lab in lin_labels), \
+        f'linear axes must not claim a log scale: {lin_labels!r}'
+
+
 def test_profile_plot_honours_log_scale():
     k = fit('log')
     scales = {ax.get_yscale() for ax in k.fig_profile_across.axes}

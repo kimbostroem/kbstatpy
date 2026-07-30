@@ -1,5 +1,11 @@
 # Changes
 
+## [1.12.1] - 2026-07-30
+
+### Changes
+
+- With `y_scale = 'log'`, the y-axis label now carries a `(log scale)` note, on the data plots and on the profile plot. The tick labels show untransformed values, so previously nothing but the tick spacing revealed that the axis was logarithmic, and a reader skimming the figure could take the values as linear. This mirrors the existing `(original scale)` note used for `y_transform`. The note is keyed to the scale actually applied, so a fallback to a linear axis (triggered by non-positive values) is never labelled as log.
+
 ## [1.12.0] - 2026-07-30
 
 ### Added
