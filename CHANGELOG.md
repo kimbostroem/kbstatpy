@@ -1,5 +1,18 @@
 # Changes
 
+## [1.13.0] - 2026-07-30
+
+### Added
+
+- **A second figure for `profile_across`: `LevelProfileContrast`.** The existing `LevelProfile` plots the absolute EMMs per level of the profiled factor, but the Layer-2 statistic is a linear trend of the *contrast between* those levels, which absolute EMMs do not display, and which is easily invisible when the levels differ greatly in magnitude. The new figure plots the contrast itself across the ordered factor, with 95% confidence intervals taken from `emmeans`' own link-scale estimates and standard errors. For a log link it shows ratios on a logarithmic axis with a reference line at 1; otherwise differences on a linear axis with a reference line at 0. Produced automatically alongside the existing plot, and available as `result.fig_profile_contrast`.
+- The fitted 1-df trend line is overlaid **only where the level estimates are close to collinear** (largest deviation from the fitted line below half the slope magnitude). A 1-df linear contrast can be significant on a rise-then-fall pattern because it weights the endpoints; drawing a line through that would assert a monotone gradient the data do not show, so in that case the p-value is annotated and no line is drawn.
+- `profile_across_result` gained `per_level_link`, the `emmeans` contrast table on the link scale (`estimate`, `SE`) per interacting factor, which is what the new figure consumes.
+- `tests/test_profile_contrast.py`.
+
+### Fixed
+
+- **Trend rows carried unlabelled integer codes for factors with three or more levels.** `emmeans` returns integer codes rather than labels in the `*_pairwise` column for this model class (the same label-dropping quirk already handled in `_pairwise_for`), so `LevelProfile.xlsx` showed `contrast` values of `1`, `2`, `3` and the trend rows could not be joined to the contrasts they describe. The labels are now fetched from `pairs()` on the same `emmeans` grid, which also keeps the ordering `emmeans`' own rather than the data's factor order (`x_order` can differ from it).
+
 ## [1.12.1] - 2026-07-30
 
 ### Changes

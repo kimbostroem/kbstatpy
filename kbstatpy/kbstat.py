@@ -34,6 +34,7 @@ class ModelResult:
     fig_diagnostics: object = None  # diagnostics figure
     profile_across: object = None   # level-wise profile result dict, or None
     fig_profile_across: object = None  # profile plot figure, or None
+    fig_profile_contrast: object = None  # differential (contrast) profile figure, or None
 
     def __repr__(self):
         # Concise: the default dataclass repr dumps the full summary text,
@@ -527,6 +528,7 @@ class Kbstat:
                 fig_diagnostics=worker.fig_diagnostics,
                 profile_across=getattr(worker, 'profile_across_result', None),
                 fig_profile_across=getattr(worker, 'fig_profile_across', None),
+                fig_profile_contrast=getattr(worker, 'fig_profile_contrast', None),
             ))
 
         # Across-y multiple-comparison correction (one family per model term).
@@ -597,6 +599,7 @@ class Kbstat:
                 fig_diagnostics=self.fig_diagnostics,
                 profile_across=getattr(self, 'profile_across_result', None),
                 fig_profile_across=getattr(self, 'fig_profile_across', None),
+                fig_profile_contrast=getattr(self, 'fig_profile_contrast', None),
             ))
         return out
 
@@ -1274,11 +1277,30 @@ class Kbstat:
                     alev = [str(v) for v in (acol.cat.categories if hasattr(acol, 'cat')
                                              else pd.unique(acol.dropna()))]
                     label = f'{alev[0]} - {alev[1]}' if len(alev) == 2 else ''
-                    for _, rr in df.iterrows():
+                    # For 3+ levels emmeans returns integer codes in the *_pairwise
+                    # column for this model class (the same label-dropping quirk
+                    # documented in _pairwise_for), which would leave the trend rows
+                    # unjoinable to the contrasts they describe. Fetch the real
+                    # labels from pairs() on the same emmeans grid, so the ordering
+                    # comes from emmeans itself rather than from the data's factor
+                    # order (which x_order may have changed).
+                    pair_labels = []
+                    if not label:
+                        try:
+                            _lab = p2ri.rpy2py(ro.r(
+                                f'as.data.frame(pairs(emmeans::emmeans('
+                                f'kbstat_cmp_model, ~ {A})))'))
+                            if 'contrast' in _lab.columns:
+                                pair_labels = [str(v) for v in _lab['contrast']]
+                        except Exception:
+                            pair_labels = []
+                    for _i, (_, rr) in enumerate(df.iterrows()):
                         rows.append({
                             'factor': A,
                             'component': 'linear trend (A:B slope, 1 df)',
-                            'contrast': label or (str(rr[pw_col]) if pw_col else ''),
+                            'contrast': (label
+                                         or (pair_labels[_i] if _i < len(pair_labels)
+                                             else (str(rr[pw_col]) if pw_col else ''))),
                             'estimate': float(rr['estimate']) if 'estimate' in df.columns else np.nan,
                             'stat': float(rr[ratio_col]) if ratio_col else np.nan,
                             'df1': 1.0,
@@ -1298,6 +1320,7 @@ class Kbstat:
         """
         self.profile_across_result = None
         self.fig_profile_across = None
+        self.fig_profile_contrast = None
         pa = self.options.profile_across
         if isinstance(pa, (list, tuple)):
             pa = pa[0] if pa else ''
@@ -1328,10 +1351,16 @@ class Kbstat:
                 stacklevel=2)
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
         per_level = {}
+        per_level_link = {}
         for A in partners:
-            _, ph_df, _ = self._pairwise_for(r_obj, A, [B])
+            ct_adj, ph_df, _ = self._pairwise_for(r_obj, A, [B])
             if ph_df is not None and len(ph_df):
                 per_level[A] = ph_df
+            # emmeans' own contrast table, on the LINK scale: `estimate` and `SE`
+            # are what the contrast figure needs, and reconstructing them from the
+            # response-scale posthoc table is neither exact nor necessary.
+            if ct_adj is not None and len(ct_adj):
+                per_level_link[A] = ct_adj
         trend_rows = self._profile_trend(r_obj, B, partners, positions)
         trend_df = None
         if trend_rows:
@@ -1344,13 +1373,136 @@ class Kbstat:
             'positions': positions,
             'partners': partners,
             'per_level': per_level,
+            'per_level_link': per_level_link,
             'trend': trend_df,
         }
         try:
             self.fig_profile_across = self._plot_profile_across()
         except Exception:
             self.fig_profile_across = None
+        try:
+            self.fig_profile_contrast = self._plot_profile_contrast()
+        except Exception:
+            self.fig_profile_contrast = None
         return self.profile_across_result
+
+    # Draw the fitted trend line only when the levels are close enough to
+    # collinear, as a fraction of the slope magnitude. A significant 1-df linear
+    # contrast can arise from a rise-then-fall pattern, and a straight line
+    # through that asserts a gradient the data do not show.
+    PROFILE_COLLINEAR_TOL = 0.5
+
+    def _plot_profile_contrast(self):
+        """Differential profile plot: the pairwise CONTRASTS between levels of each
+        partner factor A, plotted across the ordered factor B, with 95% CIs and the
+        fitted 1-df linear trend.
+
+        This is the companion to _plot_profile_across. That figure shows absolute
+        EMMs per level of A; the trend statistic reported alongside it is a linear
+        trend of the CONTRAST between levels of A, which absolute EMMs do not
+        display. Here the contrast itself is the y-axis, so the tested quantity is
+        the thing being drawn.
+
+        Scale: for a log link the contrast is a log ratio, so it is shown as a
+        ratio on a log axis with a reference line at 1; otherwise it is a plain
+        difference on a linear axis with a reference line at 0. Estimates and SEs
+        are emmeans' own, on the link scale.
+        """
+        import matplotlib.pyplot as plt
+        res = self.profile_across_result
+        if not res or not res.get('partners'):
+            return None
+        per_link = res.get('per_level_link') or {}
+        if not per_link:
+            return None
+        B, order, positions = res['factor'], res['order'], res['positions']
+        trend = res.get('trend')
+        log_link = str(getattr(self.options, 'link', '') or '').lower() == 'log'
+
+        partners = [A for A in res['partners'] if A in per_link]
+        if not partners:
+            return None
+        self._apply_font()
+        fig, axes = plt.subplots(1, len(partners), figsize=(5.6 * len(partners), 4.4),
+                                 squeeze=False)
+        pos = np.asarray(positions, dtype=float)
+
+        for ax, A in zip(axes[0], partners):
+            ct = per_link[A]
+            if B not in ct.columns or 'contrast' not in ct.columns:
+                continue
+            ref = 1.0 if log_link else 0.0
+            ax.axhline(ref, color='#999999', lw=.9, ls=(0, (4, 3)), zorder=1)
+            labels = list(dict.fromkeys(str(v) for v in ct['contrast']))
+            colors = sns.color_palette(n_colors=max(len(labels), 3))
+            notes = []
+            for k, lab in enumerate(labels):
+                sub = ct[ct['contrast'].astype(str) == lab]
+                sub = sub.set_index(sub[B].astype(str)).reindex(order)
+                est = sub['estimate'].to_numpy(dtype=float)
+                se = (sub['SE'].to_numpy(dtype=float) if 'SE' in sub.columns
+                      else np.full(len(est), np.nan))
+                good = np.isfinite(est)
+                if good.sum() < 2:
+                    continue
+                lo, hi = est - 1.96 * se, est + 1.96 * se
+                y, ylo, yhi = ((np.exp(est), np.exp(lo), np.exp(hi)) if log_link
+                               else (est, lo, hi))
+                off = (k - (len(labels) - 1) / 2) * (0.04 * (pos.max() - pos.min() or 1))
+                ax.errorbar(pos[good] + off, y[good],
+                            yerr=[(y - ylo)[good], (yhi - y)[good]],
+                            marker='o', ms=6, lw=0, elinewidth=1.2, capsize=3,
+                            color=colors[k], label=lab, zorder=3)
+                # fitted trend, only where it is significant and near-collinear
+                trow = None
+                if trend is not None and 'contrast' in trend.columns:
+                    m = trend[(trend.get('factor') == A)
+                              & (trend['contrast'].astype(str) == lab)
+                              & (trend['component'].astype(str).str.startswith('linear'))]
+                    trow = m.iloc[0] if len(m) else None
+                if trow is None or not np.isfinite(float(trow.get('p', np.nan))):
+                    continue
+                p_val = float(trow['p'])
+                coef = np.polyfit(pos[good], est[good], 1)
+                dev = float(np.abs(est[good] - np.polyval(coef, pos[good])).max())
+                if p_val < .05 and dev < self.PROFILE_COLLINEAR_TOL * abs(coef[0]):
+                    xf = np.linspace(pos.min(), pos.max(), 50)
+                    fit = np.polyval(coef, xf)
+                    ax.plot(xf, np.exp(fit) if log_link else fit,
+                            color=colors[k], lw=1.6, alpha=.85, zorder=2)
+                    notes.append(f'{lab}: trend p = {p_val:.2g}')
+                elif p_val < .05:
+                    notes.append(f'{lab}: trend p = {p_val:.2g} (not collinear)')
+            if log_link:
+                import matplotlib.ticker as _mt
+                ax.set_yscale('log')
+                # Ratios read as plain decimals; the default log formatter prints
+                # '2 x 10^0' where a ratio axis should simply say '2'.
+                def _plain(v, _p=None):
+                    if v <= 0:
+                        return ''
+                    return f'{v:g}' if v >= 1 else f'{v:.2f}'.rstrip('0').rstrip('.')
+                ax.yaxis.set_major_formatter(_mt.FuncFormatter(_plain))
+                ax.yaxis.set_minor_locator(_mt.LogLocator(base=10, subs=(2, 3, 5)))
+                ax.yaxis.set_minor_formatter(_mt.FuncFormatter(_plain))
+                ax.tick_params(axis='y', which='minor', labelsize=9)
+            ax.set_xticks(list(pos))
+            ax.set_xticklabels(order)
+            ylab = ('Ratio of estimated marginal means' if log_link
+                    else 'Difference of estimated marginal means')
+            ax.set_ylabel(ylab + ('  (log scale)' if log_link else ''))
+            ax.legend(title=self._disp(A), fontsize=9)
+            if notes:
+                ax.annotate('\n'.join(notes), xy=(.03, .03),
+                            xycoords='axes fraction', fontsize=8, color='#333333',
+                            va='bottom',
+                            bbox=dict(fc='white', ec='none', alpha=.75, pad=1.5))
+        st = self._add_suptitle(
+            fig, f'Contrasts profiled across {self._disp(B)}')
+        fig.tight_layout()
+        self._fit_suptitle_to_axes(st, fig)
+        self._show_fig(fig)
+        return fig
 
     def _plot_profile_across(self):
         """Profile plot: response EMMs across the ordered factor B (x-axis), one
@@ -1837,6 +1989,9 @@ class Kbstat:
                     print(f'Saved LevelProfile.xlsx to {d}')
             if res.fig_profile_across is not None:
                 self._write_fig(res.fig_profile_across, d, 'LevelProfile', html=False, tight=True)
+            if getattr(res, 'fig_profile_contrast', None) is not None:
+                self._write_fig(res.fig_profile_contrast, d, 'LevelProfileContrast',
+                                html=False, tight=True)
 
         if output.multiple_comparisons is not None:
             mc_path = os.path.join(out_dir, 'MultipleComparisons.xlsx')
