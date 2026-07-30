@@ -1469,16 +1469,27 @@ class Kbstat:
         # --- Partial correlation table (controls for the other vars + controls) ---
         partial_table = None
         residuals = {}
+        pair_residuals = {}
         if len(vars_) >= 3:
-            # Each variable is residualised on all the others (plus the control
-            # vars); the pair's conditioning-set size is (k - 2) + #control.
+            # For each PAIR, both members are residualised on the SAME conditioning
+            # set, namely the other variables plus the control vars, EXCLUDING both
+            # members of the pair. Conditioning-set size is therefore (k - 2) +
+            # #control, which is g_par below.
+            #
+            # Residualising each variable on all the others (i.e. leaving the
+            # partner in the predictor set) is a different quantity: it returns
+            # corr(resid_i | all others, resid_j | all others), which is identically
+            # MINUS the partial correlation, by the precision-matrix identity
+            # partial_r(i,j) = -P_ij / sqrt(P_ii * P_jj). Doing that inverted every
+            # sign in the partial table and in the partial scatter grid (bug fixed
+            # in 1.11.4); see test_partial_correlation_sign.py.
             g_par = (len(vars_) - 2) + len(control)
-            for v in vars_:
-                preds = [o for o in vars_ if o != v] + control
-                residuals[v] = _residualise(v, preds)
             part_rows = []
             for v1, v2 in itertools.combinations(vars_, 2):
-                r, p = _partial_corr_p(residuals[v1], residuals[v2], g_par)
+                preds = [o for o in vars_ if o not in (v1, v2)] + control
+                e1, e2 = _residualise(v1, preds), _residualise(v2, preds)
+                pair_residuals[(v1, v2)] = (e1, e2)
+                r, p = _partial_corr_p(e1, e2, g_par)
                 part_rows.append({
                     'var_1':        v1,
                     'var_2':        v2,
@@ -1504,7 +1515,8 @@ class Kbstat:
         if partial_table is not None:
             fig_partial_scatter = self._plot_corr_scatter(
                 partial_table, vars_, residuals, pcorr_full,
-                xlabel_suffix=' (residual)', ylabel_suffix=' (residual)')
+                xlabel_suffix=' (residual)', ylabel_suffix=' (residual)',
+                pair_arrays=pair_residuals)
 
         fig_table = self._plot_corr_table(self.correlation_table, vars_, corr_title)
 
@@ -1523,7 +1535,7 @@ class Kbstat:
         )
 
     def _plot_corr_scatter(self, corr_df, vars_, data_arrays, title,
-                           xlabel_suffix='', ylabel_suffix=''):
+                           xlabel_suffix='', ylabel_suffix='', pair_arrays=None):
         """Lower-triangle scatter matrix mirroring the correlation table: variable
         names on the diagonal, and a mini scatter (with regression line and the
         r-value) in each lower-triangle cell. Returns the figure."""
@@ -1562,8 +1574,20 @@ class Kbstat:
             for j in range(i):                            # lower triangle: x=var j, y=var i
                 sub = ax.inset_axes((j + pad, yc + pad, 1 - 2 * pad, 1 - 2 * pad),
                                     transform=ax.transData)
-                xd = np.asarray(data_arrays[vars_[j]], dtype=float)
-                yd = np.asarray(data_arrays[vars_[i]], dtype=float)
+                # Partial grids pass pair-specific residuals (both members
+                # residualised on the same conditioning set, excluding the pair).
+                pr = None
+                if pair_arrays is not None:
+                    pr = (pair_arrays.get((vars_[j], vars_[i]))
+                          or pair_arrays.get((vars_[i], vars_[j])))
+                    if pr is not None and pair_arrays.get((vars_[j], vars_[i])) is None:
+                        pr = (pr[1], pr[0])          # stored the other way round
+                if pr is not None:
+                    xd = np.asarray(pr[0], dtype=float)
+                    yd = np.asarray(pr[1], dtype=float)
+                else:
+                    xd = np.asarray(data_arrays[vars_[j]], dtype=float)
+                    yd = np.asarray(data_arrays[vars_[i]], dtype=float)
                 m_ = ~(np.isnan(xd) | np.isnan(yd))
                 xd, yd = xd[m_], yd[m_]
                 sub.scatter(xd, yd, color=color, alpha=0.5, s=6, linewidths=0)

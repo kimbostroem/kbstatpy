@@ -1,5 +1,21 @@
 # Changes
 
+## [1.11.4] - 2026-07-30
+
+### Fixed
+
+- **`correlate()` partial correlations had inverted signs.** Each variable was residualised on *all the other* correlation variables, i.e. with its eventual partner still in the predictor set. For a pair (i, j) that yields `corr(resid_i | all others, resid_j | all others)`, which is identically **minus** the partial correlation, by the precision-matrix identity `partial_r(i,j) = -P_ij / sqrt(P_ii * P_jj)` with `P = inv(cov)`. Magnitudes were correct, so only the signs were wrong — which made the error easy to miss and produced strongly negative "partial correlations" between measures that are near-duplicates of each other. Both members of a pair are now residualised on the same conditioning set, excluding the pair itself.
+- The partial **scatter grid** was affected by the same cause and is fixed with it: it now plots the pair-specific residuals, so the plotted slope agrees with the labelled coefficient. `_plot_corr_scatter` takes a new optional `pair_arrays` argument for this.
+- `STATISTICAL_NOTES.md` described the incorrect construction; corrected, with a note on why the conditioning set must exclude both members.
+
+### Added
+
+- `tests/test_partial_correlation_sign.py` — checks the partial coefficients against the precision-matrix definition (signs included), plus a collider case that must come out negative, a redundancy case that must stay positive, a `correlation_control` case, and a consistency check between the scatter slopes and the reported coefficients. Verified to fail on the pre-1.11.4 code.
+
+### Note
+
+Any `PartialCorrelation.xlsx` / `PartialCorrelation.png` / `PartialCorrelationTable.png` produced by 1.10.0 through 1.11.3 has inverted partial correlations and should be regenerated. Raw and covariate-adjusted correlations (`Correlation.xlsx`) are unaffected.
+
 ## [1.11.3] - 2026-07-29
 
 ### Changes
