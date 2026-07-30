@@ -173,6 +173,18 @@ class KbstatOptions:
     # means unset; if given, it overrides data_outliers with a DeprecationWarning,
     # and the old value 'none' is accepted as a synonym for 'hide'.
     show_outliers: object = None
+    # y-axis scale for the DATA plots and the profile plot (options.profile_across):
+    #   'linear' (default)
+    #   'log'    logarithmic y-axis, useful when panels of one figure span orders of
+    #            magnitude (e.g. joint torque at ankle vs upper body) and a shared
+    #            linear axis flattens the small-valued panels into slivers. It also
+    #            suits gamma/log-link models, where a constant ratio becomes a
+    #            constant distance. Significance brackets and the y-limit padding
+    #            are computed in log space so the spacing stays even.
+    #            Requires strictly positive plotted values; if any are <= 0 the
+    #            scale falls back to 'linear' with a warning. Diagnostic and
+    #            correlation figures are never rescaled.
+    y_scale: str = 'linear'
     figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep'; all save files.
     #                                      In notebooks show_close/show_keep both render inline once.
 

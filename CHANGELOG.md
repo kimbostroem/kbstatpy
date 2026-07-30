@@ -1,5 +1,16 @@
 # Changes
 
+## [1.12.0] - 2026-07-30
+
+### Added
+
+- **`options.y_scale`** (`'linear'` default, or `'log'`) sets the y-axis scale of the data plots and of the profile plot (`options.profile_across`). A log axis is the readable choice when the panels of one figure span orders of magnitude — with a shared linear axis the small-valued panels collapse into slivers even when they carry the largest effects — and it suits gamma/log-link models, where a constant ratio becomes a constant distance and the gaps between profile lines therefore *are* the group ratios. Significance brackets and the y-limit padding are computed in log space, so their spacing stays even instead of drifting or escaping the axis. Strictly positive values are required: because matplotlib silently drops `y <= 0` on a log axis, a non-positive value falls back to a linear axis with a warning rather than quietly deleting points. Diagnostic and correlation figures are never rescaled.
+- `tests/test_y_scale_log.py` — fits a small gamma/log GLMM and checks that the log axis is applied, that brackets stay inside the axis and stay evenly spaced *in log space*, that non-positive data falls back to linear with a warning, and that the profile plot has no x-axis label.
+
+### Changes
+
+- The profile plot no longer draws an x-axis label. Its tick labels are the profiled factor's own level names and the title already names the factor, so the label only repeated the factor name (e.g. a redundant "JointGroup" under `Ankle / Hip / Upper Body`).
+
 ## [1.11.4] - 2026-07-30
 
 ### Fixed

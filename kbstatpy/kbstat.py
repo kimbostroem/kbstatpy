@@ -346,6 +346,52 @@ class Kbstat:
         df[col] = df[col].map(lambda v: self._display_names.get(str(v), v))
         return df
 
+    def _log_scale_ok(self, ax, context=''):
+        """True if a log y-axis is safe here, i.e. every plotted y value is > 0.
+
+        Matplotlib silently drops non-positive points on a log axis, which would
+        quietly delete data from the figure, so a non-positive value downgrades to
+        a linear axis with a warning instead.
+        """
+        import numpy as _np
+        from matplotlib.collections import (PolyCollection as _Poly,
+                                           LineCollection as _LineColl,
+                                           PathCollection as _PathColl)
+        vals = []
+        for coll in ax.collections:
+            try:
+                # Handle the collection types explicitly. In particular a
+                # LineCollection (errorbar bars) reports a default offset of
+                # [[0, 0]] when none was set, which would look like a zero data
+                # value and veto the log axis for no reason.
+                if isinstance(coll, _Poly):
+                    for pth in coll.get_paths():
+                        vals.append(pth.vertices[:, 1])
+                elif isinstance(coll, _LineColl):
+                    for seg in coll.get_segments():
+                        seg = _np.asarray(seg, dtype=float)
+                        if seg.ndim == 2 and seg.shape[1] >= 2:
+                            vals.append(seg[:, 1])
+                elif isinstance(coll, _PathColl):
+                    off = coll.get_offsets()
+                    if off is not None and len(off):
+                        vals.append(_np.asarray(off)[:, 1])
+            except Exception:
+                continue
+        for line in ax.get_lines():
+            vals.append(_np.asarray(line.get_ydata(), dtype=float))
+        if not vals:
+            return True
+        flat = _np.concatenate([_np.asarray(v, dtype=float).ravel() for v in vals])
+        flat = flat[_np.isfinite(flat)]
+        if flat.size and flat.min() <= 0:
+            warnings.warn(
+                f"y_scale='log' requested but the {context or 'figure'} contains "
+                f"non-positive values (min {flat.min():.4g}); falling back to a "
+                "linear y-axis for this figure.", stacklevel=2)
+            return False
+        return True
+
     def _normalize_options(self):
         """Normalize comma-separated string options to lists and resolve paths."""
         o = self.options
@@ -364,6 +410,11 @@ class Kbstat:
             raise ValueError(
                 "y_correction must be one of: none, bonferroni, holm, FDR, "
                 f"FDR_correlated (got {yc!r})")
+        # y_scale: normalize + validate ('linear' | 'log')
+        ys = (o.y_scale or 'linear')
+        o.y_scale = str(ys).strip().lower() or 'linear'
+        if o.y_scale not in ('linear', 'log'):
+            raise ValueError(f"y_scale must be 'linear' or 'log' (got {ys!r})")
         # interaction: a flat comma-separated string becomes a flat list (single interaction pair)
         if isinstance(o.interaction, str):
             o.interaction = self._split_csv(o.interaction)
@@ -1357,8 +1408,13 @@ class Kbstat:
                     ax.plot(xs, ys, marker='o', label=al)
             ax.set_xticks([posmap[l] for l in order])
             ax.set_xticklabels(order)
-            ax.set_xlabel(self._disp(B))
+            # No x-axis label: the tick labels are the factor's own level names, so
+            # repeating the factor name below them is redundant (and the suptitle
+            # already says which factor is being profiled).
             ax.set_ylabel(ylab)
+            if self.options.y_scale == 'log':
+                if self._log_scale_ok(ax, 'profile plot'):
+                    ax.set_yscale('log')
             ax.legend(title=self._disp(A), fontsize=11)
         st = self._add_suptitle(fig, f'{ylab} profiled across {self._disp(B)}')
         fig.tight_layout()
@@ -2416,18 +2472,35 @@ class Kbstat:
         # sharey=True means a set_ylim on any panel affects all; doing this after
         # all data is drawn avoids compounding expansions across panels.
         ref_ax = axes[0][0]
+        # A log y-axis must be set BEFORE the limits are read, and all the padding
+        # and bracket geometry below then works in log space (see _yt/_yi): adding
+        # a constant to a value near 1 and to one near 100 produces wildly
+        # different visual gaps on a log axis.
+        logy = (self.options.y_scale == 'log'
+                and not (use_bar and is_binary)
+                and all(self._log_scale_ok(ax, 'data plot')
+                        for row in axes for ax in row))
+        if logy:
+            for row in axes:
+                for ax in row:
+                    ax.set_yscale('log')
+        _yt = (lambda v: np.log10(v)) if logy else (lambda v: v)      # to axis space
+        _yi = (lambda t: 10.0 ** t) if logy else (lambda t: t)        # back to data
         y_lo, y_hi = ref_ax.get_ylim()   # data-driven limits before any expansion
-        y_range = y_hi - y_lo
+        y_range = _yt(y_hi) - _yt(y_lo)
         if use_bar and is_binary:
             ref_ax.set_ylim(bottom=0.0, top=1.15)
             for row in axes:
                 for ax in row:
                     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:.0%}'))
         elif use_bar:
-            ref_ax.set_ylim(bottom=0.0, top=y_hi * 1.15)
+            # 0.061 in log10 units is the same 1.15x headroom used on a linear axis
+            ref_ax.set_ylim(bottom=(y_lo if logy else 0.0),
+                            top=(_yi(_yt(y_hi) + 0.061) if logy else y_hi * 1.15))
         else:
             y_pad = y_range * 0.08
-            ref_ax.set_ylim(bottom=y_lo - y_pad * 0.5, top=y_hi + y_pad)
+            ref_ax.set_ylim(bottom=_yi(_yt(y_lo) - y_pad * 0.5),
+                            top=_yi(_yt(y_hi) + y_pad))
 
         if contrasts is not None:
             ct = contrasts
@@ -2505,7 +2578,7 @@ class Kbstat:
                             if _k in panel_ct.columns:
                                 panel_ct = panel_ct[panel_ct[_k].astype(str) == str(_v)]
                         # anchor just above THIS panel's tallest rendered content
-                        bracket_y = _panel_top(ax) + bracket_step * 0.5
+                        bracket_y = _yt(_panel_top(ax)) + bracket_step * 0.5
                         tick_h = bracket_step * 0.3
                         for _, crow in panel_ct.iterrows():
                             p_val = crow['p.value']
@@ -2516,18 +2589,20 @@ class Kbstat:
                             if xi is None:
                                 xi, xj = 0, len(x_levels) - 1
                             ax.plot([xi, xi, xj, xj],
-                                    [bracket_y - tick_h, bracket_y, bracket_y, bracket_y - tick_h],
+                                    [_yi(bracket_y - tick_h), _yi(bracket_y),
+                                     _yi(bracket_y), _yi(bracket_y - tick_h)],
                                     color='black', linewidth=1.5)
-                            ax.text((xi + xj) / 2, bracket_y, label,
+                            ax.text((xi + xj) / 2, _yi(bracket_y), label,
                                     ha='center', va='bottom', fontsize=12, fontweight='bold')
-                            bsc = ax.scatter((xi + xj) / 2, bracket_y, s=200, alpha=0, zorder=10)
+                            bsc = ax.scatter((xi + xj) / 2, _yi(bracket_y), s=200,
+                                             alpha=0, zorder=10)
                             self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
                             bracket_y += bracket_step * 1.4
                         bracket_y_max = max(bracket_y_max, bracket_y)
                 # expand the shared y-axis once to fit the tallest panel's stack
                 # (headroom so the topmost bracket label isn't jammed at the frame)
                 if np.isfinite(bracket_y_max):
-                    ref_ax.set_ylim(top=bracket_y_max + bracket_step * 0.6)
+                    ref_ax.set_ylim(top=_yi(bracket_y_max + bracket_step * 0.6))
 
         # Place the suptitle a constant physical gap above the panels, matching the
         # diagnostics plot, independent of figure height. tight_layout reserves no
