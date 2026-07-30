@@ -1826,6 +1826,14 @@ class Kbstat:
                     if sig:
                         tcol = '#b2182b' if r_val > 0 else '#2166ac'
                         rtxt, weight = f"{r_val:.2f}{stars}", 'bold'
+                        # Outline the whole cell, not just its r-value: in a large
+                        # grid the coloured bold text alone is easy to miss. The
+                        # frame carries both facts at once, its weight marking
+                        # significance and its colour the direction, using the same
+                        # red/blue encoding as the r-value itself.
+                        for sp in sub.spines.values():
+                            sp.set_edgecolor(tcol)
+                            sp.set_linewidth(1.6)
                     else:
                         tcol, rtxt, weight = '0.55', f"{r_val:.2f}", 'normal'
                     sub.text(0.05, 0.95, rtxt, transform=sub.transAxes,

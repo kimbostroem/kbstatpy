@@ -1,5 +1,11 @@
 # Changes
 
+## [1.13.3] - 2026-07-30
+
+### Changes
+
+- In the correlation scatter grid (`Correlation` / `PartialCorrelation`), cells whose coefficient is significant now carry a heavier frame, coloured by the direction of the correlation (red for positive, blue for negative, matching the existing colouring of the r-value). Significance was previously signalled only by the colour and weight of the r-value printed inside the cell, which is easy to miss in a large grid: the Skating/Paper3 run with sixteen variables has 120 cells. The frame encodes both facts at once, its weight marking significance and its colour the direction, so the significant pairs and the block structure of the matrix are legible at a glance. Non-significant cells keep the original light hairline.
+
 ## [1.13.2] - 2026-07-30
 
 ### Changes
