@@ -1,5 +1,18 @@
 # Changes
 
+## [1.13.4] - 2026-07-30
+
+### Fixed
+
+- **The title of a correlation figure was cut off in the PDF when the matrix was small.** Both grids size their canvas from the matrix and its diagonal labels, ignoring the title, so a five-variable partial-correlation table came out under 3 in wide while its subtitle, `(residuals after removing all other variables)`, needs about 5 in at 13 pt; the PDF, whose canvas is fixed, lost both ends of it. The PNG was unaffected and therefore hid the problem, being saved with `bbox_inches='tight'`. The title is now measured against the canvas: it scales down towards the available width (to a floor of 0.75x, below which it would be unreadable), and whatever still does not fit widens the canvas, the extra split evenly so the matrix stays centred underneath. Wide grids have room to spare and are left at full size and unchanged in width.
+- `tests/test_correlation_title_fits.py`. Layout only, so it needs neither R nor glmmTMB.
+
+### Changes
+
+- The subtitle of a correlation figure is now set at 11 pt against the 13 pt of the title proper, instead of both lines sharing one size, so it reads as a subtitle rather than a second heading.
+- The frame marking a significant cell in the correlation scatter grid is 1.2 pt rather than 1.6 pt (non-significant cells keep their 0.5 pt hairline). 1.13.3 introduced the frame and erred on the heavy side; at Paper3 density the significant cells still stand out clearly at the lighter weight without dominating the scatters they enclose.
+- `STATISTICAL_NOTES.md` and the demo 5 description now explain how to read the raw and partial tables together, since it is the difference between them that carries the message: a high raw correlation that collapses in the partial marks redundancy within the variable set, a partial that stays high marks an association the other variables do not capture, and a low raw correlation that grows in the partial marks suppression. They also set out what conditioning can and cannot tell you: partial correlation removes what is linearly predictable from the conditioning set and has no notion of cause, so it removes a spurious association for a confounder, **creates** one for a collider, and erases a real effect for a mediator. Confounder and mediator produce the same signature with opposite meanings, and no amount of data distinguishes them, so with the conditioning set being simply all remaining variables the partials are best read as a statement about redundancy rather than about mechanism.
+
 ## [1.13.3] - 2026-07-30
 
 ### Changes

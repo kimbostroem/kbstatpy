@@ -1748,6 +1748,61 @@ class Kbstat:
             fig_partial_table=fig_partial_table,
         )
 
+    @staticmethod
+    def _text_width_in(s, fontsize, weight='bold', family=None):
+        """Approximate rendered width of ``s`` in inches, used to size canvases
+        so a title is not clipped in the PDF. Falls back to a character-count
+        estimate if the font cannot be measured."""
+        try:
+            from matplotlib.textpath import TextPath
+            from matplotlib.font_manager import FontProperties
+            prop = FontProperties(size=fontsize, weight=weight)
+            if family:
+                prop.set_family(family)
+            return TextPath((0, 0), s, size=fontsize,
+                            prop=prop).get_extents().width / 72.0
+        except Exception:
+            return len(s) * 0.62 * fontsize / 72.0
+
+    def _corr_title_geom(self, title, cell_in, avail_in):
+        """Lay out a (possibly multi-line) correlation-grid title.
+
+        The first line is the title proper, any further line an explanatory
+        subtitle set smaller. Small grids used to clip their title in the PDF,
+        whose canvas is sized from the matrix and its diagonal labels only and
+        can be much narrower than the text (a 5-variable table is under 3 in
+        wide, the subtitle about 5 in). Two things prevent that: the type is
+        scaled down towards the available width, and whatever still does not
+        fit is handed back as ``width_in`` for the caller to widen the canvas.
+
+        Returns ``(lines, sizes, width_in, height_du)`` with the height in
+        data units.
+        """
+        lines = [ln for ln in title.split('\n') if ln.strip()]
+        sizes = [13.0] + [11.0] * (len(lines) - 1)
+        fam = self._title_font_family()
+        width = lambda ss: max(self._text_width_in(ln, s, family=fam)
+                               for ln, s in zip(lines, ss))
+        # Shrink towards the available width, but only so far: past this the
+        # title would be unreadable, and widening the canvas is the better
+        # trade. Large grids have room to spare and keep the full size.
+        scale = min(1.0, max(0.75, avail_in / max(width(sizes), 1e-6)))
+        sizes = [s * scale for s in sizes]
+        height_du = sum(s * 1.45 / 72.0 for s in sizes) / cell_in
+        return lines, sizes, width(sizes), height_du
+
+    def _draw_corr_title(self, ax, lines, sizes, x_center, y_top, cell_in,
+                         sign=1.0, **kwargs):
+        """Draw the title lines stacked from ``y_top`` downwards. ``sign`` is
+        -1 for an inverted y-axis, where visually-down means increasing y."""
+        off = 0.0
+        for ln, s in zip(lines, sizes):
+            h = s * 1.45 / 72.0 / cell_in
+            ax.text(x_center, y_top - sign * (off + h / 2), ln,
+                    ha='center', va='center', fontweight='bold', fontsize=s,
+                    fontfamily=self._title_font_family(), **kwargs)
+            off += h
+
     def _plot_corr_scatter(self, corr_df, vars_, data_arrays, title,
                            xlabel_suffix='', ylabel_suffix='', pair_arrays=None):
         """Lower-triangle scatter matrix mirroring the correlation table: variable
@@ -1773,12 +1828,20 @@ class Kbstat:
         char_w = 0.62 * fs_lab / 72.0 / cell_in          # ~data units per character
         max_right = max((i + 0.12 + len(disp[i]) * char_w) for i in range(k))
         x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
+        # A title wider than that gets the canvas widened around it, so it is
+        # never clipped in the PDF; the extra width is split evenly so the grid
+        # stays centred underneath.
+        t_lines, t_sizes, t_w, t_h = self._corr_title_geom(
+            title, cell_in, (x_hi - x_lo) * cell_in)
+        extra = t_w / cell_in + 0.3 - (x_hi - x_lo)
+        if extra > 0:
+            x_lo, x_hi = x_lo - extra / 2, x_hi + extra / 2
         # Diagonal labels sit just above their own column of scatters (label_off),
         # and the title sits just above the topmost label, so little space is
         # wasted between the title, the first name and the grid.
         label_off = 0.25
-        title_y = (k - 1) + label_off + 0.55
-        y_lo, y_hi = -0.1, title_y + 0.45
+        title_y = (k - 1) + label_off + 0.55        # centre of the title block
+        y_lo, y_hi = -0.1, title_y + t_h / 2 + 0.15 / cell_in
 
         fig = plt.figure(figsize=((x_hi - x_lo) * cell_in, (y_hi - y_lo) * cell_in))
         ax = fig.add_axes((0, 0, 1, 1))
@@ -1833,7 +1896,7 @@ class Kbstat:
                         # red/blue encoding as the r-value itself.
                         for sp in sub.spines.values():
                             sp.set_edgecolor(tcol)
-                            sp.set_linewidth(1.6)
+                            sp.set_linewidth(1.2)
                     else:
                         tcol, rtxt, weight = '0.55', f"{r_val:.2f}", 'normal'
                     sub.text(0.05, 0.95, rtxt, transform=sub.transAxes,
@@ -1842,10 +1905,9 @@ class Kbstat:
                              bbox=dict(boxstyle='round,pad=0.15', facecolor='white',
                                        alpha=0.6, edgecolor='none'))
 
-        ax.text((x_lo + x_hi) / 2, title_y, title,
-                ha='center', va='center', fontweight='bold', fontsize=13,
-                fontfamily=self._title_font_family(),
-                bbox=dict(boxstyle='square,pad=0.7', facecolor='none', edgecolor='none'))
+        self._draw_corr_title(
+            ax, t_lines, t_sizes, (x_lo + x_hi) / 2, title_y + t_h / 2, cell_in,
+            bbox=dict(boxstyle='square,pad=0.4', facecolor='none', edgecolor='none'))
         self._show_fig(fig)
         return fig
 
@@ -1888,11 +1950,19 @@ class Kbstat:
         char_w = 0.62 * fs / 72.0 / cell_in            # ~data units per character
         max_right = max((i + 0.22 + len(disp[i]) * char_w) for i in range(k))
         x_lo, x_hi = -0.1, max(k + 0.1, max_right + 0.4)
+        # A title wider than that gets the canvas widened around it, so it is
+        # never clipped in the PDF; the extra width is split evenly so the
+        # matrix stays centred underneath.
+        t_lines, t_sizes, t_w, t_h = self._corr_title_geom(
+            title, cell_in, (x_hi - x_lo) * cell_in)
+        extra = t_w / cell_in + 0.3 - (x_hi - x_lo)
+        if extra > 0:
+            x_lo, x_hi = x_lo - extra / 2, x_hi + extra / 2
         # A small top band holds the title (widened for a multi-line title); small
         # bottom margin. Filling the figure with the axes (proportional figsize)
         # keeps cells square and the margins tight and symmetric — no equal-aspect
         # slack at the bottom.
-        title_band = 0.7 + 0.4 * title.count('\n')
+        title_band = max(0.7, t_h + 0.3)
         y_lo, y_hi = -title_band, k + 0.15
 
         fig = plt.figure(figsize=((x_hi - x_lo) * cell_in, (y_hi - y_lo) * cell_in))
@@ -1927,9 +1997,10 @@ class Kbstat:
             ax.text(i + 0.2, i + 0.5, disp[i], ha='left', va='center',
                     fontsize=fs + 0.5, fontweight='bold')
 
-        ax.text((x_lo + x_hi) / 2, -title_band / 2, title,
-                ha='center', va='center', fontweight='bold', fontsize=13,
-                fontfamily=self._title_font_family())
+        # y is inverted here, so the block runs from its top downwards in
+        # decreasing y.
+        self._draw_corr_title(ax, t_lines, t_sizes, (x_lo + x_hi) / 2,
+                              -title_band / 2 - t_h / 2, cell_in, sign=-1.0)
         self._show_fig(fig)
         return fig
 

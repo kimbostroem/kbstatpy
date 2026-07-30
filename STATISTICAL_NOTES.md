@@ -115,6 +115,22 @@ When three or more variables are correlated simultaneously, kbstatpy additionall
 
 **Adjusting for covariates.** `options.correlation_control` names further variable(s) — e.g. `Age` — to partial out of *every* correlation before it is computed. The raw table then reports covariate-adjusted (first-order partial) correlations, and the partial table controls for the other correlation variables *and* those covariates; the control variables are kept out of the reported matrix, and the titles note the adjustment. This mirrors treating a variable as a covariate in the GLMMs.
 
+**Reading the two tables together.** The raw and partial tables are most informative side by side, because it is the *difference* between them that carries the message.
+
+- A **high raw correlation that collapses in the partial** means the pair is largely explained by the other variables: little is left once they are held fixed. A block of such pairs is a sign that those variables are measuring one underlying quantity rather than several distinct ones, and can reasonably be treated as a single construct.
+- A **partial that stays high** means the pair shares something the other variables do not capture. That is the association worth looking at, since it survives everything else in the set.
+- A **low raw correlation that grows in the partial** means the other variables were masking the association, i.e. suppressing it.
+
+**What conditioning can and cannot tell you.** Partial correlation removes whatever is *linearly predictable* from the conditioning set. It has no notion of cause, so the same arithmetic does three very different things depending on what the conditioning variables actually are:
+
+| the conditioned variable is a | effect on the reported partial |
+|---|---|
+| **common cause** (confounder) of X and Y | removes a spurious association — the intended use |
+| **common effect** (collider), i.e. X and Y both influence it | **creates** an association between variables that are in fact unrelated |
+| **mediator** on a path X → M → Y | removes a real effect, leaving only the direct part |
+
+Note that the confounder and mediator cases produce the *same* signature — high raw, near-zero partial — with opposite meanings: in one the association was never real, in the other it is real and has just been conditioned away. Nothing in the data distinguishes them; only subject knowledge does. Where the conditioning set is chosen indiscriminately (all remaining variables, as here), all three mechanisms may be operating at once, so partial correlations are best read as a statement about redundancy *within the variable set* rather than as evidence about mechanism. Covariates named in `options.correlation_control` are the clean case: they are chosen precisely because they are confounders, which is why the raw table is adjusted for them too.
+
 **Degrees of freedom.** A partial correlation's test uses the reduced degrees of freedom `df = n − 2 − g`, where g is the number of variables conditioned on (the other correlation variables plus any control variables). Testing a partial correlation against the naive `n − 2` would overstate its significance; kbstatpy uses the correct g-adjusted df.
 
 ---

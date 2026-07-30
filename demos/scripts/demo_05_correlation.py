@@ -11,6 +11,38 @@ Pearson correlations it computes partial correlations (the association between t
 variables after regressing out all the others), separating direct relationships
 from shared trends. The `constraints = 'Year > 1950'` filter restricts the
 analysis to the post-war growth period, illustrating row filtering.
+
+Reading the two tables together
+-------------------------------
+It is the *difference* between the raw and partial tables that carries the
+message.
+
+  * A high raw correlation that collapses in the partial means the pair is
+    largely explained by the other variables. That is what Longley is built to
+    show: GNP, population and the calendar year all rise together, so almost any
+    two of them correlate near 1.0 while little survives once the rest are held
+    fixed. A whole block behaving this way indicates the variables track one
+    underlying quantity rather than several distinct ones.
+  * A partial that stays high means the pair shares something the other
+    variables do not capture — the association worth a second look.
+  * A low raw correlation that grows in the partial means the others were
+    masking, i.e. suppressing, it.
+
+What conditioning can and cannot tell you
+-----------------------------------------
+Partial correlation removes whatever is *linearly predictable* from the
+conditioning set; it has no notion of cause. The same arithmetic therefore
+removes a spurious association when the conditioned variable is a common cause
+(confounder), CREATES one when it is a common effect (collider, i.e. both X and Y
+influence it), and erases a real effect when it is a mediator on X -> M -> Y.
+Longley is the benign case, since calendar time plausibly drives every series.
+Note that confounder and mediator give the *same* signature (high raw, near-zero
+partial) with opposite meanings, and no amount of data distinguishes them. With
+the conditioning set being simply all remaining variables, read the partials as a
+statement about redundancy within the variable set, not about mechanism.
+
+See STATISTICAL_NOTES.md, 'Pearson and partial correlation', for the full
+treatment.
 """
 
 import os
