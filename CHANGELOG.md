@@ -1,5 +1,11 @@
 # Changes
 
+## [1.13.2] - 2026-07-30
+
+### Changes
+
+- The correlation figures kept a legible-but-small type floor while their cell size stayed fixed, so past roughly twelve variables the text became small relative to its box, and relative to the whole figure as well, since the diagonal labels widen the canvas. With sixteen variables the coloured table drew 5 pt numbers in a 0.55 in cell. The type floor is raised and the cell shrunk for large matrices, in both the coloured table (`CorrelationTable`) and the scatter grid (`Correlation`): at sixteen variables the table now uses 7 pt in a 0.48 in cell, so the numbers occupy 20% of the cell instead of 13%, and the figure comes out narrower too. Behaviour at twelve variables or fewer is unchanged apart from the raised floor.
+
 ## [1.13.1] - 2026-07-30
 
 ### Changes

@@ -1758,9 +1758,14 @@ class Kbstat:
         disp = [self._disp(v) for v in vars_]
         color = sns.color_palette()[0]
 
-        fs_lab = max(6.0, min(9.0, 72.0 / max(k, 1)))    # diagonal labels
-        fs_r   = max(5.5, min(8.0, 66.0 / max(k, 1)))    # r annotation
-        cell_in = 1.0 if k <= 6 else (0.75 if k <= 12 else 0.6)   # inches per cell
+        # Floors raised and the cell shrunk past k = 12: beyond that the type
+        # sizes below hit their floor while the cell stayed fixed, so the text
+        # became small relative to its box and, because the diagonal labels widen
+        # the canvas, relative to the whole figure too. Behaviour for k <= 12 is
+        # unchanged.
+        fs_lab = max(7.0, min(9.0, 72.0 / max(k, 1)))    # diagonal labels
+        fs_r   = max(6.5, min(8.0, 66.0 / max(k, 1)))    # r annotation
+        cell_in = 1.0 if k <= 6 else (0.75 if k <= 12 else 0.52)  # inches per cell
         pad = 0.08                                       # gap around each scatter
 
         # Diagonal labels run rightwards into the empty upper triangle; widen the
@@ -1860,8 +1865,14 @@ class Kbstat:
 
         k = len(vars_)
         disp = [self._disp(v) for v in vars_]
-        fs = max(5.0, min(9.0, 72.0 / max(k, 1)))
-        cell_in = 0.55                      # inches per matrix cell (compact)
+        # The floor matters here: past about k = 12 the 72/k term drops below it,
+        # so with a fixed cell the numbers ended up small inside large boxes (at
+        # k = 16 it was 5 pt in a 0.55 in cell). The floor is raised and the cell
+        # shrunk for large k, which also keeps the overall figure narrower. The
+        # widest entry is roughly '0.62***', about 4.2 * fs wide, so it still fits
+        # the cell comfortably. Behaviour for k <= 12 is unchanged.
+        fs = max(7.0, min(9.0, 72.0 / max(k, 1)))
+        cell_in = 0.55 if k <= 12 else 0.48  # inches per matrix cell (compact)
 
         # Diagonal labels are left-anchored and run rightwards into the empty
         # upper triangle; size the canvas so the longest one is not clipped in
