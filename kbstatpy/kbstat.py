@@ -1386,12 +1386,6 @@ class Kbstat:
             self.fig_profile_contrast = None
         return self.profile_across_result
 
-    # Draw the fitted trend line only when the levels are close enough to
-    # collinear, as a fraction of the slope magnitude. A significant 1-df linear
-    # contrast can arise from a rise-then-fall pattern, and a straight line
-    # through that asserts a gradient the data do not show.
-    PROFILE_COLLINEAR_TOL = 0.5
-
     def _plot_profile_contrast(self):
         """Differential profile plot: the pairwise CONTRASTS between levels of each
         partner factor A, plotted across the ordered factor B, with 95% CIs and the
@@ -1407,6 +1401,17 @@ class Kbstat:
         ratio on a log axis with a reference line at 1; otherwise it is a plain
         difference on a linear axis with a reference line at 0. Estimates and SEs
         are emmeans' own, on the link scale.
+
+        The fitted straight line is drawn for EVERY significant trend, because the
+        p-value is a statement about the slope, so the slope is what the annotation
+        refers to and what should be drawn. The estimates and their CIs are plotted
+        regardless, so a pattern that departs from a straight line shows up as
+        points sitting off the line: the line cannot conceal a bend, it simply does
+        not trace one. Suppressing the line for non-collinear patterns was tried
+        (1.13.0) and was worse, because it hid significant results; joining the
+        estimates instead was also tried and shows the observed shape but not the
+        tested quantity, degenerating into an uninterpretable zigzag once the
+        profiled factor has more than three levels.
         """
         import matplotlib.pyplot as plt
         res = self.profile_across_result
@@ -1463,16 +1468,13 @@ class Kbstat:
                 if trow is None or not np.isfinite(float(trow.get('p', np.nan))):
                     continue
                 p_val = float(trow['p'])
-                coef = np.polyfit(pos[good], est[good], 1)
-                dev = float(np.abs(est[good] - np.polyval(coef, pos[good])).max())
-                if p_val < .05 and dev < self.PROFILE_COLLINEAR_TOL * abs(coef[0]):
+                if p_val < .05:
+                    coef = np.polyfit(pos[good], est[good], 1)
                     xf = np.linspace(pos.min(), pos.max(), 50)
                     fit = np.polyval(coef, xf)
                     ax.plot(xf, np.exp(fit) if log_link else fit,
                             color=colors[k], lw=1.6, alpha=.85, zorder=2)
                     notes.append(f'{lab}: trend p = {p_val:.2g}')
-                elif p_val < .05:
-                    notes.append(f'{lab}: trend p = {p_val:.2g} (not collinear)')
             if log_link:
                 import matplotlib.ticker as _mt
                 ax.set_yscale('log')

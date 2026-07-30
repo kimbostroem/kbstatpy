@@ -1,5 +1,12 @@
 # Changes
 
+## [1.13.1] - 2026-07-30
+
+### Changes
+
+- `LevelProfileContrast` now draws the fitted trend line for **every** significant trend. 1.13.0 suppressed it where the level estimates were far from collinear, on the grounds that a straight line through a rise-then-fall pattern asserts a gradient the data do not show. That was the wrong trade: it hid real results, since a contrast with a significant trend could end up with no line at all. Because the estimates and their confidence intervals are plotted regardless, a departure from the line is visible as points sitting off it, so the line cannot conceal a bend; this is the ordinary logic of a regression plot. The `PROFILE_COLLINEAR_TOL` attribute is gone.
+- `STATISTICAL_NOTES.md` records the reasoning, including why joining the estimates instead was also rejected (it shows the observed shape but not the tested quantity, and degenerates into an uninterpretable zigzag for more than three levels) and why no departure-from-linearity statistic is reported (with k levels the departure carries k−2 df, so isolating the quadratic term would be arbitrary for k > 3, and the diffuse alternative is already covered by the factor omnibus).
+
 ## [1.13.0] - 2026-07-30
 
 ### Added

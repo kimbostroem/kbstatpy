@@ -122,19 +122,27 @@ def test_plotted_points_match_the_emmeans_contrasts():
     assert not missing, f'contrast estimates absent from the figure: {missing}'
 
 
-def test_no_trend_line_through_a_non_monotone_pattern():
-    """A 1-df linear contrast can be significant on a rise-then-fall pattern.
-    The figure must not draw a straight line through that."""
-    mono = fit(toy({'Ankle': 1.0, 'Hip': 1.3, 'Upper': 1.7}, seed=1),
-               out='/tmp/kbstatpy_pc_mono')
-    bumpy = fit(toy({'Ankle': 1.0, 'Hip': 1.8, 'Upper': 1.1}, seed=1),
-                out='/tmp/kbstatpy_pc_bumpy')
-    n_mono = len(fitted_lines(mono.fig_profile_contrast))
-    n_bumpy = len(fitted_lines(bumpy.fig_profile_contrast))
-    assert n_mono >= 1, 'a clean monotone gradient should get a fitted line'
-    assert n_bumpy < n_mono, (
-        f'rise-then-fall drew as many lines as the monotone case '
-        f'({n_bumpy} vs {n_mono}); the collinearity guard is not working')
+def test_one_line_per_significant_trend_and_no_others():
+    """The rule: the fitted line is drawn for every significant trend and only
+    for those. The p-value is a statement about the slope, so the slope is drawn;
+    departures from it stay visible as points lying off the line, which is why no
+    collinearity veto is applied (an earlier version had one and it hid real
+    results). Checked on a monotone case and on a rise-then-fall case, since the
+    latter is exactly what the old veto suppressed."""
+    # The second case rises steeply then dips, so the pattern is NOT monotone
+    # while the endpoints still differ and the linear component stays significant.
+    # A symmetric bump (1.0 / 1.8 / 1.1) would have a null slope and make the test
+    # vacuous, which is a different situation from the one being guarded.
+    for name, gains in (('monotone', {'Ankle': 1.0, 'Hip': 1.3, 'Upper': 1.7}),
+                        ('bent', {'Ankle': 1.0, 'Hip': 1.6, 'Upper': 1.4})):
+        k = fit(toy(gains, seed=1), out=f'/tmp/kbstatpy_pc_{name}')
+        trend = k.profile_across_result['trend']
+        lin = trend[trend['component'].astype(str).str.startswith('linear')]
+        n_sig = int((lin['p'].astype(float) < .05).sum())
+        n_lines = len(fitted_lines(k.fig_profile_contrast))
+        assert n_sig > 0, f'{name}: test is vacuous, no significant trend'
+        assert n_lines == n_sig, (
+            f'{name}: {n_lines} fitted lines for {n_sig} significant trends')
 
 
 def test_identity_link_shows_differences_on_a_linear_axis():
