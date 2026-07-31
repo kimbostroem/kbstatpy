@@ -1,5 +1,13 @@
 # Changes
 
+## [1.13.5] - 2026-07-31
+
+### Fixed
+
+- **`Summary.txt` reported the row count of the input table as the number of observations, not the number the model was actually fitted on.** The fit excludes the rows flagged by `remove_outliers_prefit` / `remove_outliers_postfit`, and R drops incomplete rows on top of that, so on a 7100-row table with 465 outliers flagged the run printed `Pre-fit outlier removal: 465 observation(s) flagged by IQR rule` and then reported `Number of observations : 7100` for a fit that used 6635. The count now comes from the fitted model itself (`nobs()`, falling back to the row count handed to it), and whatever was held out is named rather than absorbed: `Number of observations : 6635 (of 7100: 465 excluded as outliers)`, listing missing values separately when they also shrink n. Clean data still reports a bare count with no breakdown. This mattered most when cross-checking against the MATLAB kbstat library, which reports the post-removal count: the two looked like they disagreed on the data even where they agreed on the model and the estimates.
+- The `etaSqp` and `SMD` columns of the ANOVA table substitute n for an infinite `df2`, and took that n from the outlier-excluded frame, which still contains rows R dropped as missing. They now use the same count as the fit, so the effect sizes and the reported n cannot drift apart.
+- `tests/test_summary_n_obs.py`.
+
 ## [1.13.4] - 2026-07-30
 
 ### Fixed

@@ -108,6 +108,7 @@ class Kbstat:
         self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
         self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
         self._df_runtime   = None             # df method after any runtime KR fallback (set in anova)
+        self.n_obs_fit     = None             # rows the fit actually used (set in _construct_and_fit)
         self.output: Output = None            # populated by run(); read or pass to save()
 
     # ------------------------------------------------------------------
@@ -725,6 +726,11 @@ class Kbstat:
                                  dispformula=dispformula)
         self.model.fit(summarize=False)
 
+        # Rows the fit actually used. `data_to_use` already excludes flagged
+        # outliers; R additionally drops rows with missing values, so prefer the
+        # model's own nobs() and fall back to the row count we handed it.
+        self.n_obs_fit = len(data_to_use)
+
         # Extract AIC, BIC, logLik from the R model object
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
         if r_obj is not None:
@@ -734,6 +740,10 @@ class Kbstat:
                 self.logLik = float(ro.r('logLik')(r_obj)[0])
             except Exception:
                 self.AIC = self.BIC = self.logLik = None
+            try:
+                self.n_obs_fit = int(ro.r('nobs')(r_obj)[0])
+            except Exception:
+                pass
         else:
             self.AIC = self.BIC = self.logLik = None
 
@@ -893,7 +903,9 @@ class Kbstat:
             'Chisq': 'Chisq',
             'p_value': 'p',
         })
-        n_obs = len(data_to_use)
+        # Same count the fit used (n_obs_fit also discounts rows R dropped as
+        # missing, which data_to_use still contains).
+        n_obs = self.n_obs_fit or len(data_to_use)
         raw['etaSqp'] = _f2eta_sq_p(raw['F'], raw['DF1'], raw['DF2'], n_obs)
         raw['SMD'] = _f2smd(raw['F'], raw['DF1'], raw['DF2'], n_obs)
         raw['effectSize'] = raw['etaSqp'].apply(_effect_label_eta)
@@ -3560,6 +3572,35 @@ class Kbstat:
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
 
+    def _n_obs_label(self) -> str:
+        """The observation count the fit used, plus what was held out.
+
+        The number the reader needs is the one the model was fitted on, not the
+        row count of the input table: pre-/post-fit outlier removal and missing
+        values both shrink it. Reported as e.g.
+        '6635 (of 7100: 465 excluded as outliers)' so the two are never confused
+        (MATLAB kbstat reports the post-removal count, so a bare input-table
+        count also made the two libraries look like they disagreed on the data).
+        """
+        n_total = len(self.data) if self.data is not None else None
+        n_fit = self.n_obs_fit
+        if n_fit is None:
+            return str(n_total) if n_total is not None else '?'
+        if not n_total or n_total == n_fit:
+            return str(n_fit)
+
+        n_outliers = (int(self.data['is_outlier'].sum())
+                      if 'is_outlier' in self.data.columns else 0)
+        parts = []
+        if n_outliers:
+            parts.append(f'{n_outliers} excluded as outliers')
+        n_missing = n_total - n_outliers - n_fit
+        if n_missing > 0:
+            parts.append(f'{n_missing} with missing values')
+        if not parts:                       # unexplained gap — state it plainly
+            parts.append(f'{n_total - n_fit} not used')
+        return f'{n_fit} (of {n_total}: {", ".join(parts)})'
+
     def _summary_text(self) -> str:
         """Build the human-readable analysis summary (formula, fit stats, ANOVA, post-hoc, notes)."""
         lines = []
@@ -3575,7 +3616,7 @@ class Kbstat:
         lines += ['FORMULA', '-------', formula, '']
 
         # --- Model information ---
-        n_obs = len(self.data) if self.data is not None else '?'
+        n_obs = self._n_obs_label()
         family = self._family()
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
         fit_method = self.options.fit_method
