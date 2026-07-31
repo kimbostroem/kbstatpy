@@ -1,5 +1,16 @@
 # Changes
 
+## [1.13.6] - 2026-07-31
+
+### Fixed
+
+- **`CITATION.cff` was six minor versions stale and not valid CFF 1.2.0.** It declared `version: 1.7.1` against a released 1.13.5, because nothing imports the file, so a release could leave it behind without anything breaking. It also lacked the required `message` key, gave `type: software-code` where the schema allows only `software` or `dataset`, and carried `programming-languages`, a CodeMeta key that CFF does not define — so GitHub's "Cite this repository" panel had nothing valid to render, and the invalid keys were silently dropped rather than reported. The file is now valid, current, and carries `license`, `abstract`, and `keywords` in place of the undefined key.
+- `tests/test_citation_metadata.py` keeps it that way: it asserts that the three version sources agree — `kbstatpy.__version__` (which `pyproject.toml` reads via `version = {attr = ...}`), the newest `CHANGELOG.md` heading, and `CITATION.cff` — and that the file stays schema-valid, so a release that forgets any of them fails the suite instead of drifting unnoticed. Metadata only, so it needs neither R nor glmmTMB.
+
+### Changes
+
+- `CLAUDE.md` records the release procedure the repository already follows (version bump, changelog entry, `CITATION.cff`, commit on `develop`, fast-forward `master`, annotated `vX.Y.Z` tag, GitHub release with the changelog section as its notes), which until now had to be reconstructed from the git history.
+
 ## [1.13.5] - 2026-07-31
 
 ### Fixed

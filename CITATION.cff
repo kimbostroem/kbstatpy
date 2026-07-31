@@ -1,12 +1,20 @@
 cff-version: 1.2.0
-type: software-code
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "kbstatpy"
 authors:
   - family-names: Bostroem
     given-names: Kim Joris
     orcid: https://orcid.org/0000-0001-5966-458X
-title: "kbstatpy"
-version: 1.7.1
-date-released: 2026-06-30
+version: 1.13.6
+date-released: 2026-07-31
+license: MIT
 repository-code: https://github.com/kimbostroem/kbstatpy
-programming-languages:
-  - python
+abstract: "Generalised linear mixed model (GLMM) analysis with post-hoc comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB kbstat library."
+keywords:
+  - statistics
+  - generalised linear mixed model
+  - GLMM
+  - post-hoc comparison
+  - Python
+  - R
