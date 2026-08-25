@@ -14,6 +14,12 @@ With a random intercept per child for the repeated measures:
 The log-odds are estimated on the logit scale and the estimated marginal means are
 back-transformed to probabilities — exactly the kind of binary outcome that
 classical t-tests and ANOVA cannot handle at all.
+
+A binary outcome also selects the bar style (`plot_style='auto'`), where the bars
+are the observed proportions and the dots the model's estimates. `show_group_size`
+labels each bar with the number of observations behind its proportion, which up to
+version 1.13.6 happened automatically and is opt-in from 1.14.0; see Demo 18 for
+that option and its companion `show_emm_lines`.
 """
 
 import os
@@ -29,6 +35,7 @@ options.id           = 'ID'                        # random intercept per child
 options.distribution = 'binomial'                  # binary outcome
 options.link         = 'logit'                     # logit link: maps linear predictor to probability
 options.rename       = 'present -> Bacteria present; trt -> Treatment; week -> Week'
+options.show_group_size = True                     # 'n=' per bar: opt-in since 1.14.0 (drawn automatically before)
 
 kb = Kbstat(options)
 kb.run_save()

@@ -321,7 +321,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 
 ## Demo scripts
 
-Sixteen worked examples are included in the `demos/` folder; each demo's script
+Eighteen worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -349,6 +349,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_15_posthoc_compare.py` | `toothgrowth.csv` | Compare several factors with `posthoc_compare` — one per-cell comparison plot + post-hoc table per factor, each plotted as if it were first |
 | `demo_16_profile.py` | `toothgrowth.csv` | Level-wise profile analysis with `profile_across` — how the supp effect changes across the ordered dose levels: per-level contrast (Layer 1) + focused linear-trend interaction (Layer 2) |
 | `demo_17_dispersion.py` | `toothgrowth.csv` | Per-group dispersion with `dispersion` (glmmTMB `dispformula`) — a Gamma model fitted with constant vs by-dose dispersion; the by-dose fit lowers AIC when groups differ in relative scatter |
+| `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
 
 **Equivalence to classical tests** (demos 1–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -417,6 +418,7 @@ results inline:
 | 15 · `posthoc_compare` across factors | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_15_posthoc_compare.ipynb) |
 | 16 · Level-wise profile (`profile_across`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_16_profile.ipynb) |
 | 17 · Per-group dispersion (`dispersion`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_17_dispersion.ipynb) |
+| 18 · Plot annotations (`show_emm_lines`, `show_group_size`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_18_plot_annotations.ipynb) |
 
 ---
 

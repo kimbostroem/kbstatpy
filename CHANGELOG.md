@@ -1,5 +1,13 @@
 # Changes
 
+## [1.14.1] - 2026-08-25
+
+### Changes
+
+- **New demo 18, `demo_18_plot_annotations.py`, for the two plot-annotation options 1.14.0 added.** It refits demo 3's crossed two-way design on `toothgrowth.csv` with the factors swapped -- dose on the x-axis, supplement as panels -- so nothing about the model is new and the demo is purely about presentation. The EMM lines happen to make the interaction visible without consulting a table: under ascorbic acid the high-dose line clears the entire medium-dose violin, under orange juice the two overlap by a wide margin. The notebook runs the same model three times, bare then annotated then with solid lines, so the styles can be compared inline.
+- **`demo_11_glmm_binomial.py` sets `show_group_size = True`.** Its bar plot printed the group counts automatically until 1.14.0 made them opt-in, so the demo had silently lost them; its cells are genuinely unbalanced (n = 21, 15, 14 at week 0), which is exactly where the counts are worth showing. Its docstring records the version change and points at demo 18.
+- README and the Colab playground list the new demo. The README's demo count was also stale -- it said sixteen while seventeen were listed -- and now reads eighteen.
+
 ## [1.14.0] - 2026-08-25
 
 ### Changes
