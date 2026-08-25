@@ -1,5 +1,18 @@
 # Changes
 
+## [1.14.0] - 2026-08-25
+
+### Changes
+
+- **New option `show_emm_lines`: a horizontal reference line at each plotted group's EMM, drawn across the whole panel in that group's own colour.** Ported from the MATLAB predecessor's `plotLines`. The estimated marginal mean is already marked by the white dot, but reading one group's level against the *other* groups meant comparing dot heights by eye across the panel; the line makes the comparison direct. Each facet panel uses its own EMMs, and where none is available the line follows the same median fallback as the dot. Applies to violin and bar style alike. The option doubles as the line style: `True` gives the default dotted line -- which recedes furthest behind the violins and the significance brackets, so a line crossing a violin cannot be mistaken for plotted data -- while `'-'`, `'--'`, `':'`, `'-.'` (or the matplotlib names `'solid'`, `'dashed'`, `'dotted'`, `'dashdot'`) pick one explicitly. Solid reads calmest and makes the group colours easiest to attribute, at the cost of looking more like content than like a guide. Default `False`.
+- **New option `show_group_size`: label each plotted group with its observation count (`n=12`).** *This changes existing output:* the counts used to be drawn unconditionally in bar style and were unavailable for violins, and they are now off by default in both, so bar plots lose them unless the option is set. The label is anchored to the top of what the group actually renders -- the violin's KDE tail, or the CI bar in bar style -- so it never lands inside the group's own body.
+
+### Fixed
+
+- **A significance bracket could be drawn through the `n=` label beneath it in violin plots.** The bracket stack is anchored above the tallest thing a panel has rendered, spaced in units of the y-range *as it stood before the stack expanded the axis*. A label's height is fixed in points, so on the taller axis it covers more data units and grows up into the bracket that was placed to clear it: a three-bracket stack expands the axis by roughly 40 %, which reduced a clearance of about 4 pt to under one pixel. Bar plots never showed it, their limits being pinned to 0..1.15. The gap is now measured in points once the y-limits are final, and only the stacks that came out tighter than 5 pt are lifted -- so panels that already clear their content, the bar plots included, are untouched. Measured on the demo figures: violin clearance 0.3 px -> 5.8 px, bar clearance unchanged at 6.5 px.
+- **`remove_outliers_prefit='off'` switched outlier removal ON, and `slope_correlated='false'` fitted the correlated random-effect structure.** Both flags were read as raw truthiness, and a non-empty string is truthy, so any string spelling of "off" meant its opposite -- silently, since neither warns. All the on/off options now go through one parser (`_as_flag`): `True`/`False` plus `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'` (= off), case- and whitespace-insensitive, with `'auto'` kept as `slope_correlated`'s third mode. An unrecognised value now raises instead of being read as truthy, so a typo like `'offf'` is a visible error rather than a silent inversion. This also means `slope_correlated`'s consumers, which compare against `False` by identity and `'auto'` by equality, are guaranteed the three values they expect.
+- `tests/test_emm_lines.py` and `tests/test_group_size_labels.py`. The bracket-clearance guard measures the gap in points on the finished figure rather than checking data-coordinate ordering, which is what the old geometry satisfied while still colliding.
+
 ## [1.13.6] - 2026-07-31
 
 ### Fixed

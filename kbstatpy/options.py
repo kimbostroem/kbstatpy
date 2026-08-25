@@ -134,6 +134,34 @@ class KbstatOptions:
     # roll back the Helvetica-first chain above:
     # font: str = ''
     plot_style: str = 'auto'   # 'auto' | 'violin' | 'bar'
+    # Annotate each plotted group with its observation count ('n=12'), placed
+    # just above the group's violin (or its CI bar in bar style). Off by default
+    # in both styles; before this option existed the counts were drawn
+    # unconditionally in bar style, so bar plots lose them unless this is set.
+    # The significance brackets are stacked above the labels and keep a visible
+    # gap from them, so switching the labels on pushes the brackets up rather
+    # than colliding with them. 'true'/'false', 'on'/'off', 'yes'/'no' and 'none'
+    # (= off) are accepted alongside True/False.
+    show_group_size: object = False
+    # Draw a horizontal reference line across the whole panel at the height of
+    # every plotted group's EMM (the marginal mean already marked by the white
+    # dot), in that group's own colour. Ported from the Matlab predecessor's
+    # `plotLines`: it lets a group's level be read off directly against the other
+    # groups' distributions, instead of comparing dot heights by eye across the
+    # panel. Applies to the data plots (violin and bar style alike); each panel
+    # uses its own EMMs, and where none is available the line follows the same
+    # median fallback as the dot.
+    #   False (default)  no lines
+    #   True             lines in the default style, dotted — it recedes furthest
+    #                    behind the violins and brackets, so a line crossing a
+    #                    violin cannot be mistaken for plotted data
+    #   '-' | '--' | ':' | '-.'  or the matplotlib names 'solid' | 'dashed' |
+    #                    'dotted' | 'dashdot' — lines in that style. Solid reads
+    #                    calmest and makes the group colours easiest to attribute,
+    #                    at the cost of looking more like plotted content.
+    # 'true'/'false', 'on'/'off' and 'yes'/'no' are accepted alongside True/False,
+    # and 'none' means off (not matplotlib's invisible 'none' style).
+    show_emm_lines: object = False
     # How the x-axis of the data plot labels the first factor's levels:
     #   'variable_below_levels' (default) level names as tick labels, with the
     #                           variable name as the axis label below them

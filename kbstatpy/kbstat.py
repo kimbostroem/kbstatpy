@@ -19,6 +19,60 @@ from dataclasses import dataclass, field
 from .options import KbstatOptions
 from ._glmmtmb import GlmmTMB
 
+# Spellings accepted wherever an option is a plain on/off flag. Strings are taken
+# because the Matlab predecessor's options were strings ("true"), so ported
+# scripts keep working; 'none' means off, matching the display options
+# (data_outliers, x_label, ...) where 'none' switches a feature off.
+_FLAG_TRUE = ('true', 'yes', 'on', '1')
+_FLAG_FALSE = ('false', 'no', 'off', '0', 'none', '')
+
+
+def _as_flag(value, name, extra=None):
+    """Interpret an on/off option.
+
+    Returns True or False, or -- when ``extra`` is given, a dict of further
+    accepted spellings such as line styles -- the value ``extra`` maps the
+    spelling to. Anything unrecognised raises, deliberately: a bare bool() would
+    read a typo like 'offf', or a misremembered 'hide', as truthy and switch the
+    feature ON, which is the opposite of what was asked for.
+    """
+    if not isinstance(value, str):
+        return bool(value)
+    t = value.strip().lower()
+    if t in _FLAG_TRUE:
+        return True
+    if t in _FLAG_FALSE:
+        return False
+    if extra and t in extra:
+        return extra[t]
+    allowed = 'True or False'
+    if extra:
+        allowed += ', or one of ' + ', '.join(repr(k) for k in extra)
+    raise ValueError(f'{name} must be {allowed} (got {value!r})')
+
+
+# Line styles accepted by options.show_emm_lines, mapped to the matplotlib spelling
+# the EMM reference lines are drawn with. The names are matplotlib's own, so a
+# user who knows matplotlib can guess either spelling.
+_EMM_LINE_STYLES = {'-': '-', '--': '--', ':': ':', '-.': '-.',
+                     'solid': '-', 'dashed': '--', 'dotted': ':',
+                     'dashdot': '-.'}
+# Minimum clear gap, in points, between a significance bracket's downward ticks
+# and the tallest thing its panel renders below them (violin tail, data point, CI
+# bar, 'n=' label). Enforced only once the y-limits are final -- see the
+# correction pass in _build_data_figure -- because the bracket spacing is derived
+# from the y-range as it stood BEFORE the stack expanded the axis, so the gap a
+# panel ends up showing is not the gap its layout asked for. 5 pt is the largest
+# value that leaves the bar plots (which looked right already, at ~4.7 pt of gap)
+# untouched while lifting the violins, whose gap had collapsed to under a pixel.
+_BRACKET_MIN_GAP_PT = 5.0
+
+# Style used when show_emm_lines is switched on without naming one (True / 'true').
+# Dotted recedes furthest behind the violins and the significance brackets, so a
+# line crossing a violin cannot be mistaken for plotted data the way a solid one
+# can. Set an explicit style for a heavier line.
+_EMM_LINE_DEFAULT = ':'
+
 
 @dataclass
 class ModelResult:
@@ -412,6 +466,28 @@ class Kbstat:
             raise ValueError(
                 "y_correction must be one of: none, bonferroni, holm, FDR, "
                 f"FDR_correlated (got {yc!r})")
+        # show_emm_lines: off, on, or on with an explicit line style. Accepts
+        # False/True, the Matlab predecessor's string spellings ('true'/'false',
+        # since scripts are ported over verbatim from `plotLines`), and any style
+        # in _EMM_LINE_STYLES. Normalises to False or to the style string the
+        # lines are drawn with, so the one option is both the flag and the style
+        # (it is therefore no longer a bool once normalised). Note 'none' switches
+        # the lines off, as with the other display options -- it is not
+        # matplotlib's 'none' meaning "draw the line invisibly". Anything else is
+        # a typo worth failing on rather than silently reading as truthy.
+        pl = _as_flag(o.show_emm_lines, 'show_emm_lines', _EMM_LINE_STYLES)
+        o.show_emm_lines = _EMM_LINE_DEFAULT if pl is True else pl
+        o.show_group_size = _as_flag(o.show_group_size, 'show_group_size')
+        # The older flags go through the same parser. They used to be read as raw
+        # truthiness, so remove_outliers_prefit='off' -- a non-empty string --
+        # switched outlier removal ON; now it means off, and a typo raises.
+        # slope_correlated keeps its third value: 'auto' is a real mode, not a
+        # spelling of on or off. Its consumers compare with `is not False` and
+        # `== 'auto'`, both of which need exactly True / False / 'auto' here.
+        for _flag in ('remove_outliers_prefit', 'remove_outliers_postfit'):
+            setattr(o, _flag, _as_flag(getattr(o, _flag), _flag))
+        o.slope_correlated = _as_flag(o.slope_correlated, 'slope_correlated',
+                                      {'auto': 'auto'})
         # y_scale: normalize + validate ('linear' | 'log')
         ys = (o.y_scale or 'linear')
         o.y_scale = str(ys).strip().lower() or 'linear'
@@ -2468,6 +2544,15 @@ class Kbstat:
         healthy_data = plot_data[~plot_data['is_outlier']]
         outlier_data = plot_data[plot_data['is_outlier']]
 
+        # options.show_group_size: off by default, in both styles. The labels are
+        # collected per panel here and drawn after the panel loop, once the y-axis
+        # scale and padding are final, so the offset above each group is uniform
+        # and correct on a log axis -- and so the significance brackets, anchored
+        # above everything already rendered, stack above the labels instead of
+        # through them (with the clearance pass keeping a visible gap).
+        show_n = bool(self.options.show_group_size)
+        group_size_labels = {}   # (row_idx, col_idx) -> [(x position, group top, n)]
+
         for row_idx, row_val in enumerate(row_levels):
           for col_idx, facet_val in enumerate(facet_levels):
             ax = axes[row_idx][col_idx]
@@ -2497,6 +2582,17 @@ class Kbstat:
                 violin_colls = ax.collections[n_viol_before:]
                 for coll in violin_colls:
                     coll.set_alpha(self.options.color_alpha)
+
+            def _violin_top(xi):
+                """Top of the violin for group xi, KDE tail included; -inf if the
+                group has no violin (bar style, or an empty group)."""
+                top = -np.inf
+                for coll in violin_colls:
+                    for path in coll.get_paths():
+                        verts = path.vertices
+                        if len(verts) and abs(verts[:, 0].mean() - xi) <= 0.6:
+                            top = max(top, float(np.nanmax(verts[:, 1])))
+                return top
 
             def _violin_hw(xi, y_val):
                 """Half-width of the violin for group xi at height y_val."""
@@ -2662,6 +2758,20 @@ class Kbstat:
                 if ci_hi is None:
                     ci_hi = subset.quantile(0.75)
 
+                # Optional EMM reference line (options.show_emm_lines): the group's
+                # marginal mean extended across the whole panel, in the group's
+                # own colour, so its level can be read off against the other
+                # groups' violins instead of comparing dot heights by eye. Drawn
+                # above the violins (whose translucent fill would otherwise dim
+                # it) but below the CI bar and EMM dot, which stay the primary
+                # markers.
+                if self.options.show_emm_lines:
+                    # Normalised, the option IS the line style; a bare True that
+                    # never passed _normalize_options falls back to the default.
+                    _ls = self.options.show_emm_lines
+                    ax.axhline(emm_val, color=palette[level],
+                               linestyle=(_ls if isinstance(_ls, str) else _EMM_LINE_DEFAULT),
+                               linewidth=1.2, alpha=0.9, zorder=3.5)
                 # CI bar
                 ax.plot([i, i], [ci_lo, ci_hi], color='0.2', linewidth=4, zorder=5)
                 # EMM dot
@@ -2670,12 +2780,15 @@ class Kbstat:
                 self._tooltip(ax, emm_sc,
                               [f'{self._disp(x_var)}={level}, {self._disp(y_var)}={emm_val:.3f}'
                                f' [{ci_lo:.3f}, {ci_hi:.3f}]'])
-                # n= label above CI top (bar style only)
-                if use_bar:
-                    n = len(subset)
-                    y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
-                    ax.text(i, ci_hi + y_range * 0.02, f'n={n}', ha='center', va='bottom',
-                            fontsize=9, color='0.4', zorder=7)
+                # Group size (options.show_group_size): remember where this
+                # group's label goes; it is drawn after the panel loop. The anchor
+                # is the top of what the group actually renders -- the violin's
+                # KDE tail, or the CI bar in bar style -- so the label never lands
+                # inside the group's own body.
+                if show_n:
+                    group_top = max(ci_hi, _violin_top(i))
+                    group_size_labels.setdefault((row_idx, col_idx), []).append(
+                        (i, group_top, len(subset)))
 
             # y-limit expansion and bracket drawing are deferred to after the
             # panel loop so that sharey=True doesn't cause compounding expansions.
@@ -2772,6 +2885,35 @@ class Kbstat:
             ref_ax.set_ylim(bottom=_yi(_yt(y_lo) - y_pad * 0.5),
                             top=_yi(_yt(y_hi) + y_pad))
 
+        def _text_top(ax, txt):
+            """Top edge of a rendered text artist in ``ax``'s data coordinates,
+            or -inf if this backend cannot measure it."""
+            try:
+                bb = txt.get_window_extent(renderer=fig.canvas.get_renderer())
+            except Exception:                                   # noqa: BLE001
+                return -np.inf
+            return float(ax.transData.inverted().transform((bb.x0, bb.y1))[1])
+
+        # --- Group-size labels (options.show_group_size) ---
+        # Drawn here, not in the panel loop, so the 2 % offset is taken from the
+        # final y-range and computed in log space when the axis is logarithmic.
+        if group_size_labels:
+            for (row_idx, col_idx), items in group_size_labels.items():
+                ax = axes[row_idx][col_idx]
+                for xi, group_top, n in items:
+                    if not np.isfinite(group_top):
+                        continue
+                    ax.text(xi, _yi(_yt(group_top) + y_range * 0.02), f'n={n}',
+                            ha='center', va='bottom', fontsize=9, color='0.4',
+                            zorder=7)
+            # Make room for them: without brackets nothing else expands the axis,
+            # so a label on the tallest group would be clipped by the frame.
+            label_top = max((_text_top(ax, txt)
+                             for row in axes for ax in row for txt in ax.texts),
+                            default=-np.inf)
+            if np.isfinite(label_top) and label_top > ref_ax.get_ylim()[1]:
+                ref_ax.set_ylim(top=_yi(_yt(label_top) + y_range * 0.01))
+
         if contrasts is not None:
             ct = contrasts
             if 'p.value' in ct.columns:
@@ -2783,9 +2925,14 @@ class Kbstat:
                 # dataLim.y1 — we therefore introspect the rendered artists.
                 from matplotlib.collections import PolyCollection
 
-                def _panel_top(ax):
+                def _panel_top(ax, skip=()):
+                    """Top of the content of ``ax``, ignoring the artists in
+                    ``skip`` (a set of ids) -- used to exclude the brackets
+                    themselves when re-measuring what they have to clear."""
                     top = -np.inf
                     for coll in ax.collections:
+                        if id(coll) in skip:
+                            continue
                         if isinstance(coll, PolyCollection):          # violins
                             for path in coll.get_paths():
                                 v = path.vertices
@@ -2798,9 +2945,19 @@ class Kbstat:
                     for patch in ax.patches:                          # bars
                         top = max(top, patch.get_y() + patch.get_height())
                     for line in ax.lines:                             # CI bars
+                        if id(line) in skip:
+                            continue
                         yd = np.asarray(line.get_ydata(), dtype=float)
                         if yd.size:
                             top = max(top, float(np.nanmax(yd)))
+                    for txt in ax.texts:                              # 'n=' labels
+                        if id(txt) in skip:
+                            continue
+                        # Rendered height, so the bracket stack starts above the
+                        # label instead of being drawn through it. The outlier
+                        # annotation is anchored at the bottom of the panel, so it
+                        # never raises this.
+                        top = max(top, _text_top(ax, txt))
                     return top if np.isfinite(top) else ax.dataLim.y1
 
                 # Each panel's brackets are anchored just above THAT panel's own
@@ -2828,16 +2985,15 @@ class Kbstat:
                                 break
                     return (found[0], found[1]) if len(found) == 2 else (None, None)
 
-                bracket_y_max = -np.inf
+                # Conditional posthoc: keep only the contrasts for each panel's
+                # cell (that panel's levels of the conditioning factors). Match the
+                # by-factor columns in the contrast table to the panel's facet/row
+                # levels and any split-figure fixed levels. Columns absent from ct
+                # are simply not filtered (covers the marginal / single-factor
+                # case).
+                panel_cts = {}
                 for row_idx, row_val in enumerate(row_levels):
                     for col_idx, facet_val in enumerate(facet_levels):
-                        ax = axes[row_idx][col_idx]
-                        # Conditional posthoc: keep only the contrasts for THIS
-                        # panel's cell (this panel's levels of the conditioning
-                        # factors). Match the by-factor columns in the contrast
-                        # table to the panel's facet/row levels and any split-figure
-                        # fixed levels. Columns absent from ct are simply not filtered
-                        # (covers the marginal / single-factor case).
                         cell = dict(emm_extra)
                         if facet_var is not None and facet_val is not None:
                             cell[facet_var] = facet_val
@@ -2847,32 +3003,93 @@ class Kbstat:
                         for _k, _v in cell.items():
                             if _k in panel_ct.columns:
                                 panel_ct = panel_ct[panel_ct[_k].astype(str) == str(_v)]
-                        # anchor just above THIS panel's tallest rendered content
-                        bracket_y = _yt(_panel_top(ax)) + bracket_step * 0.5
-                        tick_h = bracket_step * 0.3
-                        for _, crow in panel_ct.iterrows():
-                            p_val = crow['p.value']
-                            if not np.isfinite(p_val) or p_val >= 0.05:
-                                continue
-                            label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
-                            xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
-                            if xi is None:
-                                xi, xj = 0, len(x_levels) - 1
-                            ax.plot([xi, xi, xj, xj],
-                                    [_yi(bracket_y - tick_h), _yi(bracket_y),
-                                     _yi(bracket_y), _yi(bracket_y - tick_h)],
-                                    color='black', linewidth=1.5)
-                            ax.text((xi + xj) / 2, _yi(bracket_y), label,
-                                    ha='center', va='bottom', fontsize=12, fontweight='bold')
-                            bsc = ax.scatter((xi + xj) / 2, _yi(bracket_y), s=200,
-                                             alpha=0, zorder=10)
-                            self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
-                            bracket_y += bracket_step * 1.4
-                        bracket_y_max = max(bracket_y_max, bracket_y)
+                        panel_cts[(row_idx, col_idx)] = panel_ct
+
+                bracket_y_max = -np.inf
+                bracket_artists = {}   # (row, col) -> [(line, label, tooltip dot)]
+                for (row_idx, col_idx), panel_ct in panel_cts.items():
+                    ax = axes[row_idx][col_idx]
+                    # anchor just above THIS panel's tallest rendered content
+                    bracket_y = _yt(_panel_top(ax)) + bracket_step * 0.5
+                    tick_h = bracket_step * 0.3
+                    for _, crow in panel_ct.iterrows():
+                        p_val = crow['p.value']
+                        if not np.isfinite(p_val) or p_val >= 0.05:
+                            continue
+                        label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
+                        xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
+                        if xi is None:
+                            xi, xj = 0, len(x_levels) - 1
+                        _bl, = ax.plot([xi, xi, xj, xj],
+                                       [_yi(bracket_y - tick_h), _yi(bracket_y),
+                                        _yi(bracket_y), _yi(bracket_y - tick_h)],
+                                       color='black', linewidth=1.5)
+                        _bt = ax.text((xi + xj) / 2, _yi(bracket_y), label,
+                                      ha='center', va='bottom', fontsize=12,
+                                      fontweight='bold')
+                        bsc = ax.scatter((xi + xj) / 2, _yi(bracket_y), s=200,
+                                         alpha=0, zorder=10)
+                        self._tooltip(ax, bsc, [f'{crow["contrast"]}: p={p_val:.4f} ({label})'])
+                        # kept so the clearance pass below can lift the whole stack
+                        bracket_artists.setdefault((row_idx, col_idx), []).append(
+                            (_bl, _bt, bsc))
+                        bracket_y += bracket_step * 1.4
+                    bracket_y_max = max(bracket_y_max, bracket_y)
                 # expand the shared y-axis once to fit the tallest panel's stack
                 # (headroom so the topmost bracket label isn't jammed at the frame)
                 if np.isfinite(bracket_y_max):
                     ref_ax.set_ylim(top=_yi(bracket_y_max + bracket_step * 0.6))
+
+                # --- Clearance pass ---
+                # Only now are the y-limits final, and only now is the gap between
+                # a stack and the content beneath it the gap the reader will see:
+                # the layout above spaces brackets by 7 % of the y-range as it stood
+                # BEFORE the stack expanded the axis, so on a tall stack that gap
+                # comes out a few pixels rather than the intended few points. Lift
+                # any panel that ended up tighter than _BRACKET_MIN_GAP_PT. Panels
+                # that already clear the content keep their own spacing, so this
+                # adds air only where it is missing (which is why the bar plots,
+                # whose limits are pinned, come through unchanged). Lifting can
+                # push the top label into the frame, so the axis is re-expanded and
+                # the measurement repeated -- the residual shrinks by about the
+                # ratio of label height to axis height each round.
+                gap_px = _BRACKET_MIN_GAP_PT * fig.dpi / 72.0
+                for _ in range(3):
+                    lifted = False
+                    for (row_idx, col_idx), items in bracket_artists.items():
+                        ax = axes[row_idx][col_idx]
+                        skip = {id(a) for group in items for a in group}
+                        content = _panel_top(ax, skip)
+                        if not np.isfinite(content):
+                            continue
+                        tick_bottoms = [float(np.nanmin(line.get_ydata()))
+                                        for line, _, _ in items]
+                        deficit = gap_px - (ax.transData.transform((0, min(tick_bottoms)))[1]
+                                            - ax.transData.transform((0, content))[1])
+                        if deficit <= 0.5:            # sub-pixel: leave it alone
+                            continue
+                        lifted = True
+
+                        def _up(y, _ax=ax, _d=deficit):
+                            """y shifted up by _d pixels, in data coordinates."""
+                            py = _ax.transData.transform((0, y))[1] + _d
+                            return float(_ax.transData.inverted().transform((0, py))[1])
+
+                        for line, txt, dot in items:
+                            line.set_ydata([_up(v) for v in line.get_ydata()])
+                            txt.set_y(_up(txt.get_position()[1]))
+                            off = np.asarray(dot.get_offsets(), dtype=float)
+                            if off.size:
+                                dot.set_offsets([[off[0, 0], _up(off[0, 1])]])
+                    if not lifted:
+                        break
+                    # re-expand for the raised stacks: the topmost bracket label
+                    # must still sit inside the frame
+                    top_needed = max((_text_top(axes[r][c], txt)
+                                      for (r, c), items in bracket_artists.items()
+                                      for _, txt, _ in items), default=-np.inf)
+                    if np.isfinite(top_needed) and top_needed > ref_ax.get_ylim()[1]:
+                        ref_ax.set_ylim(top=_yi(_yt(top_needed) + bracket_step * 0.2))
 
         # Place the suptitle a constant physical gap above the panels, matching the
         # diagnostics plot, independent of figure height. tight_layout reserves no
