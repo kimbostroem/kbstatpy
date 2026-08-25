@@ -145,10 +145,9 @@ class KbstatOptions:
     show_group_size: object = False
     # Draw a horizontal reference line across the whole panel at the height of
     # every plotted group's EMM (the marginal mean already marked by the white
-    # dot), in that group's own colour. Ported from the Matlab predecessor's
-    # `plotLines`: it lets a group's level be read off directly against the other
-    # groups' distributions, instead of comparing dot heights by eye across the
-    # panel. Applies to the data plots (violin and bar style alike); each panel
+    # dot), in that group's own colour. It lets a group's level be read off
+    # directly against the other groups' distributions, instead of comparing dot
+    # heights by eye across the panel. Applies to the data plots (violin and bar style alike); each panel
     # uses its own EMMs, and where none is available the line follows the same
     # median fallback as the dot.
     #   False (default)  no lines

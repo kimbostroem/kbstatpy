@@ -1,5 +1,12 @@
 # Changes
 
+## [1.14.2] - 2026-08-25
+
+### Changes
+
+- **Dropped the references to the MATLAB library kbstatpy descends from where they only recorded provenance.** `show_emm_lines` was documented as "ported from the MATLAB predecessor's `plotLines`" in the option comment, the normalisation comment, the README table and the test docstring, and a test carried the name `test_matlab_style_string_is_accepted`. A reader of this library is not expected to know that software, so the phrase said nothing about what the option does. The comment explaining why an on/off option accepts strings at all keeps a reason, but one that stands on its own: a value may arrive as text from a config file, a command line or a spreadsheet cell and should need no conversion. The 1.14.0 changelog entry, and the published release notes taken from it, lost the same phrase.
+- The references that carry statistical reasoning are deliberately kept -- the seven-bin effect-size labels reproduce a specific scheme including its midpoint bin edges, and the `df = Inf` choice for GLMMs is defended by the same limitation existing elsewhere -- since without them those decisions look arbitrary or, worse, wrong. See `STATISTICAL_NOTES.md`.
+
 ## [1.14.1] - 2026-08-25
 
 ### Changes
@@ -12,7 +19,7 @@
 
 ### Changes
 
-- **New option `show_emm_lines`: a horizontal reference line at each plotted group's EMM, drawn across the whole panel in that group's own colour.** Ported from the MATLAB predecessor's `plotLines`. The estimated marginal mean is already marked by the white dot, but reading one group's level against the *other* groups meant comparing dot heights by eye across the panel; the line makes the comparison direct. Each facet panel uses its own EMMs, and where none is available the line follows the same median fallback as the dot. Applies to violin and bar style alike. The option doubles as the line style: `True` gives the default dotted line -- which recedes furthest behind the violins and the significance brackets, so a line crossing a violin cannot be mistaken for plotted data -- while `'-'`, `'--'`, `':'`, `'-.'` (or the matplotlib names `'solid'`, `'dashed'`, `'dotted'`, `'dashdot'`) pick one explicitly. Solid reads calmest and makes the group colours easiest to attribute, at the cost of looking more like content than like a guide. Default `False`.
+- **New option `show_emm_lines`: a horizontal reference line at each plotted group's EMM, drawn across the whole panel in that group's own colour.** The estimated marginal mean is already marked by the white dot, but reading one group's level against the *other* groups meant comparing dot heights by eye across the panel; the line makes the comparison direct. Each facet panel uses its own EMMs, and where none is available the line follows the same median fallback as the dot. Applies to violin and bar style alike. The option doubles as the line style: `True` gives the default dotted line -- which recedes furthest behind the violins and the significance brackets, so a line crossing a violin cannot be mistaken for plotted data -- while `'-'`, `'--'`, `':'`, `'-.'` (or the matplotlib names `'solid'`, `'dashed'`, `'dotted'`, `'dashdot'`) pick one explicitly. Solid reads calmest and makes the group colours easiest to attribute, at the cost of looking more like content than like a guide. Default `False`.
 - **New option `show_group_size`: label each plotted group with its observation count (`n=12`).** *This changes existing output:* the counts used to be drawn unconditionally in bar style and were unavailable for violins, and they are now off by default in both, so bar plots lose them unless the option is set. The label is anchored to the top of what the group actually renders -- the violin's KDE tail, or the CI bar in bar style -- so it never lands inside the group's own body.
 
 ### Fixed

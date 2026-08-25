@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Tests for `options.show_emm_lines` on the data plots.
 
-`show_emm_lines` (the Matlab predecessor's `plotLines`) extends every plotted
-group's EMM across the whole panel as a horizontal line, so a group's level can
-be read off against the other groups' distributions instead of comparing dot
-heights by eye. Two things make that silently useless if they break:
+`show_emm_lines` extends every plotted group's EMM across the whole panel as a
+horizontal line, so a group's level can be read off against the other groups'
+distributions instead of comparing dot heights by eye. Two things make that
+silently useless if they break:
 
   * the line must sit at the EMM the panel's own white dot marks. The EMM grid is
     looked up per panel (filtered by the facet/row factor levels), so a lookup
@@ -70,7 +70,7 @@ def fit(show_emm_lines, out=None):
     o.posthoc_compare = 'Group'
     o.show_emm_lines = show_emm_lines
     o.figure_display = 'save_only'
-    o.out_dir = out or '/tmp/kbstatpy_plotlines_test'
+    o.out_dir = out or '/tmp/kbstatpy_emm_lines_test'
     k = Kbstat(o)
     k.data = toy_data()
     k._normalize_options()
@@ -182,8 +182,9 @@ def test_line_colour_matches_its_group():
                 f'EMM line colour {c} is far from every violin hue'
 
 
-def test_matlab_style_string_is_accepted():
-    """Ported Matlab scripts pass the flag as a string, e.g. plotLines = "true"."""
+def test_string_spellings_are_accepted():
+    """The flag may arrive as text -- from a config file, a command line, a
+    spreadsheet cell -- so the string forms must resolve, and a typo must not."""
     def norm(v):
         o = KbstatOptions()
         o.show_emm_lines = v
@@ -224,7 +225,7 @@ def test_line_style_can_be_chosen():
 def test_requested_style_reaches_the_drawn_line():
     """Normalisation alone is not enough: the plot must draw with that style."""
     for requested, expected in ((True, ':'), ('--', '--'), ('-', '-')):
-        k = fit(requested, out=f'/tmp/kbstatpy_plotlines_style_{expected!r}')
+        k = fit(requested, out=f'/tmp/kbstatpy_emm_lines_style_{expected!r}')
         n_checked = 0
         for ax in _panel_axes(_figure(k)):
             for line, _, y in _emm_lines(ax):

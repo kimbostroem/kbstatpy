@@ -19,10 +19,11 @@ from dataclasses import dataclass, field
 from .options import KbstatOptions
 from ._glmmtmb import GlmmTMB
 
-# Spellings accepted wherever an option is a plain on/off flag. Strings are taken
-# because the Matlab predecessor's options were strings ("true"), so ported
-# scripts keep working; 'none' means off, matching the display options
-# (data_outliers, x_label, ...) where 'none' switches a feature off.
+# Spellings accepted wherever an option is a plain on/off flag. The string forms
+# are taken so a value that arrives as text -- from a config file, a command line,
+# a spreadsheet cell -- needs no conversion; 'none' means off, matching the
+# display options (data_outliers, x_label, ...) where 'none' switches a feature
+# off.
 _FLAG_TRUE = ('true', 'yes', 'on', '1')
 _FLAG_FALSE = ('false', 'no', 'off', '0', 'none', '')
 
@@ -467,9 +468,8 @@ class Kbstat:
                 "y_correction must be one of: none, bonferroni, holm, FDR, "
                 f"FDR_correlated (got {yc!r})")
         # show_emm_lines: off, on, or on with an explicit line style. Accepts
-        # False/True, the Matlab predecessor's string spellings ('true'/'false',
-        # since scripts are ported over verbatim from `plotLines`), and any style
-        # in _EMM_LINE_STYLES. Normalises to False or to the style string the
+        # False/True, their string spellings ('true'/'false'), and any style in
+        # _EMM_LINE_STYLES. Normalises to False or to the style string the
         # lines are drawn with, so the one option is both the flag and the style
         # (it is therefore no longer a bool once normalised). Note 'none' switches
         # the lines off, as with the other display options -- it is not
