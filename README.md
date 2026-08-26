@@ -29,9 +29,9 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.10+ (64-bit)
 - R 4.4+
-- **Platform:** macOS or Linux. On Windows, use [WSL](https://learn.microsoft.com/windows/wsl/install) (e.g. Ubuntu) and follow the Linux steps — `rpy2`, the R bridge kbstatpy relies on, is not reliably installable on native Windows.
+- **Platform:** macOS, Linux, or Windows. macOS and Linux are the routinely tested platforms; native Windows is supported by `install.ps1` (see below), with [WSL](https://learn.microsoft.com/windows/wsl/install) as a fallback.
 
 All Python and R package dependencies are handled by the installer (see below).
 
@@ -39,17 +39,33 @@ All Python and R package dependencies are handled by the installer (see below).
 
 ## Installation
 
+**macOS / Linux**
+
 ```bash
 cd kbstatpy
 bash install.sh
 ```
 
-The installer (macOS/Linux):
-1. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
-2. Installs all required R packages (`lme4`, `lmerTest`, `glmmTMB`, `emmeans`, `DHARMa`, …)
-3. On macOS: automatically fixes the `rpy2` / R version symlink if needed
+**Windows**
 
-On Windows, run these same steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell.
+```powershell
+cd kbstatpy
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Either installer:
+1. Checks the prerequisites and **stops with instructions if one is missing or too old** — which package manager command or download page to use for Python 3.10+ and R 4.4+ on your platform, rather than a failure further down that does not name the cause
+2. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
+3. Installs all required R packages (`lme4`, `lmerTest`, `glmmTMB`, `emmeans`, `DHARMa`, …)
+4. Verifies that `rpy2` can actually start R and load `glmmTMB` and `emmeans`, so a broken bridge is reported here instead of part-way through your first analysis
+
+Plus what the platform needs on top of that:
+- **macOS:** fixes the `rpy2` / R version symlink if needed, and warns about a mismatched Xcode Command Line Tools architecture
+- **Windows:** finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand) and creates the personal R library that a non-interactive `Rscript` cannot create on demand
+
+On Windows nothing needs to be compiled: `rpy2` installs from a prebuilt `win_amd64` wheel, and CRAN serves the R packages as Windows binaries, so Rtools is not required.
+
+Native Windows support is recent — earlier versions of `rpy2` could not be installed there reliably, and this README said so. If a native install does give trouble, run the macOS/Linux steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell (e.g. Ubuntu) instead, and please open an issue.
 
 ---
 

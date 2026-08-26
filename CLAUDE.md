@@ -37,9 +37,11 @@ test, exiting non-zero on failure.
 for f in tests/test_*.py; do echo "== $f"; python3 "$f"; done
 ```
 
-Most tests need R with `glmmTMB` and `emmeans`, like the package itself. The
-metadata and layout-only tests (`test_citation_metadata.py`,
-`test_correlation_title_fits.py`) do not.
+Every test needs R with `glmmTMB` and `emmeans`, like the package itself --
+including the metadata and layout-only ones. There is no R-free test and there
+cannot be one while `kbstatpy/__init__.py` imports `.kbstat`, which calls
+`ro.r('emmeans::emm_options(...)')` at module level: `from kbstatpy import
+__version__` is enough to start R.
 
 New tests state in their module docstring what the guarded failure mode was and
 why it went unnoticed — a bare assertion does not survive a refactor that has

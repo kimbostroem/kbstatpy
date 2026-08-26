@@ -1,4 +1,5 @@
 import os
+import re
 import warnings
 import numpy as np
 import pandas as pd
@@ -2119,7 +2120,7 @@ class Kbstat:
         # or many. (Previously a single-DV run wrote flat into out_dir, which
         # made downstream result-collecting code special-case the two layouts.)
         for res in output.results:
-            d = os.path.join(out_dir, res.y)
+            d = os.path.join(out_dir, self._safe_name(res.y))
             os.makedirs(d, exist_ok=True)
             if res.anova is not None:
                 anova_df = res.anova.to_pandas() if hasattr(res.anova, 'to_pandas') else res.anova
@@ -2130,8 +2131,9 @@ class Kbstat:
                 # variable); write each as Posthoc_<variable>.xlsx.
                 if isinstance(res.posthoc, dict):
                     for var, ph in res.posthoc.items():
-                        self._write_posthoc_xlsx(ph, os.path.join(d, f'Posthoc_{var}.xlsx'))
-                        print(f'Saved Posthoc_{var}.xlsx to {d}')
+                        stem = f'Posthoc_{self._safe_name(var)}'
+                        self._write_posthoc_xlsx(ph, os.path.join(d, f'{stem}.xlsx'))
+                        print(f'Saved {stem}.xlsx to {d}')
                 else:
                     self._write_posthoc_xlsx(res.posthoc, os.path.join(d, 'Posthoc.xlsx'))
                     print(f'Saved Posthoc.xlsx to {d}')
@@ -2150,7 +2152,7 @@ class Kbstat:
                 # {level_suffix: Figure} when a 4th+ factor split it into files.
                 if isinstance(res.fig_data, dict):
                     for suffix, f in res.fig_data.items():
-                        self._write_fig(f, d, f'DataPlots_{suffix}', html=True, tight=True)
+                        self._write_fig(f, d, f'DataPlots_{self._safe_name(suffix)}', html=True, tight=True)
                 else:
                     self._write_fig(res.fig_data, d, 'DataPlots', html=True, tight=True)
             if res.fig_diagnostics is not None:
@@ -2219,6 +2221,56 @@ class Kbstat:
         with pd.ExcelWriter(path, engine='openpyxl') as writer:
             out.to_excel(writer, index=False, sheet_name=sheet)
             self._autofit_xlsx(writer, sheet)
+
+    # Characters Windows forbids anywhere in a path component, plus the control
+    # range. Applied on every platform, not only Windows: a level value like
+    # '5 mg/kg' would silently nest a directory on POSIX instead of failing, so
+    # without this the same analysis writes a different tree per operating
+    # system, and a results folder copied from a Mac to a PC stops resolving.
+    _PATH_UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+    # Reserved DOS device names. Windows refuses these as a file or directory
+    # name whatever the extension, so 'NUL' as a factor level would fail there
+    # and nowhere else.
+    _PATH_RESERVED = frozenset(
+        ['CON', 'PRN', 'AUX', 'NUL']
+        + ['COM%d' % i for i in range(1, 10)]
+        + ['LPT%d' % i for i in range(1, 10)]
+    )
+
+    @staticmethod
+    def _safe_path_component(name, fallback='unnamed'):
+        """Make one path component safe to write on any platform.
+
+        Variable names and factor *levels* end up in output paths (the per-DV
+        subdirectory, ``Posthoc_<factor>.xlsx``, ``DataPlots_<var>_<levels>``),
+        and levels come straight from data cells -- ``5 mg/kg``, ``50%``,
+        ``pre:post`` are all ordinary values. Returns the name unchanged when it
+        is already safe, so existing output paths do not move.
+        """
+        safe = Kbstat._PATH_UNSAFE.sub('_', str(name))
+        # Windows silently strips trailing dots and spaces, so a file written as
+        # 'x ' is later not found under 'x ' -- strip them here instead.
+        safe = safe.strip().rstrip('. ')
+        # The reserved name applies to the stem, so check before any extension
+        # the caller appends.
+        if safe.upper() in Kbstat._PATH_RESERVED:
+            safe += '_'
+        return safe if safe else fallback
+
+    def _safe_name(self, name):
+        """``_safe_path_component`` plus a one-time notice per rewritten name,
+        so a folder that does not match the variable is explained rather than
+        left for the user to discover."""
+        safe = self._safe_path_component(name)
+        if safe != str(name):
+            if not hasattr(self, '_path_notices'):
+                self._path_notices = set()
+            if name not in self._path_notices:
+                self._path_notices.add(name)
+                print(f"Note: '{name}' cannot be used in a file path as-is; "
+                      f"writing it as '{safe}'.")
+        return safe
 
     def _write_fig(self, fig, d, stem, html=False, tight=True):
         fig.savefig(os.path.join(d, f'{stem}.pdf'))

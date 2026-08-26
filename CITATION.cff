@@ -6,8 +6,8 @@ authors:
   - family-names: Bostroem
     given-names: Kim Joris
     orcid: https://orcid.org/0000-0001-5966-458X
-version: 1.14.2
-date-released: 2026-08-25
+version: 1.15.0
+date-released: 2026-08-26
 license: MIT
 repository-code: https://github.com/kimbostroem/kbstatpy
 abstract: "Generalised linear mixed model (GLMM) analysis with post-hoc comparisons, data transformation, correlation analysis, and multicollinearity diagnostics. Modelled after the MATLAB kbstat library."

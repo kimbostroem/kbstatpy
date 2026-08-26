@@ -1,5 +1,29 @@
 # Changes
 
+## [1.15.0] - 2026-08-26
+
+### Changes
+
+- **Native Windows is now supported, with a `install.ps1` installer.** The README previously directed Windows users to WSL, on the grounds that `rpy2` -- the R bridge kbstatpy is built on -- could not be installed reliably on native Windows. That has not been true for some time: `rpy2-rinterface` publishes `win_amd64` wheels for CPython 3.9 through 3.14, and `rpy2` 3.6 carries deliberate Windows support, calling `os.add_dll_directory()` on R's DLL directory and handling both the pre-4.2 `bin\x64` layout and the merged `bin\` of R >= 4.2. CRAN serves every R package the installer needs as a Windows binary, so nothing compiles and Rtools is not required. kbstatpy's own code needed no changes for this: it shells out to nothing, spawns no processes, and builds every path through `os.path.join`. WSL remains documented as a fallback.
+
+- **`install.ps1` handles three things that do not arise on macOS or Linux.** The Windows R installer does not add R to `PATH`, so R is located through the registry (and the default install location) rather than a `PATH` lookup alone. A non-interactive `Rscript` cannot answer R's "use a personal library?" prompt and errors out instead, so the user library is created before any package is installed. And because a failure to load `R.dll` surfaces at *import* -- long before any statistics run -- the installer verifies that `rpy2` can start R and load `glmmTMB` and `emmeans` before it reports success.
+
+- **Both installers now enforce the version minimums they only used to print, and say where to get what is missing.** `install.sh` computed `PYTHON_VERSION` and `R_VERSION` and never compared them against anything, so Python 3.9 or R 4.3 produced a pip or R error further down that did not name the cause. Both installers now stop with the offending version, and name the package-manager command or download page for the platform in question -- including the detail that a distribution's own `r-base` is frequently older than 4.4 and that the CRAN repository is the fix. Failures during installation are annotated the same way: which build tools to install if something has to compile, and what to check when `rpy2` cannot start R.
+
+- **Both installers now detect R packages that failed to install.** `install.packages()` only warns when a package cannot be installed, and `Rscript` still exits 0, so a missing `glmmTMB` was reported as successfully installed and then surfaced as an unrelated-looking R error during the first analysis. Both installers re-check `installed.packages()` afterwards and fail with the names.
+
+### Fixed
+
+- **Variable names and factor levels are now sanitised before they are used in output paths.** `save()` names the per-dependent-variable subdirectory after the variable, writes `Posthoc_<factor>.xlsx`, and -- when a fourth or later factor splits the data figure -- `DataPlots_<var>_<level>_<level>.*`. Those levels are ordinary data cells, so `5 mg/kg`, `50%` and `pre:post` are realistic values. Windows forbids `< > : " / \ | ? *` in a path component, refuses the reserved DOS device names (`NUL`, `CON`, `COM1`, ...) whatever the extension, and silently strips trailing dots and spaces. This went unnoticed because the library is developed on macOS, where only `/` is special -- and where it does not raise either: `os.path.join(out_dir, 'Force/BW')` quietly nests a directory, so the results tree silently differed from the one the user asked for, and the same analysis produced a different layout per operating system. Sanitising happens on every platform for that reason, not only on Windows. Names that are already safe are returned untouched, so no existing output path moves.
+
+- **`CLAUDE.md` claimed that two of the tests need no R.** They do, as does every other test: `kbstatpy/__init__.py` imports `.kbstat`, which calls `ro.r('emmeans::emm_options(...)')` at module level, so `from kbstatpy import __version__` is enough to start R and require `emmeans`. There is no R-free test, which is also why the new CI workflow has no R-free job.
+
+### Added
+
+- **A CI workflow (`.github/workflows/ci.yml`), the repository's first.** The maintainer works on macOS, so nothing otherwise exercises `install.ps1` or the rpy2 bridge on Windows, and the Windows support above would be an assertion rather than a fact. It runs the real installer on Windows, Linux (Python 3.10 and 3.12) and macOS, then the test suite and all demos, and uploads the demo output so a figure that renders wrongly can be looked at. A separate job lints `install.ps1` against Windows PowerShell 5.1 -- the engine it targets, and one that no runner uses by default -- via PSScriptAnalyzer's compatibility profiles, which catch the PowerShell 7 syntax (`??`, ternaries, `&&` chains) that 5.1 rejects and a plain parse would accept.
+
+- **`tests/test_path_sanitising.py`**, covering the forbidden characters, the reserved device names, trailing dots and spaces, the empty-after-sanitising fallback, and the end-to-end property that one component in yields one component out and never a nested path.
+
 ## [1.14.2] - 2026-08-25
 
 ### Changes
