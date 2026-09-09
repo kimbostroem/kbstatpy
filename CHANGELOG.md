@@ -1,5 +1,19 @@
 # Changes
 
+## [1.15.1] - 2026-09-09
+
+### Fixed
+
+- **`install.ps1` aborted instead of trying the next Python, because PowerShell treats output on stderr as a fatal error.** A Windows user running the documented `powershell -ExecutionPolicy Bypass -File install.ps1` got a `NativeCommandError` at step 1, with the text `python.exe : Python was not found; run without arguments to install from the Microsoft Store`. That message comes from the Microsoft Store placeholder named `python.exe` that Windows puts on `PATH`, and rejecting it is exactly what the installer's candidate loop was written to do -- it probes each interpreter and moves on to `py -3` when one cannot report a version. What defeated the loop is a Windows PowerShell rule with no counterpart in `bash`: anything a native executable writes to stderr becomes an error record, and under the script's `$ErrorActionPreference = 'Stop'` that record is *terminating*. The `2>$null` on the probe did not help, because the record is raised before the redirection discards the text. The same rule would have killed step 3 on a cold machine, since R writes its download progress to stderr; the CI job did not catch either, because the runner's `python` is real and its R library is cached, so nothing wrote to stderr there. Every external call now goes through one of two helpers that reset the preference in their own function scope, leaving the rest of the script strict. `tests/test_install_ps1.py` fails if a later edit reintroduces a direct call or drops the reset -- the only automated guard possible for a script that cannot be executed on the maintainer's platform.
+
+### Changes
+
+- **`install.ps1` installs into the activated conda environment or venv, and says which interpreter it is writing to.** The trigger was the second half of the same report: an Anaconda user asking how to install into one specific environment rather than across all of them. `CONDA_PREFIX` and `VIRTUAL_ENV` are now read and the environment's own `python.exe` is used, ahead of `PATH` -- which also removes the failure above for anyone with an environment active, since the Store placeholder is then never reached. Naming the interpreter explicitly matters on a machine carrying Anaconda, a python.org install and the Store alias at once: `Python 3.12 found` does not say where the packages went, and the user finds out only when `import kbstatpy` fails in the environment they meant to use. The installer now prints the interpreter's full path and the environment it belongs to before installing anything, warns when an environment is active but the chosen interpreter lies outside it, notes when the target is conda `base` rather than a project environment, and, when nothing is active, says so and gives the two commands for creating an environment instead. Only the Python side is per-environment: the R packages go to the R user library and are shared, as they were before.
+
+- **`install.ps1` takes a `-Python` argument.** For choosing an interpreter without activating anything -- a full path to `python.exe`, an environment folder (`python.exe` in a conda env root, `Scripts\python.exe` in a venv), or a command name to resolve on `PATH`. An explicit `-Python` is never silently substituted: if it cannot be used, the installer stops rather than installing somewhere else.
+
+- **The Microsoft Store placeholder is now named in the error when no Python can be found**, together with the two ways out (activate a conda environment, or pass `-Python`), rather than the bare `no working Python found` that a user with a perfectly good Anaconda install would otherwise see. The README's Windows section gained the same guidance and quotes the Store error verbatim, so a search for it lands on the fix.
+
 ## [1.15.0] - 2026-08-26
 
 ### Changes

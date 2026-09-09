@@ -9,7 +9,10 @@
     have no Windows analogue and are dropped; in their place this script locates R
     the way Windows actually requires and verifies the rpy2 -> R bridge at the end.
 
-    Three Windows-specific problems it handles, none of which exist on macOS/Linux:
+    Four Windows-specific problems it handles, none of which exist on macOS/Linux:
+      * PowerShell 5.1 treats anything a native executable writes to stderr as an
+        error record, so every external call is routed through Invoke-Native /
+        Get-NativeLine (see the comment there).
       * The R installer does not add R to PATH, so `Get-Command Rscript` alone
         would fail on a perfectly good install. The registry is consulted next.
       * Non-interactive Rscript cannot answer R's "use a personal library?"
@@ -19,9 +22,33 @@
         long before any statistics run, so the bridge is checked here rather
         than left for the user's first analysis.
 
+    Anaconda and venv users: activate the environment first and the installer
+    picks it up on its own (it reads CONDA_PREFIX / VIRTUAL_ENV, so it works
+    from the Anaconda Prompt as well as from PowerShell). It always prints which
+    interpreter it is installing into before it installs anything.
+
+.PARAMETER Python
+    The Python interpreter to install into - a full path to python.exe, or a
+    command name to resolve on PATH. Use it when several Pythons are installed
+    and no environment is active. Without it the installer takes the active
+    conda/venv interpreter, then `python`, then the `py -3` launcher.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File install.ps1
+
+.EXAMPLE
+    # Into a specific Anaconda environment (from the Anaconda Prompt):
+    #   conda activate ankle-instability
+    #   powershell -ExecutionPolicy Bypass -File install.ps1
+
+.EXAMPLE
+    # Into a specific interpreter, no activation needed:
+    powershell -ExecutionPolicy Bypass -File install.ps1 -Python C:\Users\me\anaconda3\envs\ankle\python.exe
 #>
+
+param(
+    [string]$Python
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -32,13 +59,46 @@ Write-Host ''
 # Helpers
 # ------------------------------------------------------------------
 
-function Get-LastLine {
-    # Native executables can emit more than the one line a probe expects (a
-    # deprecation warning, say). Take the last line and normalise to a string,
-    # so callers can .Trim()/-match it without tripping over an array.
-    param($Value)
-    if ($null -eq $Value) { return $null }
-    return ([string](@($Value)[-1])).Trim()
+function Invoke-Native {
+    # Runs an external program, streaming its output the way a shell would.
+    #
+    # Every native call in this script goes through here or Get-NativeLine, for
+    # one reason: PowerShell 5.1 wraps whatever a native executable writes to
+    # stderr in an error record, and under $ErrorActionPreference = 'Stop' that
+    # record is *terminating* - it aborts the installer. Redirecting with
+    # 2>$null does not help, because the record is raised before the
+    # redirection discards the text. Resetting the preference inside these two
+    # functions scopes the change to them and leaves cmdlet error handling in
+    # the rest of the script strict.
+    #
+    # Both halves of that were live bugs, not hypotheticals. The Microsoft
+    # Store python.exe placeholder prints "Python was not found" to stderr,
+    # which killed the installer at the first probe instead of moving on to the
+    # next candidate; and R prints its download progress to stderr, which would
+    # have killed step 3 on any machine that got that far.
+    param(
+        [Parameter(Mandatory = $true)][string]$Exe,
+        [string[]]$Arguments = @()
+    )
+    $ErrorActionPreference = 'Continue'
+    & $Exe @Arguments
+}
+
+function Get-NativeLine {
+    # As Invoke-Native, but captures stdout and returns its last line, with
+    # stderr discarded. Native executables can emit more than the one line a
+    # probe expects (a deprecation warning, say), so the last line is taken and
+    # normalised to a string - callers can then .Trim()/-match it without
+    # tripping over an array. $LASTEXITCODE is set by the engine and stays
+    # readable by the caller.
+    param(
+        [Parameter(Mandatory = $true)][string]$Exe,
+        [string[]]$Arguments = @()
+    )
+    $ErrorActionPreference = 'Continue'
+    $out = & $Exe @Arguments 2>$null
+    if ($null -eq $out) { return $null }
+    return ([string](@($out)[-1])).Trim()
 }
 
 function Invoke-Python {
@@ -46,12 +106,10 @@ function Invoke-Python {
     # routinely absent from PATH on Windows even when Python itself is fine,
     # and `-m pip` cannot install into the wrong interpreter.
     #
-    # Output is deliberately not collected into a variable here - that would
-    # buffer pip's progress until the command finished, where install.sh shows
-    # it live.
-    param([string[]]$Arguments, [switch]$Quiet)
-    $all = @($script:PythonArgs) + $Arguments
-    if ($Quiet) { & $script:PythonExe @all 2>$null } else { & $script:PythonExe @all }
+    # Output is deliberately streamed rather than collected - that would buffer
+    # pip's progress until the command finished, where install.sh shows it live.
+    param([string[]]$Arguments)
+    Invoke-Native -Exe $script:PythonExe -Arguments (@($script:PythonArgs) + $Arguments)
 }
 
 function Show-PythonHelp {
@@ -62,6 +120,9 @@ function Show-PythonHelp {
     Write-Host '    Installer:  https://www.python.org/downloads/windows/'
     Write-Host '                (pick "Windows installer (64-bit)" and tick'
     Write-Host '                 "Add python.exe to PATH" on the first screen)'
+    Write-Host '    Anaconda:   already fine - activate the environment you want'
+    Write-Host '                (conda activate <env>) and re-run this installer,'
+    Write-Host '                or pass -Python <path to that env>\python.exe'
     Write-Host '    The Microsoft Store stub named python.exe is not a Python'
     Write-Host '    installation and cannot be used.'
 }
@@ -80,6 +141,32 @@ function Show-RToolsHelp {
     Write-Host '    Install the version matching your R (Rtools44 for R 4.4, and so on).'
 }
 
+function Get-ActiveEnvironment {
+    # An activated conda env or venv is the interpreter the user means, and
+    # naming its python.exe explicitly is what makes the "installing into" line
+    # below trustworthy: a Windows PATH can put the Microsoft Store alias ahead
+    # of the environment, and `python` would then resolve to the wrong thing.
+    #
+    # conda activate and venv's Activate.ps1 both export real environment
+    # variables, so these are visible even when the installer is launched as a
+    # child process from the Anaconda Prompt.
+    if ($env:CONDA_PREFIX) {
+        # CONDA_DEFAULT_ENV is the name conda itself uses ('base', 'ankle'); the
+        # directory leaf is only a good name for a named env, and reads as
+        # 'anaconda3' for base.
+        $name = if ($env:CONDA_DEFAULT_ENV) { $env:CONDA_DEFAULT_ENV } else { Split-Path $env:CONDA_PREFIX -Leaf }
+        # conda puts python.exe in the environment root on Windows, not in bin/.
+        return @{ Root = $env:CONDA_PREFIX; Kind = 'conda environment'; Name = $name
+                  Exe  = (Join-Path $env:CONDA_PREFIX 'python.exe') }
+    }
+    if ($env:VIRTUAL_ENV) {
+        return @{ Root = $env:VIRTUAL_ENV; Kind = 'virtual environment'
+                  Name = (Split-Path $env:VIRTUAL_ENV -Leaf)
+                  Exe  = (Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe') }
+    }
+    return $null
+}
+
 function Resolve-RHome {
     # PATH first (matches install.sh), then the registry keys the Windows
     # installer writes, then the default install location. R.home() is asked
@@ -87,7 +174,7 @@ function Resolve-RHome {
     # bin\ or bin\x64\ depending on the R version.
     $cmd = Get-Command 'Rscript.exe' -ErrorAction SilentlyContinue
     if ($cmd) {
-        $fromR = Get-LastLine (& $cmd.Source '-e' 'cat(R.home())' 2>$null)
+        $fromR = Get-NativeLine -Exe $cmd.Source -Arguments @('-e', 'cat(R.home())')
         if ($LASTEXITCODE -eq 0 -and $fromR) { return $fromR }
     }
 
@@ -128,29 +215,90 @@ function Get-RScriptPath {
 
 Write-Host '[1/4] Checking prerequisites...'
 
-# A bare `python` on Windows is often the Microsoft Store stub, which exits
-# non-zero instead of reporting a version - hence the version probe, and the
-# fallback to the `py` launcher.
+$active = Get-ActiveEnvironment
+
+# Candidates in order of how specific they are: an explicit -Python, then the
+# activated environment, then whatever PATH and the py launcher offer. A bare
+# `python` on Windows is often the Microsoft Store placeholder, which exits
+# non-zero instead of reporting a version - hence the version probe rather than
+# a mere existence check, and the fallback to `py`.
+$candidates = @()
+if ($Python) {
+    $resolved = $null
+    if (Test-Path -LiteralPath $Python -PathType Container) {
+        # A directory is the natural mistake, because that is how an
+        # environment is named everywhere else (conda activate <dir>, the env
+        # path in the Anaconda Navigator). Accept it: python.exe sits in the
+        # root of a conda env and in Scripts\ of a venv.
+        foreach ($rel in @('python.exe', 'Scripts\python.exe')) {
+            $probePath = Join-Path $Python $rel
+            if (Test-Path -LiteralPath $probePath) { $resolved = (Resolve-Path -LiteralPath $probePath).Path; break }
+        }
+        if (-not $resolved) {
+            Write-Host "ERROR: -Python '$Python' is a folder with no python.exe in it"
+            Write-Host '  (looked for python.exe and Scripts\python.exe inside it).'
+            Show-PythonHelp
+            exit 1
+        }
+    } elseif (Test-Path -LiteralPath $Python) {
+        $resolved = (Resolve-Path -LiteralPath $Python).Path
+    } else {
+        # A -Python given as a command name rather than a path is resolved on
+        # PATH like any other command.
+        $cmd = Get-Command $Python -ErrorAction SilentlyContinue
+        if ($cmd) { $resolved = $cmd.Source }
+    }
+    if (-not $resolved) {
+        Write-Host "ERROR: -Python '$Python' is neither a file nor a command this shell can find."
+        Show-PythonHelp
+        exit 1
+    }
+    $candidates += @{ Exe = $resolved; Args = @() }
+} else {
+    if ($active -and (Test-Path $active.Exe)) {
+        $candidates += @{ Exe = $active.Exe; Args = @() }
+    }
+    $candidates += @{ Exe = 'python'; Args = @() }
+    $candidates += @{ Exe = 'py';     Args = @('-3') }
+}
+
 $script:PythonExe = $null
 $script:PythonArgs = @()
 $pythonVersion = $null
+$storeStubSeen = $false
 
-foreach ($candidate in @(@{ Exe = 'python'; Args = @() }, @{ Exe = 'py'; Args = @('-3') })) {
-    if (-not (Get-Command $candidate.Exe -ErrorAction SilentlyContinue)) { continue }
+foreach ($candidate in $candidates) {
+    $cmd = Get-Command $candidate.Exe -ErrorAction SilentlyContinue
+    if (-not $cmd) { continue }
     # chr(46) rather than a literal '.': PowerShell 5.1 re-quotes arguments on
     # their way to a native executable, so quote characters inside a -c snippet
     # are the one thing to keep out of it.
-    $probe = Get-LastLine (& $candidate.Exe @($candidate.Args + @('-c', 'import sys; print(str(sys.version_info[0]) + chr(46) + str(sys.version_info[1]))')) 2>$null)
-    if ($LASTEXITCODE -eq 0 -and $probe) {
+    $probe = Get-NativeLine -Exe $candidate.Exe -Arguments @($candidate.Args + @('-c', 'import sys; print(str(sys.version_info[0]) + chr(46) + str(sys.version_info[1]))'))
+    if ($LASTEXITCODE -eq 0 -and $probe -match '^\d+\.\d+$') {
         $script:PythonExe = $candidate.Exe
         $script:PythonArgs = $candidate.Args
         $pythonVersion = $probe
         break
     }
+    # Remember a rejected Store placeholder, so the failure below can name the
+    # actual problem instead of claiming there is no Python at all.
+    if ($cmd.Source -and $cmd.Source -like '*\WindowsApps\*') { $storeStubSeen = $true }
 }
 
 if (-not $script:PythonExe) {
-    Write-Host 'ERROR: no working Python found.'
+    if ($Python) {
+        Write-Host "ERROR: '$Python' is not a working Python interpreter."
+    } elseif ($storeStubSeen) {
+        Write-Host 'ERROR: no working Python found. The python.exe on PATH is the Microsoft'
+        Write-Host '  Store placeholder, which only prints "Python was not found".'
+        Write-Host '  If you use Anaconda, activate the environment you want and re-run:'
+        Write-Host '    conda activate <env>'
+        Write-Host '    powershell -ExecutionPolicy Bypass -File install.ps1'
+        Write-Host '  Or point the installer straight at an interpreter:'
+        Write-Host '    powershell -ExecutionPolicy Bypass -File install.ps1 -Python <path>\python.exe'
+    } else {
+        Write-Host 'ERROR: no working Python found.'
+    }
     Show-PythonHelp
     exit 1
 }
@@ -164,7 +312,7 @@ if ([version]$pythonVersion -lt [version]'3.10') {
 # rpy2 ships win_amd64 wheels only, and a 32-bit interpreter cannot load a
 # 64-bit R.dll in any case. Caught here because the failure would otherwise
 # surface as an opaque import error much later.
-$is64 = Get-LastLine (Invoke-Python -Arguments @('-c', 'import sys; print(sys.maxsize > 2**32)') -Quiet)
+$is64 = Get-NativeLine -Exe $script:PythonExe -Arguments (@($script:PythonArgs) + @('-c', 'import sys; print(sys.maxsize > 2**32)'))
 if ($is64 -and $is64 -ne 'True') {
     Write-Host "ERROR: this Python is 32-bit. rpy2 needs a 64-bit interpreter to load R's DLL."
     Show-PythonHelp
@@ -186,10 +334,35 @@ if (-not $rscript) {
     exit 1
 }
 
-$rVersionRaw = Get-LastLine (& $rscript '-e' 'cat(R.version.string)' 2>$null)
+$rVersionRaw = Get-NativeLine -Exe $rscript -Arguments @('-e', 'cat(R.version.string)')
 $rVersion = if ($rVersionRaw -match '\d+\.\d+\.\d+') { $Matches[0] } else { $null }
 
-Write-Host "  Python $pythonVersion found ($script:PythonExe)"
+# Which interpreter is about to be written to, spelled out. On a machine with
+# Anaconda plus a python.org install plus the Store alias, "Python 3.12 found"
+# alone does not say where the packages are going, and the user finds out only
+# when `import kbstatpy` fails in the environment they meant to use.
+$pythonPath = Get-NativeLine -Exe $script:PythonExe -Arguments (@($script:PythonArgs) + @('-c', 'import sys; print(sys.executable)'))
+Write-Host "  Python $pythonVersion found"
+Write-Host "    $pythonPath"
+if ($active -and $pythonPath -and $pythonPath.StartsWith($active.Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "    installing into the active $($active.Kind) '$($active.Name)'"
+    if ($active.Kind -eq 'conda environment' -and $active.Name -eq 'base') {
+        Write-Host '    (that is conda base, shared by every environment that inherits from'
+        Write-Host '     it - conda create -n <name> ... for a project-specific one instead)'
+    }
+} elseif ($active) {
+    Write-Host "    WARNING: the active $($active.Kind) is '$($active.Name)'"
+    Write-Host "             ($($active.Root)) but the interpreter above is outside it,"
+    Write-Host '             so kbstatpy will NOT be installed into that environment.'
+} else {
+    Write-Host '    no conda environment or venv is active, so this installs into that'
+    Write-Host '    interpreter itself. To keep kbstatpy and its dependencies isolated,'
+    Write-Host '    activate an environment first and re-run:'
+    Write-Host '      conda create -n kbstatpy python=3.13'
+    Write-Host '      conda activate kbstatpy'
+    Write-Host '      (or)  python -m venv $HOME\kbstatpy-env'
+    Write-Host '            $HOME\kbstatpy-env\Scripts\Activate.ps1'
+}
 if ($rVersion) {
     Write-Host "  R $rVersion found ($rHome)"
 } else {
@@ -214,9 +387,11 @@ Write-Host '[2/4] Installing Python packages...'
 Invoke-Python -Arguments @('-m', 'pip', 'install', '--upgrade', 'pip', '--quiet')
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'ERROR: could not upgrade pip.'
-    Write-Host '  If the error mentions permissions, install into a virtual environment:'
-    Write-Host '    python -m venv $HOME\kbstatpy-env'
-    Write-Host '    $HOME\kbstatpy-env\Scripts\Activate.ps1'
+    Write-Host '  If the error mentions permissions, install into an environment instead:'
+    Write-Host '    conda create -n kbstatpy python=3.13'
+    Write-Host '    conda activate kbstatpy'
+    Write-Host '    (or)  python -m venv $HOME\kbstatpy-env'
+    Write-Host '          $HOME\kbstatpy-env\Scripts\Activate.ps1'
     Write-Host '  Then re-run this installer.'
     exit 1
 }
@@ -236,9 +411,11 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host '  kbstatpy needs ships a Windows wheel, so this usually means pip could'
     Write-Host '  not reach PyPI, or the Python version is one with no wheels yet.'
     Write-Host '    Supported Python versions: 3.10 - 3.14'
-    Write-Host '  If it mentions permissions, install into a virtual environment:'
-    Write-Host '    python -m venv $HOME\kbstatpy-env'
-    Write-Host '    $HOME\kbstatpy-env\Scripts\Activate.ps1'
+    Write-Host '  If it mentions permissions, install into an environment instead:'
+    Write-Host '    conda create -n kbstatpy python=3.13'
+    Write-Host '    conda activate kbstatpy'
+    Write-Host '    (or)  python -m venv $HOME\kbstatpy-env'
+    Write-Host '          $HOME\kbstatpy-env\Scripts\Activate.ps1'
     exit 1
 }
 
@@ -294,7 +471,7 @@ if (length(missing) > 0) {
 $rScriptFile = Join-Path $env:TEMP 'kbstatpy_install_r.R'
 Set-Content -Path $rScriptFile -Value $rCode -Encoding ASCII
 try {
-    & $rscript $rScriptFile
+    Invoke-Native -Exe $rscript -Arguments @($rScriptFile)
     if ($LASTEXITCODE -ne 0) {
         Write-Host ''
         Write-Host 'ERROR: installing the R packages failed.'
@@ -362,6 +539,11 @@ if ($verifyFailed) {
 Write-Host ''
 Write-Host '=== Installation complete ==='
 Write-Host ''
+if ($active -and $pythonPath -and $pythonPath.StartsWith($active.Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "kbstatpy is installed in the $($active.Kind) '$($active.Name)'."
+    Write-Host 'Activate it in any new shell before using kbstatpy.'
+    Write-Host ''
+}
 Write-Host 'To verify, run any of the demos in the demos\scripts subfolder, e.g.'
 Write-Host '  python demos\scripts\demo_01_unpaired.py'
 Write-Host ''

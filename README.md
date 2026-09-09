@@ -53,6 +53,25 @@ cd kbstatpy
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
+**Anaconda / Miniconda, or a venv:** activate the environment you want *first* and the installer uses it — no extra flag needed. This works from the Anaconda Prompt as well as from PowerShell, since the installer reads `CONDA_PREFIX` / `VIRTUAL_ENV` and those survive into the `powershell` call:
+
+```powershell
+conda create -n kbstatpy python=3.13
+conda activate kbstatpy
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The installer prints the full path of the interpreter it is about to write to before it installs anything, and names the conda environment or venv it belongs to — so nothing lands in an environment you did not mean. With none activated it installs into the interpreter it finds and says so. To pick one without activating it, pass `-Python` (a path to `python.exe`, or the environment folder, or a command name to look up on `PATH`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 -Python C:\Users\me\anaconda3\envs\kbstatpy\python.exe
+```
+
+Only Python is installed per environment. The R packages go into your R user library and are shared by every environment, which is what you want: they are the same packages either way.
+
+> **`python.exe : Python was not found; run without arguments to install from the Microsoft Store`**
+> PowerShell found the Microsoft Store placeholder named `python.exe` instead of your Python — usually because Anaconda is installed but no environment is activated in the shell you called from. Activate one, or pass `-Python`, as above. (Up to version 1.15.0 the installer aborted here with a `NativeCommandError` instead of moving on to the next interpreter; fixed in 1.15.1.)
+
 Either installer:
 1. Checks the prerequisites and **stops with instructions if one is missing or too old** — which package manager command or download page to use for Python 3.10+ and R 4.4+ on your platform, rather than a failure further down that does not name the cause
 2. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
@@ -61,7 +80,7 @@ Either installer:
 
 Plus what the platform needs on top of that:
 - **macOS:** fixes the `rpy2` / R version symlink if needed, and warns about a mismatched Xcode Command Line Tools architecture
-- **Windows:** finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand) and creates the personal R library that a non-interactive `Rscript` cannot create on demand
+- **Windows:** installs into the activated conda environment or venv if there is one (and reports which), finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand), and creates the personal R library that a non-interactive `Rscript` cannot create on demand
 
 On Windows nothing needs to be compiled: `rpy2` installs from a prebuilt `win_amd64` wheel, and CRAN serves the R packages as Windows binaries, so Rtools is not required.
 
