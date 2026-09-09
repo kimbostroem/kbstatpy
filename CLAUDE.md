@@ -34,6 +34,7 @@ Plain scripts, no pytest: each file runs standalone and prints `PASS`/`FAIL` per
 test, exiting non-zero on failure.
 
 ```bash
+python3 -m pip install -e ".[test]"      # once: PyYAML, for the CITATION check
 for f in tests/test_*.py; do echo "== $f"; python3 "$f"; done
 ```
 

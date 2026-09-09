@@ -20,7 +20,18 @@ import os
 import re
 import sys
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError as exc:
+    # PyYAML is not a runtime dependency of kbstatpy, so a plain checkout has no
+    # reason to have it. Without this the whole suite stops on a bare traceback
+    # from the first file, which reads like a broken test rather than a missing
+    # optional package -- which is exactly how it looked in CI.
+    raise SystemExit(
+        'test_citation_metadata.py needs PyYAML, which kbstatpy does not '
+        'require at runtime. Install the test extra:\n'
+        '    python3 -m pip install -e ".[test]"'
+    ) from exc
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

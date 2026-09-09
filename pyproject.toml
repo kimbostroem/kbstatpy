@@ -30,6 +30,14 @@ dependencies = [
     "mpld3",
 ]
 
+# PyYAML is needed by tests/test_citation_metadata.py alone, which validates
+# CITATION.cff as real YAML rather than by regex. It is deliberately not a
+# runtime dependency: nothing in kbstatpy reads that file. Declaring it here
+# rather than installing it ad hoc in CI keeps the requirement discoverable for
+# anyone running the suite locally.
+[project.optional-dependencies]
+test = ["pyyaml"]
+
 [tool.setuptools]
 packages = ["kbstatpy"]
 

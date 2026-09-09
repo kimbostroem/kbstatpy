@@ -144,6 +144,14 @@ jobs:
         # installer's environment.
         run: python -c "import kbstatpy; print(kbstatpy.__version__)"
 
+      - name: Install the test-only dependencies
+        # The suite needs PyYAML, which is not a runtime dependency of kbstatpy
+        # and so is not pulled in by either installer. CI never asked for it, so
+        # test_citation_metadata.py died on ModuleNotFoundError and took the
+        # whole "Test suite" step down with it while every other file passed.
+        shell: bash
+        run: python -m pip install -e ".[test]"
+
       - name: Test suite
         shell: bash
         run: |

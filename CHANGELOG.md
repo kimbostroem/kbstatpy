@@ -1,5 +1,11 @@
 # Changes
 
+## [1.15.2] - 2026-09-09
+
+### Fixed
+
+- **CI failed on every platform because the test suite needs PyYAML and nothing installed it.** `tests/test_citation_metadata.py` validates `CITATION.cff` as real YAML rather than by regex, which is the point of it -- a regex would not catch the keys CFF 1.2.0 does not define. But PyYAML is not a runtime dependency of kbstatpy, nothing in the library reads that file, so neither installer pulls it in and the requirement existed only in the maintainer's local environment, where it happened to be present. On the runners the first test file died with `ModuleNotFoundError: No module named 'yaml'` and took the whole `Test suite` step down with it, on Windows and macOS alike, while every other test file passed. The suite had therefore been red since 1.15.0 for a reason unrelated to anything it was meant to guard, which is the worst state for a signal to be in: the Windows job was reporting failure at the same time as it was proving native Windows support worked. The dependency is now declared as a `test` extra in `pyproject.toml`, CI installs it before running the suite, and the import raises a message naming the extra instead of a bare traceback, so the next person to run the tests on a clean checkout is told what to install rather than left reading a stack trace.
+
 ## [1.15.1] - 2026-09-09
 
 ### Fixed
