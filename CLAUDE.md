@@ -10,29 +10,25 @@ Cutting a release is one unit — do not stop after the commit. In order:
 1. **Bump `kbstatpy/__init__.py`** — `__version__` is the single source of truth;
    `pyproject.toml` reads it via `version = { attr = "kbstatpy.__version__" }`.
 2. **Add the `CHANGELOG.md` entry** — `## [X.Y.Z] - YYYY-MM-DD` at the top, with
-   `### Fixed` / `### Changes` sections. The entry becomes the GitHub release
-   notes verbatim.
+   `### Features` / `### Bugs` / `### Changes` sections (plus `### Known
+   limitations` where one applies).
 
-   **Keep the visible part short.** One bold headline sentence per change, then
-   at most two or three sentences: what was wrong, what it does now. A reader
-   skimming the release page should get the whole entry in under a minute.
+   **Be brief.** State what was added, fixed or changed, from the point of view
+   of someone using the library. One or two sentences per item; a whole entry
+   should read in well under a minute. No implementation detail: not the
+   function that changed, not the mechanism of the bug, not how it was
+   diagnosed. That belongs in the commit message and in code comments, which is
+   where a reader who has seen the diff will look.
 
-   Depth is not dropped, it is folded. Where the reasoning is genuinely worth
-   recording — why it went unnoticed, a rejected alternative, a non-obvious
-   mechanism, a caveat — put it in a collapsed block under the bullet:
+   **The exception is statistical consequence.** Where a change affects how
+   results should be read or trusted, say more: a wrong number that was
+   published, output that must be regenerated, a default that alters what is
+   estimated, an effect size that is approximate. Spell those out plainly — they
+   are the reason anyone reads a changelog for this library.
 
-   ```markdown
-   - **One-sentence headline.** Two sentences of what changed.
+   Entries up to 1.8.1 are the model for the style; 1.9.0 onward drifted into
+   essays and were rewritten to match in 1.15.6.
 
-     <details><summary>Why it went unnoticed</summary>
-
-     The detail, as long as it needs to be.
-     </details>
-   ```
-
-   This renders collapsed both in `CHANGELOG.md` on GitHub and in the release
-   notes. Entries before 1.9.0 predate the convention and are already terse;
-   1.9.0 onward were rewritten to it in 1.15.5.
 3. **Update `CITATION.cff`** — `version` and `date-released`. Nothing imports this
    file, so only `tests/test_citation_metadata.py` catches a stale one.
 4. **Run the tests** — `for f in tests/test_*.py; do python3 "$f"; done`. Two of
