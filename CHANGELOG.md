@@ -1,5 +1,11 @@
 # Changes
 
+## [1.15.4] - 2026-09-09
+
+### Fixed
+
+- **A factual error in the 1.15.3 changelog and in the comment it came from.** That entry claimed the R library cache "had never hit" because `setup-r` overrides the job-level `R_LIBS_USER`, leaving `actions/cache` to archive an empty `$GITHUB_WORKSPACE/.rlib`. The override is real, but the conclusion did not follow: the cache step read `${{ env.R_LIBS_USER }}`, and that expression picks up the value `setup-r` exported through `$GITHUB_ENV` just as the shell does, so it had been pointing at the real library all along. The repository's empty cache list, offered as the evidence, has a duller explanation -- `actions/cache` does not save when the job fails, and no `install` job had succeeded on any platform since CI was added in 1.15.0: Linux on `DHARMa`, macOS and Windows on the missing PyYAML fixed in 1.15.2. Caches appeared the moment jobs started passing, one per successful job, which is what a correct cache path looks like. The 1.15.3 entry has been rewritten to describe what that change actually did, which is to write the path out instead of inferring it; the change itself is unaffected, since both spellings name the same directory.
+
 ## [1.15.3] - 2026-09-09
 
 ### Fixed
@@ -12,7 +18,7 @@
 
 - **The failure guidance now names the system libraries, per distribution.** It listed R's build tooling only, and referred the reader to "the error above" that `quiet = TRUE` had suppressed. It now gives both commands for the detected platform -- toolchain and libraries -- says that the failing package's own `[ANTICONF]`/`[CONFIGURE]` block is more trustworthy than any list, and points at Posit Package Manager as the way to not compile at all. The README's installation section documents the same thing up front, next to the existing note that nothing compiles on Windows.
 
-- **The CI cache had never hit, so every run paid for a full cold install.** `setup-r` exports `R_LIBS_USER` as `RUNNER_TEMP/Library` unconditionally, which overrides a job-level `env:` for every later step. The workflow set it to `$GITHUB_WORKSPACE/.rlib` in order to know the cache path in advance; the R packages went to `RUNNER_TEMP/Library` regardless, and `actions/cache` archived an empty directory under a key that then always missed. `gh cache list` for the repository was empty, which was the tell. The cache now points at `${{ runner.temp }}/Library`, where the packages actually are.
+- **The R library cache path is now spelled out rather than inferred.** `actions/cache` was pointed at `${{ env.R_LIBS_USER }}`, which reads as though the job-level `env:` chose it; it does not -- `setup-r` exports `R_LIBS_USER` as `RUNNER_TEMP/Library` unconditionally, so the expression resolved to that instead, and the job-level setting had no effect on anything. The path is written out as `${{ runner.temp }}/Library`: the same directory, no longer disguised as a decision this workflow makes.
 
 ## [1.15.2] - 2026-09-09
 

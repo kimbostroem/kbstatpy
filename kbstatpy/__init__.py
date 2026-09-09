@@ -1,5 +1,5 @@
 from .options import KbstatOptions
 from .kbstat import Kbstat
 
-__version__ = "1.15.3"
+__version__ = "1.15.4"
 __all__ = ["Kbstat", "KbstatOptions", "__version__"]

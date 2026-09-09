@@ -118,12 +118,10 @@ jobs:
       - name: Cache the R library
         uses: actions/cache@v4
         with:
-          # Whatever setup-r exported, not a path of this workflow's choosing:
-          # setup-r sets R_LIBS_USER to RUNNER_TEMP/Library unconditionally,
-          # which overrides a job-level env, so the R library really lived there
-          # while this step cached an empty directory. The cache had therefore
-          # never once hit -- every run paid for a full cold install, which is
-          # why a broken cold install went unnoticed for three releases.
+          # Spelled out rather than read back from ${{ env.R_LIBS_USER }}:
+          # setup-r exports R_LIBS_USER as RUNNER_TEMP/Library unconditionally,
+          # overriding anything the job sets, so the indirection resolved to
+          # this same path while reading as though the job chose it.
           path: ${{ runner.temp }}/Library
           # Keyed on the installers, since that is where the package list lives.
           key: ${{ runner.os }}-R-${{ hashFiles('install.sh', 'install.ps1') }}
