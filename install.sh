@@ -111,6 +111,44 @@ r_help() {
     esac
 }
 
+# Printed when an R package could not be built. Only Linux reaches this in
+# practice: CRAN serves macOS and Windows binaries, so nothing compiles there,
+# while the Linux repositories carry source only.
+#
+# The library list is not guesswork. Of the ~130 packages in the recursive
+# dependency closure, exactly five declare system requirements -- curl, openssl,
+# fs, httpuv and stringi -- and every one but stringi is reached only through
+# DHARMa (DHARMa -> gap -> plotly -> httr -> curl, and DHARMa -> qgam -> shiny ->
+# bslib -> sass -> fs). That is why a missing header surfaces as a lone DHARMa
+# failure with no visible connection to libcurl or libuv.
+r_pkg_help() {
+    echo "  R's build tooling, when a compiler or the R headers are missing:"
+    case "$(detect_os)" in
+        macos)  echo "    xcode-select --install    (and a Fortran compiler: brew install gcc)" ;;
+        debian) echo "    sudo apt install r-base-dev build-essential" ;;
+        fedora) echo "    sudo dnf install R-devel gcc-c++ gcc-gfortran" ;;
+        arch)   echo "    sudo pacman -S base-devel gcc-fortran" ;;
+        suse)   echo "    sudo zypper install R-base-devel gcc-c++ gcc-fortran" ;;
+    esac
+    echo "  The system libraries these packages link against:"
+    case "$(detect_os)" in
+        macos)  echo "    brew install libuv openssl@3 icu4c cmake" ;;
+        debian) echo "    sudo apt install libcurl4-openssl-dev libssl-dev libuv1-dev zlib1g-dev libicu-dev cmake" ;;
+        fedora) echo "    sudo dnf install libcurl-devel openssl-devel libuv-devel zlib-devel libicu-devel cmake" ;;
+        arch)   echo "    sudo pacman -S curl openssl libuv zlib icu cmake" ;;
+        suse)   echo "    sudo zypper install libcurl-devel libopenssl-devel libuv-devel zlib-devel libicu-devel cmake" ;;
+        *)      echo "    libcurl, openssl, libuv, zlib and libicu, in their -dev/-devel form" ;;
+    esac
+    echo "  A failing package names its own requirement in the [ANTICONF] or"
+    echo "  [CONFIGURE] block printed above; trust that over this list."
+    echo ""
+    echo "  Or do not compile at all: Posit's package manager serves prebuilt"
+    echo "  binaries for the common Linux distributions, and this installer uses"
+    echo "  whichever repository R is configured with. Pick your distribution at"
+    echo "    https://packagemanager.posit.co/client/#/repos/cran/setup"
+    echo "  and put the options(repos=...) line it gives you in ~/.Rprofile."
+}
+
 # Printed when rpy2 cannot start R. This is the one failure that survives a
 # clean-looking install, so it gets its own guidance rather than a bare stack
 # trace.
@@ -276,16 +314,38 @@ echo ""
 echo "[3/5] Installing R packages..."
 
 Rscript -e '
+# warn=1 so a failing package is named where it fails. The default (warn=0)
+# defers the warnings to the end of the script, where they arrive as a bare
+# "There were N warnings" and say nothing about which package or why.
+options(warn = 1)
+
 pkgs <- c(
     "lme4", "lmerTest", "glmmTMB", "emmeans", "pbkrtest", "DHARMa",
     "tibble", "broom", "broom.mixed",
     "report", "see", "parameters", "performance",
     "effectsize", "insight", "datawizard", "bayestestR"
 )
+# Whatever R is already configured with, rather than a hardcoded mirror. On
+# Linux that is the difference between a minute and seventeen: cloud CRAN serves
+# Linux packages as source only, so a cold install compiles the whole ~130
+# package closure and needs a compiler and five system libraries, whereas a
+# binary repository (Posit package manager, which the CI runners and the Posit
+# and rocker images configure) hands over prebuilt packages and needs neither.
+# The hardcoded mirror silently overrode both -- including the CI workflow that
+# had asked setup-r for exactly those binaries.
+# "@CRAN@" is the R placeholder for "no mirror chosen yet", not a repository.
+repos <- getOption("repos")
+repos <- repos[!is.na(repos) & nzchar(repos) & repos != "@CRAN@"]
+if (length(repos) == 0) repos <- c(CRAN = "https://cloud.r-project.org")
+
 missing <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
 if (length(missing) > 0) {
     cat("Installing R packages:", paste(missing, collapse=", "), "\n")
-    install.packages(missing, repos="https://cloud.r-project.org", quiet=TRUE)
+    cat("Repositories:", paste(repos, collapse=", "), "\n")
+    # Deliberately not quiet: on Linux these build from source, and the compiler
+    # output is the only place that says why a build failed. It was quiet, and a
+    # DHARMa failure in CI was undiagnosable as a result.
+    install.packages(missing, repos=repos)
 
     # install.packages() only warns when a package fails and Rscript still exits
     # 0, so without this re-check a missing package surfaced much later as an
@@ -301,17 +361,8 @@ if (length(missing) > 0) {
 ' || {
     echo ""
     echo "ERROR: installing the R packages failed."
-    echo "  These packages compile from source on Linux and need R's build tooling:"
-    case "$(detect_os)" in
-        macos)  echo "    xcode-select --install    (and a Fortran compiler: brew install gcc)" ;;
-        debian) echo "    sudo apt install r-base-dev build-essential" ;;
-        fedora) echo "    sudo dnf install R-devel gcc-c++ gcc-gfortran" ;;
-        arch)   echo "    sudo pacman -S base-devel gcc-fortran" ;;
-        suse)   echo "    sudo zypper install R-base-devel gcc-c++ gcc-fortran" ;;
-    esac
-    echo "  Some also need system libraries; the error above names which."
-    echo "  CRAN package pages list their system requirements, e.g."
-    echo "    https://cran.r-project.org/package=glmmTMB"
+    echo "  A package that could not be built needs one of two things:"
+    r_pkg_help
     exit 1
 }
 

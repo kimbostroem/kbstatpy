@@ -78,10 +78,6 @@ jobs:
   install:
     name: ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
-    env:
-      # Set here rather than left to R's default so the cache path below is known
-      # before setup-r runs, and so both installers agree on where packages go.
-      R_LIBS_USER: ${{ github.workspace }}/.rlib
     strategy:
       # One platform's failure should not hide another's.
       fail-fast: false
@@ -114,14 +110,21 @@ jobs:
       - name: Create the R user library
         # R drops a non-existent directory from .libPaths(), so install.packages()
         # would silently fall back to the site library and the cache below would
-        # cache nothing.
+        # cache nothing. setup-r creates this directory too; the step stays
+        # because the guarantee is worth more than the second it costs.
         shell: bash
         run: mkdir -p "$R_LIBS_USER"
 
       - name: Cache the R library
         uses: actions/cache@v4
         with:
-          path: ${{ env.R_LIBS_USER }}
+          # Whatever setup-r exported, not a path of this workflow's choosing:
+          # setup-r sets R_LIBS_USER to RUNNER_TEMP/Library unconditionally,
+          # which overrides a job-level env, so the R library really lived there
+          # while this step cached an empty directory. The cache had therefore
+          # never once hit -- every run paid for a full cold install, which is
+          # why a broken cold install went unnoticed for three releases.
+          path: ${{ runner.temp }}/Library
           # Keyed on the installers, since that is where the package list lives.
           key: ${{ runner.os }}-R-${{ hashFiles('install.sh', 'install.ps1') }}
           restore-keys: ${{ runner.os }}-R-

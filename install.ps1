@@ -431,6 +431,11 @@ Write-Host '[3/4] Installing R packages...'
 # Passed as a file rather than via `Rscript -e`: PowerShell 5.1 mangles quotes
 # when it hands arguments to a native executable, and this snippet needs them.
 $rCode = @'
+# warn=1 so a failing package is named where it fails. The default (warn=0)
+# defers the warnings to the end of the script, where they arrive as a bare
+# "There were N warnings" that says nothing about which package, or why.
+options(warn = 1)
+
 pkgs <- c(
     "lme4", "lmerTest", "glmmTMB", "emmeans", "pbkrtest", "DHARMa",
     "tibble", "broom", "broom.mixed",
@@ -449,11 +454,24 @@ if (!is.na(lib) && nzchar(lib)) {
     lib <- .libPaths()[1]
 }
 
+# Whatever R is already configured with, rather than a hardcoded mirror, so a
+# user or a CI runner that has pointed R at its own repository is not silently
+# overridden. "@CRAN@" is the R placeholder for "no mirror chosen yet", not a
+# repository, and is dropped. Nothing compiles on Windows either way -- CRAN
+# serves binaries for every package here -- so this matters less than it does
+# in install.sh, where it is the difference between one minute and seventeen.
+repos <- getOption("repos")
+repos <- repos[!is.na(repos) & nzchar(repos) & repos != "@CRAN@"]
+if (length(repos) == 0) repos <- c(CRAN = "https://cloud.r-project.org")
+
 missing <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
 if (length(missing) > 0) {
     cat("Installing R packages:", paste(missing, collapse = ", "), "\n")
     cat("Library:", lib, "\n")
-    install.packages(missing, lib = lib, repos = "https://cloud.r-project.org", quiet = TRUE)
+    cat("Repositories:", paste(repos, collapse = ", "), "\n")
+    # Not quiet: when a package does fail, its own output is the only thing that
+    # says why, and the installer stops with a message that points at it.
+    install.packages(missing, lib = lib, repos = repos)
 
     # install.packages() only warns on failure and Rscript still exits 0, so a
     # package with no Windows binary would install "successfully" and then blow

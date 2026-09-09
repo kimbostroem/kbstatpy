@@ -84,6 +84,10 @@ Plus what the platform needs on top of that:
 
 On Windows nothing needs to be compiled: `rpy2` installs from a prebuilt `win_amd64` wheel, and CRAN serves the R packages as Windows binaries, so Rtools is not required.
 
+On **Linux** the opposite holds: CRAN serves Linux packages as source only, so a cold install compiles the whole dependency closure — around 130 packages, a quarter of an hour — and needs a C/C++/Fortran toolchain plus libcurl, OpenSSL, libuv, zlib and ICU in their `-dev`/`-devel` form (`sudo apt install r-base-dev build-essential libcurl4-openssl-dev libssl-dev libuv1-dev zlib1g-dev libicu-dev cmake` on Debian/Ubuntu). `DHARMa` is the package that needs most of them, by way of `gap` → `plotly` → `httr` → `curl` and `qgam` → `shiny` → `bslib` → `sass` → `fs`, so a missing header shows up as a `DHARMa` failure that looks unrelated to anything network- or filesystem-shaped. `install.sh` names the command for your distribution if a build fails.
+
+To avoid compiling altogether, point R at a binary repository — [Posit Package Manager](https://packagemanager.posit.co/client/#/repos/cran/setup) serves prebuilt packages for the common distributions — and put the `options(repos = ...)` line it gives you in `~/.Rprofile`. `install.sh` installs from whatever repository R is configured with, and falls back to CRAN when that is nothing.
+
 Native Windows support is recent — earlier versions of `rpy2` could not be installed there reliably, and this README said so. If a native install does give trouble, run the macOS/Linux steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell (e.g. Ubuntu) instead, and please open an issue.
 
 ---
