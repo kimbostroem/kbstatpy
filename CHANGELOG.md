@@ -1,279 +1,376 @@
 # Changes
 
+## [1.15.5] - 2026-09-09
+
+### Changes
+
+- **Shortened the changelog entries from 1.9.0 onward, and the GitHub releases taken from them.** They had grown to the point of being unreadable -- 1.10.0 ran to 991 words, 1.15.3 to 689 -- because `CLAUDE.md` asked for an entry written "for a reader who has not seen the diff" and set no length against it. Each change is now a headline sentence plus two or three of substance, with the deeper reasoning folded into a collapsed `<details>` block where it is worth keeping. Visible text across the 24 rewritten entries fell from about 6800 words to about 4000; nothing was deleted, only folded or compressed. Entries before 1.9.0 predate the verbose style and are untouched. `CLAUDE.md` now states the length limit and shows the folding pattern, so new entries follow it.
+
 ## [1.15.4] - 2026-09-09
 
 ### Fixed
 
-- **A factual error in the 1.15.3 changelog and in the comment it came from.** That entry claimed the R library cache "had never hit" because `setup-r` overrides the job-level `R_LIBS_USER`, leaving `actions/cache` to archive an empty `$GITHUB_WORKSPACE/.rlib`. The override is real, but the conclusion did not follow: the cache step read `${{ env.R_LIBS_USER }}`, and that expression picks up the value `setup-r` exported through `$GITHUB_ENV` just as the shell does, so it had been pointing at the real library all along. The repository's empty cache list, offered as the evidence, has a duller explanation -- `actions/cache` does not save when the job fails, and no `install` job had succeeded on any platform since CI was added in 1.15.0: Linux on `DHARMa`, macOS and Windows on the missing PyYAML fixed in 1.15.2. Caches appeared the moment jobs started passing, one per successful job, which is what a correct cache path looks like. The 1.15.3 entry has been rewritten to describe what that change actually did, which is to write the path out instead of inferring it; the change itself is unaffected, since both spellings name the same directory.
+- **A factual error in the 1.15.3 changelog.** It claimed the R library cache "had never hit" because `setup-r` overrides `R_LIBS_USER`. The override is real; the conclusion was not. `${{ env.R_LIBS_USER }}` picks up the value `setup-r` exports, so the cache path had been correct all along.
+
+  <details><summary>What the empty cache list actually meant</summary>
+
+  `actions/cache` does not save when a job fails, and no `install` job had succeeded on any platform since CI was added in 1.15.0: Linux on `DHARMa`, macOS and Windows on the missing PyYAML. Caches appeared the moment jobs started passing, one per successful job. The 1.15.3 change itself is unaffected, since both spellings name the same directory.
+  </details>
 
 ## [1.15.3] - 2026-09-09
 
 ### Fixed
 
-- **The Linux R package install failed on `DHARMa`, and the installer had no way to say why.** Both `ubuntu-latest` jobs had been red since the CI workflow was added in 1.15.0, with `ERROR: these R packages failed to install: DHARMa` -- one package out of the seventeen the installer asks for, the other sixteen fine. The re-check added in 1.15.0 caught it correctly and stopped, which is the only reason it was not a mysterious `emmeans` error during someone's first analysis. What it could not do was explain it: `install.packages()` ran with `quiet = TRUE` and R's default `warn = 0`, so seventeen minutes of compilation produced no output at all, then `There were 12 warnings` and a guidance block whose first line -- "Some also need system libraries; the error above names which" -- pointed at nothing. The install now runs with `options(warn = 1)` and without `quiet`, and the compiler output is what identified the cause: `fatal error: curl/curl.h: No such file or directory` and `fatal error: uv.h: No such file or directory`. `curl` and `fs` could not configure, and the failure cascaded through `httr`, `sass`, `bslib`, `rmarkdown`, `shiny`, `htmlwidgets`, `qgam`, `plotly` and `gap` to `DHARMa` -- twelve packages, which is exactly the twelve warnings that had been reported without names.
+- **The Linux R package install failed on `DHARMa`, and the installer could not say why.** Both `ubuntu-latest` jobs had been red since 1.15.0. `install.packages()` ran with `quiet = TRUE`, so seventeen minutes of compilation produced no output and the guidance pointed at an error nobody could see. The install now runs with `options(warn = 1)` and without `quiet`, which identified the cause at once: missing `curl/curl.h` and `uv.h` headers.
 
-  That `DHARMa` alone was affected is not coincidence and worth recording, because the next person to see it will look for a `DHARMa` bug. Of the ~130 packages in the recursive dependency closure of the seventeen, exactly five declare system requirements -- `curl` (libcurl, OpenSSL), `openssl` (OpenSSL), `fs` (libuv), `httpuv` (zlib) and `stringi` (ICU) -- and every one but `stringi` is reached only through `DHARMa`, via `gap` -> `plotly` -> `httr` -> `curl` and `qgam` -> `shiny` -> `bslib` -> `sass` -> `fs`. Every other top-level package stays inside pure R and C++. So a missing development header anywhere in the curl/libuv family presents as a single `DHARMa` failure with no visible connection to networking or the filesystem.
+  <details><summary>Why <code>DHARMa</code> alone, out of seventeen packages</summary>
 
-- **`install.sh` hardcoded `repos = "https://cloud.r-project.org"`, which is why anything was compiling in the first place.** CRAN serves Linux packages as source only. A binary repository does not, and `ci.yml` had already asked `r-lib/actions/setup-r` for one -- `use-public-rspm: true`, whose comment in the workflow says it exists so that "lme4 and glmmTMB compile from source, which turns a one-minute step into ten" does not happen. `setup-r` implements it by writing `options(repos = c(RSPM = ..., CRAN = ...))` and the matching `HTTPUserAgent` into `~/.Rprofile`; passing `repos =` explicitly overrode all of it, so the setting had never once had an effect and every run built the full closure from source. Both installers now install from whatever repositories R is configured with -- the user's `~/.Rprofile`, a distribution's site profile, a Posit or rocker image, a CI runner -- dropping R's `"@CRAN@"` placeholder and falling back to cloud CRAN when nothing is configured, which is what a machine with no R configuration of its own still gets. They print the repositories they are using, so "why is this compiling" is answerable from the log.
+  `curl` and `fs` could not configure, and the failure cascaded through `httr`, `sass`, `bslib`, `rmarkdown`, `shiny`, `htmlwidgets`, `qgam`, `plotly` and `gap` to `DHARMa` -- twelve packages, exactly the "There were 12 warnings" that had been reported without names.
 
-- **The failure guidance now names the system libraries, per distribution.** It listed R's build tooling only, and referred the reader to "the error above" that `quiet = TRUE` had suppressed. It now gives both commands for the detected platform -- toolchain and libraries -- says that the failing package's own `[ANTICONF]`/`[CONFIGURE]` block is more trustworthy than any list, and points at Posit Package Manager as the way to not compile at all. The README's installation section documents the same thing up front, next to the existing note that nothing compiles on Windows.
+  Of the ~130 packages in the recursive dependency closure, five declare system requirements: `curl` (libcurl, OpenSSL), `openssl` (OpenSSL), `fs` (libuv), `httpuv` (zlib) and `stringi` (ICU). Every one but `stringi` is reached only through `DHARMa`, via `gap` -> `plotly` -> `httr` -> `curl` and `qgam` -> `shiny` -> `bslib` -> `sass` -> `fs`. Every other top-level package stays inside pure R and C++. So a missing development header in the curl/libuv family presents as a single `DHARMa` failure with no visible connection to networking or the filesystem. Look there, not for a `DHARMa` bug.
+  </details>
 
-- **The R library cache path is now spelled out rather than inferred.** `actions/cache` was pointed at `${{ env.R_LIBS_USER }}`, which reads as though the job-level `env:` chose it; it does not -- `setup-r` exports `R_LIBS_USER` as `RUNNER_TEMP/Library` unconditionally, so the expression resolved to that instead, and the job-level setting had no effect on anything. The path is written out as `${{ runner.temp }}/Library`: the same directory, no longer disguised as a decision this workflow makes.
+- **`install.sh` hardcoded `repos = "https://cloud.r-project.org"`, which is why anything was compiling.** CRAN serves Linux packages as source only, and passing `repos =` explicitly overrode the binary repository `ci.yml` had already configured through `use-public-rspm: true`, so that setting had never once taken effect. Both installers now use whatever repositories R is configured with, fall back to cloud CRAN when there are none, and print which they used.
+
+- **The failure guidance names the system libraries, per distribution.** It previously listed R's build tooling only and referred to "the error above" that `quiet = TRUE` had suppressed. It now gives toolchain and library commands for the detected platform, says the failing package's own `[ANTICONF]`/`[CONFIGURE]` block is more trustworthy than any list, and points at Posit Package Manager as the way to not compile at all. Documented in the README.
+
+- **The R library cache path is spelled out** as `${{ runner.temp }}/Library` rather than inferred from `${{ env.R_LIBS_USER }}`. The same directory, no longer disguised as a decision this workflow makes.
 
 ## [1.15.2] - 2026-09-09
 
 ### Fixed
 
-- **CI failed on every platform because the test suite needs PyYAML and nothing installed it.** `tests/test_citation_metadata.py` validates `CITATION.cff` as real YAML rather than by regex, which is the point of it -- a regex would not catch the keys CFF 1.2.0 does not define. But PyYAML is not a runtime dependency of kbstatpy, nothing in the library reads that file, so neither installer pulls it in and the requirement existed only in the maintainer's local environment, where it happened to be present. On the runners the first test file died with `ModuleNotFoundError: No module named 'yaml'` and took the whole `Test suite` step down with it, on Windows and macOS alike, while every other test file passed. The suite had therefore been red since 1.15.0 for a reason unrelated to anything it was meant to guard, which is the worst state for a signal to be in: the Windows job was reporting failure at the same time as it was proving native Windows support worked. The dependency is now declared as a `test` extra in `pyproject.toml`, CI installs it before running the suite, and the import raises a message naming the extra instead of a bare traceback, so the next person to run the tests on a clean checkout is told what to install rather than left reading a stack trace.
+- **CI failed on every platform because the test suite needs PyYAML and nothing installed it.** `tests/test_citation_metadata.py` validates `CITATION.cff` as real YAML, which a regex could not do, but PyYAML is not a runtime dependency, so neither installer pulls it in and the requirement existed only on the maintainer's machine. On the runners the first test file died with `ModuleNotFoundError: No module named 'yaml'` and took the whole `Test suite` step down with it. It is now a `test` extra in `pyproject.toml`, installed by CI, and the import raises a message naming the extra instead of a bare traceback.
+
+  <details><summary>Why this mattered more than a missing package usually does</summary>
+
+  The suite had been red since 1.15.0 for a reason unrelated to anything it guards, which is the worst state for a signal to be in: the Windows job was reporting failure at the same time as it was proving native Windows support worked. Every other test file passed on both affected platforms.
+  </details>
 
 ## [1.15.1] - 2026-09-09
 
 ### Fixed
 
-- **`install.ps1` aborted instead of trying the next Python, because PowerShell treats output on stderr as a fatal error.** A Windows user running the documented `powershell -ExecutionPolicy Bypass -File install.ps1` got a `NativeCommandError` at step 1, with the text `python.exe : Python was not found; run without arguments to install from the Microsoft Store`. That message comes from the Microsoft Store placeholder named `python.exe` that Windows puts on `PATH`, and rejecting it is exactly what the installer's candidate loop was written to do -- it probes each interpreter and moves on to `py -3` when one cannot report a version. What defeated the loop is a Windows PowerShell rule with no counterpart in `bash`: anything a native executable writes to stderr becomes an error record, and under the script's `$ErrorActionPreference = 'Stop'` that record is *terminating*. The `2>$null` on the probe did not help, because the record is raised before the redirection discards the text. The same rule would have killed step 3 on a cold machine, since R writes its download progress to stderr; the CI job did not catch either, because the runner's `python` is real and its R library is cached, so nothing wrote to stderr there. Every external call now goes through one of two helpers that reset the preference in their own function scope, leaving the rest of the script strict. `tests/test_install_ps1.py` fails if a later edit reintroduces a direct call or drops the reset -- the only automated guard possible for a script that cannot be executed on the maintainer's platform.
+- **`install.ps1` aborted on the Microsoft Store `python.exe` placeholder instead of trying the next interpreter.** A Windows user running the documented command got a `NativeCommandError` at step 1. Rejecting that placeholder is exactly what the candidate loop was written to do, but PowerShell turns anything a native executable writes to stderr into an error record, and under `$ErrorActionPreference = 'Stop'` that record is terminating. Every external call now goes through a helper that relaxes the preference in its own function scope, leaving the rest of the script strict.
+
+  <details><summary>Why <code>2&gt;$null</code> did not help, and why CI missed it</summary>
+
+  The error record is raised before the redirection discards the text, so the probe's `2>$null` was no protection. The same rule would have killed the R package step on a cold machine, since R writes its download progress to stderr. CI caught neither, because the runner's `python` is real and its R library was cached, so nothing wrote to stderr there. `tests/test_install_ps1.py` now fails if a later edit reintroduces a direct call or drops the reset -- the only automated guard possible for a script that cannot be executed on the maintainer's platform.
+  </details>
 
 ### Changes
 
-- **`install.ps1` installs into the activated conda environment or venv, and says which interpreter it is writing to.** The trigger was the second half of the same report: an Anaconda user asking how to install into one specific environment rather than across all of them. `CONDA_PREFIX` and `VIRTUAL_ENV` are now read and the environment's own `python.exe` is used, ahead of `PATH` -- which also removes the failure above for anyone with an environment active, since the Store placeholder is then never reached. Naming the interpreter explicitly matters on a machine carrying Anaconda, a python.org install and the Store alias at once: `Python 3.12 found` does not say where the packages went, and the user finds out only when `import kbstatpy` fails in the environment they meant to use. The installer now prints the interpreter's full path and the environment it belongs to before installing anything, warns when an environment is active but the chosen interpreter lies outside it, notes when the target is conda `base` rather than a project environment, and, when nothing is active, says so and gives the two commands for creating an environment instead. Only the Python side is per-environment: the R packages go to the R user library and are shared, as they were before.
+- **The installer uses an activated conda environment or venv, and takes a `-Python` argument.** `CONDA_PREFIX` and `VIRTUAL_ENV` are read ahead of `PATH`, which also removes the failure above for anyone with an environment active. `-Python` accepts a path to `python.exe`, an environment folder, or a command name, and is never silently substituted: if it cannot be used, the installer stops.
 
-- **`install.ps1` takes a `-Python` argument.** For choosing an interpreter without activating anything -- a full path to `python.exe`, an environment folder (`python.exe` in a conda env root, `Scripts\python.exe` in a venv), or a command name to resolve on `PATH`. An explicit `-Python` is never silently substituted: if it cannot be used, the installer stops rather than installing somewhere else.
+- **It prints the interpreter it is about to write to, and the environment it belongs to.** On a machine carrying Anaconda, a python.org install and the Store alias at once, `Python 3.12 found` does not say where the packages went. It also warns when an environment is active but the chosen interpreter lies outside it, notes when the target is conda `base`, and says what to do when nothing is active. Only the Python side is per-environment; the R packages stay shared.
 
-- **The Microsoft Store placeholder is now named in the error when no Python can be found**, together with the two ways out (activate a conda environment, or pass `-Python`), rather than the bare `no working Python found` that a user with a perfectly good Anaconda install would otherwise see. The README's Windows section gained the same guidance and quotes the Store error verbatim, so a search for it lands on the fix.
+- **The Store placeholder is named in the error when no Python is found**, with the two ways out, rather than a bare `no working Python found`. The README's Windows section quotes the error verbatim so a search for it lands on the fix.
 
 ## [1.15.0] - 2026-08-26
 
 ### Changes
 
-- **Native Windows is now supported, with a `install.ps1` installer.** The README previously directed Windows users to WSL, on the grounds that `rpy2` -- the R bridge kbstatpy is built on -- could not be installed reliably on native Windows. That has not been true for some time: `rpy2-rinterface` publishes `win_amd64` wheels for CPython 3.9 through 3.14, and `rpy2` 3.6 carries deliberate Windows support, calling `os.add_dll_directory()` on R's DLL directory and handling both the pre-4.2 `bin\x64` layout and the merged `bin\` of R >= 4.2. CRAN serves every R package the installer needs as a Windows binary, so nothing compiles and Rtools is not required. kbstatpy's own code needed no changes for this: it shells out to nothing, spawns no processes, and builds every path through `os.path.join`. WSL remains documented as a fallback.
+- **Native Windows is supported, with an `install.ps1` installer.** The README previously directed Windows users to WSL because `rpy2` could not be installed reliably there; that has not been true for some time. Nothing compiles: `rpy2` installs from a `win_amd64` wheel and CRAN serves the R packages as Windows binaries, so Rtools is not required. WSL remains documented as a fallback.
 
-- **`install.ps1` handles three things that do not arise on macOS or Linux.** The Windows R installer does not add R to `PATH`, so R is located through the registry (and the default install location) rather than a `PATH` lookup alone. A non-interactive `Rscript` cannot answer R's "use a personal library?" prompt and errors out instead, so the user library is created before any package is installed. And because a failure to load `R.dll` surfaces at *import* -- long before any statistics run -- the installer verifies that `rpy2` can start R and load `glmmTMB` and `emmeans` before it reports success.
+  <details><summary>What changed upstream, and why kbstatpy needed no code changes</summary>
 
-- **Both installers now enforce the version minimums they only used to print, and say where to get what is missing.** `install.sh` computed `PYTHON_VERSION` and `R_VERSION` and never compared them against anything, so Python 3.9 or R 4.3 produced a pip or R error further down that did not name the cause. Both installers now stop with the offending version, and name the package-manager command or download page for the platform in question -- including the detail that a distribution's own `r-base` is frequently older than 4.4 and that the CRAN repository is the fix. Failures during installation are annotated the same way: which build tools to install if something has to compile, and what to check when `rpy2` cannot start R.
+  `rpy2-rinterface` publishes `win_amd64` wheels for CPython 3.9 through 3.14, and `rpy2` 3.6 carries deliberate Windows support, calling `os.add_dll_directory()` on R's DLL directory and handling both the pre-4.2 `bin\x64` layout and the merged `bin\` of R >= 4.2. kbstatpy itself shells out to nothing, spawns no processes, and builds every path through `os.path.join`.
+  </details>
 
-- **Both installers now detect R packages that failed to install.** `install.packages()` only warns when a package cannot be installed, and `Rscript` still exits 0, so a missing `glmmTMB` was reported as successfully installed and then surfaced as an unrelated-looking R error during the first analysis. Both installers re-check `installed.packages()` afterwards and fail with the names.
+- **`install.ps1` handles three things that do not arise on macOS or Linux.** The Windows R installer does not add R to `PATH`, so R is found through the registry. A non-interactive `Rscript` cannot answer R's "use a personal library?" prompt, so the user library is created up front. And a failure to load `R.dll` surfaces at *import*, long before any statistics run, so the bridge is verified before success is reported.
+
+- **Both installers enforce the version minimums they only used to print.** `install.sh` computed `PYTHON_VERSION` and `R_VERSION` and never compared them against anything, so Python 3.9 or R 4.3 produced a confusing failure further down. Both now stop with the offending version and name the package-manager command or download page for the platform.
+
+- **Both installers detect R packages that failed to install.** `install.packages()` only warns and `Rscript` still exits 0, so a missing `glmmTMB` was reported as installed and then surfaced as an unrelated-looking R error during the first analysis. They now re-check `installed.packages()` and fail with the names.
 
 ### Fixed
 
-- **Variable names and factor levels are now sanitised before they are used in output paths.** `save()` names the per-dependent-variable subdirectory after the variable, writes `Posthoc_<factor>.xlsx`, and -- when a fourth or later factor splits the data figure -- `DataPlots_<var>_<level>_<level>.*`. Those levels are ordinary data cells, so `5 mg/kg`, `50%` and `pre:post` are realistic values. Windows forbids `< > : " / \ | ? *` in a path component, refuses the reserved DOS device names (`NUL`, `CON`, `COM1`, ...) whatever the extension, and silently strips trailing dots and spaces. This went unnoticed because the library is developed on macOS, where only `/` is special -- and where it does not raise either: `os.path.join(out_dir, 'Force/BW')` quietly nests a directory, so the results tree silently differed from the one the user asked for, and the same analysis produced a different layout per operating system. Sanitising happens on every platform for that reason, not only on Windows. Names that are already safe are returned untouched, so no existing output path moves.
+- **Variable names and factor levels are sanitised before they are used in output paths.** Levels like `5 mg/kg`, `50%` and `pre:post` are ordinary data cells, and `save()` puts them into directory and file names. Sanitising happens on every platform, and names already safe are returned untouched, so no existing output path moves.
 
-- **`CLAUDE.md` claimed that two of the tests need no R.** They do, as does every other test: `kbstatpy/__init__.py` imports `.kbstat`, which calls `ro.r('emmeans::emm_options(...)')` at module level, so `from kbstatpy import __version__` is enough to start R and require `emmeans`. There is no R-free test, which is also why the new CI workflow has no R-free job.
+  <details><summary>Why macOS hid this</summary>
+
+  Windows forbids `< > : " / \ | ? *` in a path component, refuses the reserved DOS device names (`NUL`, `CON`, `COM1`, ...) whatever the extension, and silently strips trailing dots and spaces. On macOS only `/` is special, and it does not raise either: `os.path.join(out_dir, 'Force/BW')` quietly nests a directory, so the results tree silently differed from the one the user asked for, and the same analysis produced a different layout per operating system.
+  </details>
+
+- **`CLAUDE.md` claimed that two of the tests need no R.** They do, as does every other test: `kbstatpy/__init__.py` imports `.kbstat`, which calls `ro.r('emmeans::emm_options(...)')` at module level, so `from kbstatpy import __version__` is enough to start R.
 
 ### Added
 
-- **A CI workflow (`.github/workflows/ci.yml`), the repository's first.** The maintainer works on macOS, so nothing otherwise exercises `install.ps1` or the rpy2 bridge on Windows, and the Windows support above would be an assertion rather than a fact. It runs the real installer on Windows, Linux (Python 3.10 and 3.12) and macOS, then the test suite and all demos, and uploads the demo output so a figure that renders wrongly can be looked at. A separate job lints `install.ps1` against Windows PowerShell 5.1 -- the engine it targets, and one that no runner uses by default -- via PSScriptAnalyzer's compatibility profiles, which catch the PowerShell 7 syntax (`??`, ternaries, `&&` chains) that 5.1 rejects and a plain parse would accept.
+- **A CI workflow, the repository's first.** It runs the real installer on Windows, Linux (Python 3.10 and 3.12) and macOS, then the test suite and all demos, and uploads the demo output. A separate job lints `install.ps1` against Windows PowerShell 5.1 -- the engine it targets, and one no runner uses by default -- via PSScriptAnalyzer's compatibility profiles, which catch the PowerShell 7 syntax (`??`, ternaries, `&&` chains) that a plain parse would accept.
 
-- **`tests/test_path_sanitising.py`**, covering the forbidden characters, the reserved device names, trailing dots and spaces, the empty-after-sanitising fallback, and the end-to-end property that one component in yields one component out and never a nested path.
+- **`tests/test_path_sanitising.py`**, covering the forbidden characters, the reserved device names, trailing dots and spaces, the empty-after-sanitising fallback, and the property that one component in yields one component out.
 
 ## [1.14.2] - 2026-08-25
 
 ### Changes
 
-- **Dropped the references to the MATLAB library kbstatpy descends from where they only recorded provenance.** `show_emm_lines` was documented as "ported from the MATLAB predecessor's `plotLines`" in the option comment, the normalisation comment, the README table and the test docstring, and a test carried the name `test_matlab_style_string_is_accepted`. A reader of this library is not expected to know that software, so the phrase said nothing about what the option does. The comment explaining why an on/off option accepts strings at all keeps a reason, but one that stands on its own: a value may arrive as text from a config file, a command line or a spreadsheet cell and should need no conversion. The 1.14.0 changelog entry, and the published release notes taken from it, lost the same phrase.
-- The references that carry statistical reasoning are deliberately kept -- the seven-bin effect-size labels reproduce a specific scheme including its midpoint bin edges, and the `df = Inf` choice for GLMMs is defended by the same limitation existing elsewhere -- since without them those decisions look arbitrary or, worse, wrong. See `STATISTICAL_NOTES.md`.
+- **Dropped the references to the MATLAB library kbstatpy descends from where they only recorded provenance.** `show_emm_lines` was documented as "ported from `plotLines`" in the option comment, the README table and the test docstring; a reader of this library is not expected to know that software, so the phrase said nothing about what the option does. The 1.14.0 entry and its published release notes lost the same phrase.
+- The references that carry statistical reasoning are deliberately kept -- the seven-bin effect-size labels and the `df = Inf` choice for GLMMs would look arbitrary or wrong without them. See `STATISTICAL_NOTES.md`.
 
 ## [1.14.1] - 2026-08-25
 
 ### Changes
 
-- **New demo 18, `demo_18_plot_annotations.py`, for the two plot-annotation options 1.14.0 added.** It refits demo 3's crossed two-way design on `toothgrowth.csv` with the factors swapped -- dose on the x-axis, supplement as panels -- so nothing about the model is new and the demo is purely about presentation. The EMM lines happen to make the interaction visible without consulting a table: under ascorbic acid the high-dose line clears the entire medium-dose violin, under orange juice the two overlap by a wide margin. The notebook runs the same model three times, bare then annotated then with solid lines, so the styles can be compared inline.
-- **`demo_11_glmm_binomial.py` sets `show_group_size = True`.** Its bar plot printed the group counts automatically until 1.14.0 made them opt-in, so the demo had silently lost them; its cells are genuinely unbalanced (n = 21, 15, 14 at week 0), which is exactly where the counts are worth showing. Its docstring records the version change and points at demo 18.
-- README and the Colab playground list the new demo. The README's demo count was also stale -- it said sixteen while seventeen were listed -- and now reads eighteen.
+- **New demo 18, `demo_18_plot_annotations.py`,** for the two plot-annotation options 1.14.0 added. It refits demo 3's crossed two-way design with the factors swapped, so nothing about the model is new and the demo is purely about presentation. The notebook runs the same model three times, bare then annotated then with solid lines, so the styles can be compared inline.
+- **`demo_11_glmm_binomial.py` sets `show_group_size = True`.** Its bar plot printed group counts automatically until 1.14.0 made them opt-in, so the demo had silently lost them; its cells are genuinely unbalanced, which is exactly where the counts are worth showing.
+- README and the Colab playground list the new demo. The README's demo count was also stale (sixteen against seventeen listed) and now reads eighteen.
 
 ## [1.14.0] - 2026-08-25
 
 ### Changes
 
-- **New option `show_emm_lines`: a horizontal reference line at each plotted group's EMM, drawn across the whole panel in that group's own colour.** The estimated marginal mean is already marked by the white dot, but reading one group's level against the *other* groups meant comparing dot heights by eye across the panel; the line makes the comparison direct. Each facet panel uses its own EMMs, and where none is available the line follows the same median fallback as the dot. Applies to violin and bar style alike. The option doubles as the line style: `True` gives the default dotted line -- which recedes furthest behind the violins and the significance brackets, so a line crossing a violin cannot be mistaken for plotted data -- while `'-'`, `'--'`, `':'`, `'-.'` (or the matplotlib names `'solid'`, `'dashed'`, `'dotted'`, `'dashdot'`) pick one explicitly. Solid reads calmest and makes the group colours easiest to attribute, at the cost of looking more like content than like a guide. Default `False`.
-- **New option `show_group_size`: label each plotted group with its observation count (`n=12`).** *This changes existing output:* the counts used to be drawn unconditionally in bar style and were unavailable for violins, and they are now off by default in both, so bar plots lose them unless the option is set. The label is anchored to the top of what the group actually renders -- the violin's KDE tail, or the CI bar in bar style -- so it never lands inside the group's own body.
+- **New option `show_emm_lines`: a horizontal reference line at each plotted group's EMM, across the whole panel in that group's own colour.** The white dot already marks the EMM, but reading one group's level against the *others* meant comparing dot heights by eye. The option doubles as the line style: `True` gives the default dotted line, or pass `'-'`, `'--'`, `':'`, `'-.'`. Default `False`.
+
+  <details><summary>Why dotted is the default</summary>
+
+  Dotted recedes furthest behind the violins and the significance brackets, so a line crossing a violin cannot be mistaken for plotted data. Solid reads calmest and makes the group colours easiest to attribute, at the cost of looking more like content than like a guide. Each facet panel uses its own EMMs, and where none is available the line follows the same median fallback as the dot. Applies to violin and bar style alike.
+  </details>
+
+- **New option `show_group_size`: label each plotted group with its observation count (`n=12`).** *This changes existing output:* the counts used to be drawn unconditionally in bar style and were unavailable for violins; they are now off by default in both. The label is anchored to the top of what the group actually renders, so it never lands inside the group's own body.
 
 ### Fixed
 
-- **A significance bracket could be drawn through the `n=` label beneath it in violin plots.** The bracket stack is anchored above the tallest thing a panel has rendered, spaced in units of the y-range *as it stood before the stack expanded the axis*. A label's height is fixed in points, so on the taller axis it covers more data units and grows up into the bracket that was placed to clear it: a three-bracket stack expands the axis by roughly 40 %, which reduced a clearance of about 4 pt to under one pixel. Bar plots never showed it, their limits being pinned to 0..1.15. The gap is now measured in points once the y-limits are final, and only the stacks that came out tighter than 5 pt are lifted -- so panels that already clear their content, the bar plots included, are untouched. Measured on the demo figures: violin clearance 0.3 px -> 5.8 px, bar clearance unchanged at 6.5 px.
-- **`remove_outliers_prefit='off'` switched outlier removal ON, and `slope_correlated='false'` fitted the correlated random-effect structure.** Both flags were read as raw truthiness, and a non-empty string is truthy, so any string spelling of "off" meant its opposite -- silently, since neither warns. All the on/off options now go through one parser (`_as_flag`): `True`/`False` plus `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'` (= off), case- and whitespace-insensitive, with `'auto'` kept as `slope_correlated`'s third mode. An unrecognised value now raises instead of being read as truthy, so a typo like `'offf'` is a visible error rather than a silent inversion. This also means `slope_correlated`'s consumers, which compare against `False` by identity and `'auto'` by equality, are guaranteed the three values they expect.
-- `tests/test_emm_lines.py` and `tests/test_group_size_labels.py`. The bracket-clearance guard measures the gap in points on the finished figure rather than checking data-coordinate ordering, which is what the old geometry satisfied while still colliding.
+- **A significance bracket could be drawn through the `n=` label beneath it in violin plots.** The gap is now measured in points once the y-limits are final, and only stacks that came out tighter than 5 pt are lifted, so panels that already clear their content are untouched. Measured on the demo figures: violin clearance 0.3 px -> 5.8 px, bar unchanged at 6.5 px.
+
+  <details><summary>The interaction that caused it</summary>
+
+  The bracket stack is anchored above the tallest thing a panel has rendered, spaced in units of the y-range *as it stood before the stack expanded the axis*. A label's height is fixed in points, so on the taller axis it covers more data units and grows up into the bracket that was placed to clear it: a three-bracket stack expands the axis by roughly 40 %, which reduced a clearance of about 4 pt to under one pixel. Bar plots never showed it, their limits being pinned to 0..1.15.
+  </details>
+
+- **`remove_outliers_prefit='off'` switched outlier removal ON, and `slope_correlated='false'` fitted the correlated structure.** Both flags were read as raw truthiness, and a non-empty string is truthy, so any string spelling of "off" meant its opposite, silently. All on/off options now go through one parser (`_as_flag`) accepting `True`/`False`, `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'`, case- and whitespace-insensitive, with `'auto'` kept for `slope_correlated`. An unrecognised value now raises, so a typo like `'offf'` is a visible error rather than a silent inversion.
+- `tests/test_emm_lines.py` and `tests/test_group_size_labels.py`.
 
 ## [1.13.6] - 2026-07-31
 
 ### Fixed
 
-- **`CITATION.cff` was six minor versions stale and not valid CFF 1.2.0.** It declared `version: 1.7.1` against a released 1.13.5, because nothing imports the file, so a release could leave it behind without anything breaking. It also lacked the required `message` key, gave `type: software-code` where the schema allows only `software` or `dataset`, and carried `programming-languages`, a CodeMeta key that CFF does not define — so GitHub's "Cite this repository" panel had nothing valid to render, and the invalid keys were silently dropped rather than reported. The file is now valid, current, and carries `license`, `abstract`, and `keywords` in place of the undefined key.
-- `tests/test_citation_metadata.py` keeps it that way: it asserts that the three version sources agree — `kbstatpy.__version__` (which `pyproject.toml` reads via `version = {attr = ...}`), the newest `CHANGELOG.md` heading, and `CITATION.cff` — and that the file stays schema-valid, so a release that forgets any of them fails the suite instead of drifting unnoticed. Metadata only, so it needs neither R nor glmmTMB.
+- **`CITATION.cff` was six minor versions stale and not valid CFF 1.2.0.** It declared `version: 1.7.1` against a released 1.13.5, because nothing imports the file. It also lacked the required `message` key, gave a `type` the schema does not allow, and carried a CodeMeta key CFF does not define, so GitHub's "Cite this repository" panel had nothing valid to render and the invalid keys were dropped rather than reported. The file is now valid and current.
+- **`tests/test_citation_metadata.py` keeps it that way.** It asserts that the three version sources agree -- `kbstatpy.__version__`, the newest `CHANGELOG.md` heading, and `CITATION.cff` -- and that the file stays schema-valid, so a release that forgets any of them fails the suite.
 
 ### Changes
 
-- `CLAUDE.md` records the release procedure the repository already follows (version bump, changelog entry, `CITATION.cff`, commit on `develop`, fast-forward `master`, annotated `vX.Y.Z` tag, GitHub release with the changelog section as its notes), which until now had to be reconstructed from the git history.
+- `CLAUDE.md` records the release procedure the repository already follows, which until now had to be reconstructed from the git history.
 
 ## [1.13.5] - 2026-07-31
 
 ### Fixed
 
-- **`Summary.txt` reported the row count of the input table as the number of observations, not the number the model was actually fitted on.** The fit excludes the rows flagged by `remove_outliers_prefit` / `remove_outliers_postfit`, and R drops incomplete rows on top of that, so on a 7100-row table with 465 outliers flagged the run printed `Pre-fit outlier removal: 465 observation(s) flagged by IQR rule` and then reported `Number of observations : 7100` for a fit that used 6635. The count now comes from the fitted model itself (`nobs()`, falling back to the row count handed to it), and whatever was held out is named rather than absorbed: `Number of observations : 6635 (of 7100: 465 excluded as outliers)`, listing missing values separately when they also shrink n. Clean data still reports a bare count with no breakdown. This mattered most when cross-checking against the MATLAB kbstat library, which reports the post-removal count: the two looked like they disagreed on the data even where they agreed on the model and the estimates.
-- The `etaSqp` and `SMD` columns of the ANOVA table substitute n for an infinite `df2`, and took that n from the outlier-excluded frame, which still contains rows R dropped as missing. They now use the same count as the fit, so the effect sizes and the reported n cannot drift apart.
+- **`Summary.txt` reported the row count of the input table, not the number of observations the model was fitted on.** On a 7100-row table with 465 outliers flagged, it reported 7100 for a fit that used 6635. The count now comes from the fitted model itself, and whatever was held out is named: `6635 (of 7100: 465 excluded as outliers)`. Clean data still reports a bare count.
+
+  <details><summary>Why this mattered beyond the number itself</summary>
+
+  It showed up when cross-checking against the MATLAB kbstat library, which reports the post-removal count: the two looked like they disagreed on the data even where they agreed on the model and the estimates. Separately, the `etaSqp` and `SMD` columns substitute n for an infinite `df2` and took it from the outlier-excluded frame, which still contains rows R dropped as missing; they now use the same count as the fit, so the effect sizes and the reported n cannot drift apart.
+  </details>
+
 - `tests/test_summary_n_obs.py`.
 
 ## [1.13.4] - 2026-07-30
 
 ### Fixed
 
-- **The title of a correlation figure was cut off in the PDF when the matrix was small.** Both grids size their canvas from the matrix and its diagonal labels, ignoring the title, so a five-variable partial-correlation table came out under 3 in wide while its subtitle, `(residuals after removing all other variables)`, needs about 5 in at 13 pt; the PDF, whose canvas is fixed, lost both ends of it. The PNG was unaffected and therefore hid the problem, being saved with `bbox_inches='tight'`. The title is now measured against the canvas: it scales down towards the available width (to a floor of 0.75x, below which it would be unreadable), and whatever still does not fit widens the canvas, the extra split evenly so the matrix stays centred underneath. Wide grids have room to spare and are left at full size and unchanged in width.
+- **The title of a correlation figure was cut off in the PDF when the matrix was small.** Both grids size their canvas from the matrix and its diagonal labels, ignoring the title. The title is now measured against the canvas: it scales down towards the available width (to a floor of 0.75x), and whatever still does not fit widens the canvas, the extra split evenly so the matrix stays centred. Wide grids are unchanged.
+
+  <details><summary>Why the PNG hid it</summary>
+
+  A five-variable partial-correlation table came out under 3 in wide while its subtitle, `(residuals after removing all other variables)`, needs about 5 in at 13 pt; the PDF, whose canvas is fixed, lost both ends of it. The PNG is saved with `bbox_inches='tight'` and was therefore unaffected.
+  </details>
+
 - `tests/test_correlation_title_fits.py`. Layout only, so it needs neither R nor glmmTMB.
 
 ### Changes
 
-- The subtitle of a correlation figure is now set at 11 pt against the 13 pt of the title proper, instead of both lines sharing one size, so it reads as a subtitle rather than a second heading.
-- The frame marking a significant cell in the correlation scatter grid is 1.2 pt rather than 1.6 pt (non-significant cells keep their 0.5 pt hairline). 1.13.3 introduced the frame and erred on the heavy side; at Paper3 density the significant cells still stand out clearly at the lighter weight without dominating the scatters they enclose.
-- `STATISTICAL_NOTES.md` and the demo 5 description now explain how to read the raw and partial tables together, since it is the difference between them that carries the message: a high raw correlation that collapses in the partial marks redundancy within the variable set, a partial that stays high marks an association the other variables do not capture, and a low raw correlation that grows in the partial marks suppression. They also set out what conditioning can and cannot tell you: partial correlation removes what is linearly predictable from the conditioning set and has no notion of cause, so it removes a spurious association for a confounder, **creates** one for a collider, and erases a real effect for a mediator. Confounder and mediator produce the same signature with opposite meanings, and no amount of data distinguishes them, so with the conditioning set being simply all remaining variables the partials are best read as a statement about redundancy rather than about mechanism.
+- The subtitle of a correlation figure is 11 pt against the 13 pt of the title, so it reads as a subtitle rather than a second heading.
+- The frame marking a significant cell is 1.2 pt rather than 1.6 pt; 1.13.3 introduced it and erred on the heavy side.
+- **`STATISTICAL_NOTES.md` and the demo 5 description explain how to read the raw and partial tables together**, since it is the difference between them that carries the message.
+
+  <details><summary>What conditioning can and cannot tell you</summary>
+
+  A high raw correlation that collapses in the partial marks redundancy within the variable set; a partial that stays high marks an association the other variables do not capture; a low raw correlation that grows in the partial marks suppression.
+
+  Partial correlation removes what is linearly predictable from the conditioning set and has no notion of cause, so it removes a spurious association for a confounder, **creates** one for a collider, and erases a real effect for a mediator. Confounder and mediator produce the same signature with opposite meanings, and no amount of data distinguishes them, so with the conditioning set being simply all remaining variables the partials are best read as a statement about redundancy rather than about mechanism.
+  </details>
 
 ## [1.13.3] - 2026-07-30
 
 ### Changes
 
-- In the correlation scatter grid (`Correlation` / `PartialCorrelation`), cells whose coefficient is significant now carry a heavier frame, coloured by the direction of the correlation (red for positive, blue for negative, matching the existing colouring of the r-value). Significance was previously signalled only by the colour and weight of the r-value printed inside the cell, which is easy to miss in a large grid: the Skating/Paper3 run with sixteen variables has 120 cells. The frame encodes both facts at once, its weight marking significance and its colour the direction, so the significant pairs and the block structure of the matrix are legible at a glance. Non-significant cells keep the original light hairline.
+- **Cells whose correlation coefficient is significant now carry a heavier frame**, coloured by the direction of the correlation (red for positive, blue for negative, matching the r-value's own colouring). Significance was previously signalled only by the colour and weight of the r-value printed inside the cell, which is easy to miss in a large grid -- the sixteen-variable case has 120 cells. Non-significant cells keep the original light hairline.
 
 ## [1.13.2] - 2026-07-30
 
 ### Changes
 
-- The correlation figures kept a legible-but-small type floor while their cell size stayed fixed, so past roughly twelve variables the text became small relative to its box, and relative to the whole figure as well, since the diagonal labels widen the canvas. With sixteen variables the coloured table drew 5 pt numbers in a 0.55 in cell. The type floor is raised and the cell shrunk for large matrices, in both the coloured table (`CorrelationTable`) and the scatter grid (`Correlation`): at sixteen variables the table now uses 7 pt in a 0.48 in cell, so the numbers occupy 20% of the cell instead of 13%, and the figure comes out narrower too. Behaviour at twelve variables or fewer is unchanged apart from the raised floor.
+- **Raised the type floor and shrank the cell for large correlation matrices**, in both the coloured table and the scatter grid. Past roughly twelve variables the text had become small relative to its box and to the figure: at sixteen variables the table drew 5 pt numbers in a 0.55 in cell, and now uses 7 pt in a 0.48 in cell, so the numbers occupy 20 % of the cell instead of 13 % and the figure comes out narrower. Twelve variables or fewer is unchanged apart from the raised floor.
 
 ## [1.13.1] - 2026-07-30
 
 ### Changes
 
-- `LevelProfileContrast` now draws the fitted trend line for **every** significant trend. 1.13.0 suppressed it where the level estimates were far from collinear, on the grounds that a straight line through a rise-then-fall pattern asserts a gradient the data do not show. That was the wrong trade: it hid real results, since a contrast with a significant trend could end up with no line at all. Because the estimates and their confidence intervals are plotted regardless, a departure from the line is visible as points sitting off it, so the line cannot conceal a bend; this is the ordinary logic of a regression plot. The `PROFILE_COLLINEAR_TOL` attribute is gone.
-- `STATISTICAL_NOTES.md` records the reasoning, including why joining the estimates instead was also rejected (it shows the observed shape but not the tested quantity, and degenerates into an uninterpretable zigzag for more than three levels) and why no departure-from-linearity statistic is reported (with k levels the departure carries k−2 df, so isolating the quadratic term would be arbitrary for k > 3, and the diffuse alternative is already covered by the factor omnibus).
+- **`LevelProfileContrast` draws the fitted trend line for *every* significant trend.** 1.13.0 suppressed it where the level estimates were far from collinear, on the grounds that a straight line through a rise-then-fall pattern asserts a gradient the data do not show. That was the wrong trade: it hid real results, since a contrast with a significant trend could end up with no line at all. The estimates and their confidence intervals are plotted regardless, so a departure from the line is visible as points sitting off it. `PROFILE_COLLINEAR_TOL` is gone.
+
+  <details><summary>The two alternatives that were rejected</summary>
+
+  Joining the estimates instead shows the observed shape but not the tested quantity, and degenerates into an uninterpretable zigzag for more than three levels. No departure-from-linearity statistic is reported because with k levels the departure carries k-2 df, so isolating the quadratic term would be arbitrary for k > 3, and the diffuse alternative is already covered by the factor omnibus. Recorded in `STATISTICAL_NOTES.md`.
+  </details>
 
 ## [1.13.0] - 2026-07-30
 
 ### Added
 
-- **A second figure for `profile_across`: `LevelProfileContrast`.** The existing `LevelProfile` plots the absolute EMMs per level of the profiled factor, but the Layer-2 statistic is a linear trend of the *contrast between* those levels, which absolute EMMs do not display, and which is easily invisible when the levels differ greatly in magnitude. The new figure plots the contrast itself across the ordered factor, with 95% confidence intervals taken from `emmeans`' own link-scale estimates and standard errors. For a log link it shows ratios on a logarithmic axis with a reference line at 1; otherwise differences on a linear axis with a reference line at 0. Produced automatically alongside the existing plot, and available as `result.fig_profile_contrast`.
-- The fitted 1-df trend line is overlaid **only where the level estimates are close to collinear** (largest deviation from the fitted line below half the slope magnitude). A 1-df linear contrast can be significant on a rise-then-fall pattern because it weights the endpoints; drawing a line through that would assert a monotone gradient the data do not show, so in that case the p-value is annotated and no line is drawn.
-- `profile_across_result` gained `per_level_link`, the `emmeans` contrast table on the link scale (`estimate`, `SE`) per interacting factor, which is what the new figure consumes.
+- **A second figure for `profile_across`: `LevelProfileContrast`.** The existing `LevelProfile` plots the absolute EMMs per level, but the Layer-2 statistic is a linear trend of the *contrast between* those levels, which absolute EMMs do not display and which is easily invisible when the levels differ greatly in magnitude. The new figure plots the contrast itself with 95 % confidence intervals from `emmeans`' link-scale estimates: ratios on a logarithmic axis for a log link, otherwise differences on a linear axis. Available as `result.fig_profile_contrast`.
+- The fitted 1-df trend line is overlaid only where the level estimates are close to collinear, since a 1-df linear contrast can be significant on a rise-then-fall pattern by weighting the endpoints. (Reversed in 1.13.1.)
+- `profile_across_result` gained `per_level_link`, the `emmeans` contrast table on the link scale, which the new figure consumes.
 - `tests/test_profile_contrast.py`.
 
 ### Fixed
 
-- **Trend rows carried unlabelled integer codes for factors with three or more levels.** `emmeans` returns integer codes rather than labels in the `*_pairwise` column for this model class (the same label-dropping quirk already handled in `_pairwise_for`), so `LevelProfile.xlsx` showed `contrast` values of `1`, `2`, `3` and the trend rows could not be joined to the contrasts they describe. The labels are now fetched from `pairs()` on the same `emmeans` grid, which also keeps the ordering `emmeans`' own rather than the data's factor order (`x_order` can differ from it).
+- **Trend rows carried unlabelled integer codes for factors with three or more levels.** `emmeans` returns integer codes rather than labels in the `*_pairwise` column for this model class, so `LevelProfile.xlsx` showed `contrast` values of `1`, `2`, `3` and the trend rows could not be joined to the contrasts they describe. The labels are now fetched from `pairs()` on the same grid, which also keeps the ordering `emmeans`' own.
 
 ## [1.12.1] - 2026-07-30
 
 ### Changes
 
-- With `y_scale = 'log'`, the y-axis label now carries a `(log scale)` note, on the data plots and on the profile plot. The tick labels show untransformed values, so previously nothing but the tick spacing revealed that the axis was logarithmic, and a reader skimming the figure could take the values as linear. This mirrors the existing `(original scale)` note used for `y_transform`. The note is keyed to the scale actually applied, so a fallback to a linear axis (triggered by non-positive values) is never labelled as log.
+- **With `y_scale = 'log'`, the y-axis label carries a `(log scale)` note**, on the data plots and the profile plot. The tick labels show untransformed values, so previously nothing but the tick spacing revealed that the axis was logarithmic. This mirrors the existing `(original scale)` note used for `y_transform`, and is keyed to the scale actually applied, so a fallback to a linear axis is never labelled as log.
 
 ## [1.12.0] - 2026-07-30
 
 ### Added
 
-- **`options.y_scale`** (`'linear'` default, or `'log'`) sets the y-axis scale of the data plots and of the profile plot (`options.profile_across`). A log axis is the readable choice when the panels of one figure span orders of magnitude — with a shared linear axis the small-valued panels collapse into slivers even when they carry the largest effects — and it suits gamma/log-link models, where a constant ratio becomes a constant distance and the gaps between profile lines therefore *are* the group ratios. Significance brackets and the y-limit padding are computed in log space, so their spacing stays even instead of drifting or escaping the axis. Strictly positive values are required: because matplotlib silently drops `y <= 0` on a log axis, a non-positive value falls back to a linear axis with a warning rather than quietly deleting points. Diagnostic and correlation figures are never rescaled.
-- `tests/test_y_scale_log.py` — fits a small gamma/log GLMM and checks that the log axis is applied, that brackets stay inside the axis and stay evenly spaced *in log space*, that non-positive data falls back to linear with a warning, and that the profile plot has no x-axis label.
+- **`options.y_scale`** (`'linear'` default, or `'log'`) sets the y-axis scale of the data plots and the profile plot. Significance brackets and the y-limit padding are computed in log space, so their spacing stays even instead of drifting or escaping the axis. Strictly positive values are required: because matplotlib silently drops `y <= 0` on a log axis, a non-positive value falls back to a linear axis with a warning rather than quietly deleting points. Diagnostic and correlation figures are never rescaled.
+
+  <details><summary>When a log axis is the readable choice</summary>
+
+  With a shared linear axis, panels spanning orders of magnitude collapse into slivers even when they carry the largest effects. It also suits gamma/log-link models, where a constant ratio becomes a constant distance and the gaps between profile lines therefore *are* the group ratios.
+  </details>
+
+- `tests/test_y_scale_log.py`.
 
 ### Changes
 
-- The profile plot no longer draws an x-axis label. Its tick labels are the profiled factor's own level names and the title already names the factor, so the label only repeated the factor name (e.g. a redundant "JointGroup" under `Ankle / Hip / Upper Body`).
+- The profile plot no longer draws an x-axis label. Its tick labels are the profiled factor's own level names and the title already names the factor, so the label only repeated it.
 
 ## [1.11.4] - 2026-07-30
 
 ### Fixed
 
-- **`correlate()` partial correlations had inverted signs.** Each variable was residualised on *all the other* correlation variables, i.e. with its eventual partner still in the predictor set. For a pair (i, j) that yields `corr(resid_i | all others, resid_j | all others)`, which is identically **minus** the partial correlation, by the precision-matrix identity `partial_r(i,j) = -P_ij / sqrt(P_ii * P_jj)` with `P = inv(cov)`. Magnitudes were correct, so only the signs were wrong — which made the error easy to miss and produced strongly negative "partial correlations" between measures that are near-duplicates of each other. Both members of a pair are now residualised on the same conditioning set, excluding the pair itself.
-- The partial **scatter grid** was affected by the same cause and is fixed with it: it now plots the pair-specific residuals, so the plotted slope agrees with the labelled coefficient. `_plot_corr_scatter` takes a new optional `pair_arrays` argument for this.
-- `STATISTICAL_NOTES.md` described the incorrect construction; corrected, with a note on why the conditioning set must exclude both members.
+- **`correlate()` partial correlations had inverted signs.** Each variable was residualised on *all the other* correlation variables, with its eventual partner still in the predictor set, which yields identically minus the partial correlation. Magnitudes were correct, so the error was easy to miss, and it produced strongly negative "partial correlations" between measures that are near-duplicates. Both members of a pair are now residualised on the same conditioning set, excluding the pair itself.
+
+  <details><summary>The identity, and what else this touched</summary>
+
+  For a pair (i, j) the old construction gives `corr(resid_i | all others, resid_j | all others)`, which is minus the partial correlation by the precision-matrix identity `partial_r(i,j) = -P_ij / sqrt(P_ii * P_jj)` with `P = inv(cov)`. The partial scatter grid had the same cause and is fixed with it, now plotting the pair-specific residuals so the plotted slope agrees with the labelled coefficient. `STATISTICAL_NOTES.md` described the incorrect construction and is corrected.
+  </details>
 
 ### Added
 
-- `tests/test_partial_correlation_sign.py` — checks the partial coefficients against the precision-matrix definition (signs included), plus a collider case that must come out negative, a redundancy case that must stay positive, a `correlation_control` case, and a consistency check between the scatter slopes and the reported coefficients. Verified to fail on the pre-1.11.4 code.
+- `tests/test_partial_correlation_sign.py` -- checks the coefficients against the precision-matrix definition, signs included, plus a collider case that must come out negative, a redundancy case that must stay positive, and a `correlation_control` case. Verified to fail on the pre-1.11.4 code.
 
 ### Note
 
-Any `PartialCorrelation.xlsx` / `PartialCorrelation.png` / `PartialCorrelationTable.png` produced by 1.10.0 through 1.11.3 has inverted partial correlations and should be regenerated. Raw and covariate-adjusted correlations (`Correlation.xlsx`) are unaffected.
+Any `PartialCorrelation.xlsx` / `.png` produced by 1.10.0 through 1.11.3 has inverted partial correlations and should be regenerated. Raw and covariate-adjusted correlations are unaffected.
 
 ## [1.11.3] - 2026-07-29
 
 ### Changes
 
-- The correlation effect-size label (`_r_label`, used for Pearson r and Spearman rho in the `correlate()` output) now uses the same seven-bin `_cohen_label` scheme as the eta-squared and d labels, with the r/rho Cohen anchors 0.1/0.3/0.5 (matching MATLAB `effprint('r')`/`effprint('rho')`). It was the last effect-size labeler still on the old four-bin scheme (`negligible`/`small`/`medium`/`large`); now all of kbstatpy's effect-size labels (η², d/SMD, r, rho) share one consistent seven-bin ruler.
+- **The correlation effect-size label now uses the same seven-bin scheme as the eta-squared and d labels**, with the r/rho Cohen anchors 0.1/0.3/0.5. It was the last effect-size labeler still on the old four-bin scheme, so all of kbstatpy's labels now share one ruler.
 
 ## [1.11.2] - 2026-07-29
 
 ### Changes
 
-- Effect-size verbal labels now use a single **seven-bin** scheme for both partial eta-squared and Cohen's d, reproducing the MATLAB kbstat `effprint` bins (`very small`, `small`, `small to medium`, `medium`, `medium to large`, `large`, `very large`). Previously the partial-eta-squared labeler used only four bins (and returned `negligible` below 0.01) while the d labeler used seven bins with slightly-off thresholds (0.05/0.225 instead of MATLAB's 0.10/0.275), so the ANOVA table (eta-squared) and the post-hoc table (d) could describe the same magnitude with different words. Both now derive from a shared `_cohen_label` with the metric's Cohen anchors (eta-squared 0.01/0.06/0.14, d 0.2/0.5/0.8), so a value and its equivalent in the other metric label consistently.
-- The post-hoc effect-size label is now taken from the contrast's partial eta-squared (matching the MATLAB `emm` post-hoc), not from the SMD; both `SMD` and `etaSqp` are still reported as numeric columns.
+- **Effect-size labels use a single seven-bin scheme for both partial eta-squared and Cohen's d** (`very small` through `very large`). Previously the eta-squared labeler used four bins while the d labeler used seven with slightly different thresholds, so the ANOVA and post-hoc tables could describe the same magnitude with different words. Both now derive from a shared `_cohen_label` with the metric's own anchors (eta-squared 0.01/0.06/0.14, d 0.2/0.5/0.8).
+- The post-hoc effect-size label is taken from the contrast's partial eta-squared rather than the SMD; both are still reported as numeric columns.
 
 ## [1.11.1] - 2026-07-29
 
 ### Bugs
 
-- Post-hoc effect sizes are no longer degenerate for GLMMs. The pairwise SMD (Cohen's d) was computed as `2·|t|/√df`, but the non-Gaussian families are tested asymptotically (df = Inf), so every SMD collapsed to exactly 0. The SMD is now derived from the contrast `F = t²` with the residual df `n − p` as the denominator when the test df is infinite (finite Satterthwaite/Kenward-Roger df are still used for the Gaussian LMMs), reproducing the MATLAB kbstat convention so it is non-zero and interpretable. A partial eta-squared column (`etaSqp`) is added to the post-hoc table alongside it, computed from the same `F` and df. A `Summary.txt` note cautions that `n − p` treats the repeated within-subject observations as independent, so these effect sizes are liberal (approximate upper bounds); the p-values and EMMs are unaffected.
-- The post-hoc `diff` column (the response-scale difference of the two EMMs) came out `NaN` whenever a factor level name contained a special character (e.g. the hyphen in `Med-ADHD`): emmeans wraps such names in parentheses in the contrast label, and the level parser did not strip them, so the EMM lookup missed. The parser now strips a surrounding parenthesis pair, so `diff` is computed and the `<factor>_1` / `<factor>_2` columns show the bare level names.
+- **Post-hoc effect sizes are no longer degenerate for GLMMs.** The pairwise SMD was computed as `2*|t|/sqrt(df)`, but the non-Gaussian families are tested asymptotically (df = Inf), so every SMD collapsed to exactly 0. It is now derived from the contrast `F = t^2` with the residual df `n - p` when the test df is infinite, and a partial eta-squared column (`etaSqp`) is added alongside it.
+
+  <details><summary>The caveat this carries</summary>
+
+  Finite Satterthwaite/Kenward-Roger df are still used for the Gaussian LMMs. `n - p` treats the repeated within-subject observations as independent, so these effect sizes are liberal -- approximate upper bounds -- which `Summary.txt` now notes. The p-values and EMMs are unaffected.
+  </details>
+
+- **The post-hoc `diff` column came out `NaN` when a factor level name contained a special character** (for example the hyphen in `Med-ADHD`): emmeans wraps such names in parentheses in the contrast label, and the level parser did not strip them, so the EMM lookup missed. The parser now strips a surrounding parenthesis pair.
 
 ## [1.11.0] - 2026-07-25
 
 ### Features
 
-- **Control how diagnostic outliers are shown (`diagnostic_outliers`).** The diagnostic distribution panels (histogram and Q-Q) use DHARMa quantile residuals; observations outside the entire simulated range have no proper quantile and DHARMa caps them at z = ±7, where they pile up as an edge spike in the histogram and a horizontal band in the Q-Q. New `options.diagnostic_outliers` controls their display: `'text'` (default) omits the capped points and annotates the count/percentage at the bottom of each panel on a semi-transparent white background (so the axes autoscale to the bulk of the residuals), `'plot'` draws them in a distinct colour (orange), and `'hide'` omits them silently. This is a model-misfit / heavy-tail flag, deliberately kept as a separate concept (and separate colour) from the pre-fit data outliers.
+- **Control how diagnostic outliers are shown (`diagnostic_outliers`).** `'text'` (the default) omits the capped points and annotates the count and percentage at the bottom of each panel, `'plot'` draws them in orange, and `'hide'` omits them silently.
+
+  <details><summary>What is being capped, and why it is a separate concept</summary>
+
+  The diagnostic distribution panels use DHARMa quantile residuals; observations outside the entire simulated range have no proper quantile and DHARMa caps them at z = +/-7, where they pile up as an edge spike in the histogram and a horizontal band in the Q-Q. Omitting them lets the axes autoscale to the bulk of the residuals. This is a model-misfit / heavy-tail flag, deliberately kept as a separate concept, and a separate colour, from the pre-fit data outliers.
+  </details>
 
 ### Changes
 
-- **Renamed `show_outliers` to `data_outliers`** and gave it the same vocabulary as `diagnostic_outliers` (`'plot'` | `'text'` | `'hide'`), so the two outlier-display options are fully analogous. `show_outliers` still works as a deprecated alias (emits a `DeprecationWarning`), and its old value `'none'` maps to the new `'hide'`. Default is unchanged (`'text'`).
+- **Renamed `show_outliers` to `data_outliers`**, with the same vocabulary as `diagnostic_outliers` (`'plot'` | `'text'` | `'hide'`), so the two outlier-display options are fully analogous. `show_outliers` still works as a deprecated alias, and its old value `'none'` maps to `'hide'`. The default is unchanged.
 
 ## [1.10.0] - 2026-07-25
 
 ### Features
 
-- **Spearman correlations.** New `options.correlation_method` (`'pearson'`, the default, or `'spearman'`) selects the method for both the raw and the partial correlations; Spearman partial correlations are the partial correlations computed on the ranks. The figure titles name the method.
-- **Adjust correlations for covariates.** New `options.correlation_control` names variable(s) (e.g. `'Age'`) to partial out of every correlation before it is computed: the raw table then reports adjusted correlations and the partial table additionally controls for them. The control variables are kept out of the matrix, and the figure titles note the adjustment (e.g. "Partial Correlations (adjusted for Age)").
-- **Per-group dispersion for the glmmTMB families.** New `options.dispersion` sets the right-hand side of glmmTMB's `dispformula` (e.g. `'JointGroup'` → `dispformula = ~ JointGroup`), letting the dispersion vary by a factor instead of the default constant `~1`. Useful when pooled groups differ widely in scale/scatter; ignored for gaussian (LM/LMM) models.
-- **Random-slope covariance structure with an auto-fallback (`slope_correlated`).** New `options.slope_correlated` accepts `True`, `False`, or `'auto'` (the default). `True` keeps the full covariance among the random intercept and slopes, `(1 + s | id)`. `False` fits an uncorrelated (diagonal) structure — glmmTMB `diag(1 + s | id)` for the non-gaussian families, lme4's `(1 + s || id)` for gaussian LMMs — which drops the intercept-slope and slope-slope correlation parameters. `'auto'` fits the correlated structure first and refits with the diagonal one only when that fit is singular (non-positive-definite Hessian, boundary correlation, non-finite likelihood, or an lme4 fit failure), so it keeps the richer model where the data support it and escapes the singular, NaN-likelihood fit a many-level factor slope can otherwise produce. The structure actually used is reported in `Summary.txt` (a "Random-slope structure" line) and, when it departs from the plain correlated default, in the diagnostics-plot footer; an `'auto'` fallback is flagged as auto-selected, and an explicit `slope_correlated=True` that comes back singular warns and points at `'auto'`/`False`. Ignored when an explicit `formula` is supplied.
+- **Spearman correlations.** New `options.correlation_method` (`'pearson'` default, or `'spearman'`) selects the method for both the raw and the partial correlations; the Spearman partials are computed on the ranks. The figure titles name the method.
+- **Adjust correlations for covariates.** New `options.correlation_control` names variables (e.g. `'Age'`) to partial out of every correlation before it is computed. The control variables are kept out of the matrix and the figure titles note the adjustment.
+- **Per-group dispersion for the glmmTMB families.** New `options.dispersion` sets the right-hand side of glmmTMB's `dispformula`, letting dispersion vary by a factor instead of the default constant `~1`. Useful when pooled groups differ widely in scatter; ignored for gaussian models.
+- **Random-slope covariance structure with an auto-fallback (`slope_correlated`).** `True` keeps the full covariance `(1 + s | id)`, `False` fits an uncorrelated diagonal structure, and `'auto'` (the default) fits the correlated structure first and refits diagonally only when that fit is singular. The structure actually used is reported in `Summary.txt`.
+
+  <details><summary>What counts as singular, and what is reported where</summary>
+
+  Diagonal is glmmTMB `diag(1 + s | id)` for the non-gaussian families and lme4's `(1 + s || id)` for gaussian LMMs, dropping the intercept-slope and slope-slope correlation parameters. `'auto'` refits on a non-positive-definite Hessian, a boundary correlation, a non-finite likelihood, or an lme4 fit failure, so it keeps the richer model where the data support it and escapes the singular, NaN-likelihood fit a many-level factor slope can otherwise produce. A departure from the correlated default also appears in the diagnostics-plot footer; an `'auto'` fallback is flagged as auto-selected, and an explicit `slope_correlated=True` that comes back singular warns and points at `'auto'`/`False`. Ignored when an explicit `formula` is supplied.
+  </details>
 
 ### Changes
 
-- **`show_outliers` now defaults to `'text'`** (was `'plot'`). Flagged outliers are annotated as a count and percentage at the bottom of each data-plot panel instead of drawn as red X markers, so the y-axis autoscales to the non-outlier data by default rather than being squashed by extreme points. Pass `show_outliers='plot'` for the old red-X behaviour or `'none'` to omit them entirely.
-- **Tuned default plot font sizes and unified title/label weight.** Panel/subplot titles and axis labels 14 → 13, the figure suptitle's starting size 17 → 15 (it still auto-shrinks to fit the plot width), and the outlier-count annotation 9 → 10; tick numbers unchanged at 11. Titles and axis labels are now bold house-wide (via `axes.titleweight`/`axes.labelweight`), so the diagnostics and profile plots match the data plots; numeric tick labels stay regular weight and the correlation grids (which set their own text weight) are unaffected.
-- **Redesigned the correlation figures for a compact, unified look.** The correlation and partial-correlation tables are now a tight lower-triangle matrix with the variable names on the diagonal, replacing the larger layout with separate header bands. The scatter output is now a lower-triangle scatter-plot matrix that mirrors that table — variable names on the diagonal and a mini scatter with regression line and the r-value in each cell — instead of a square grid of all pairwise panels. The r-values sit on a semi-transparent white background so they stay readable over the points.
+- **`show_outliers` now defaults to `'text'`** (was `'plot'`), so the y-axis autoscales to the non-outlier data instead of being squashed by extreme points. Pass `'plot'` for the old red-X behaviour or `'none'` to omit them.
+- **Tuned the default plot font sizes and unified title/label weight.** Panel titles and axis labels 14 -> 13, the suptitle's starting size 17 -> 15, the outlier annotation 9 -> 10; ticks unchanged at 11. Titles and axis labels are now bold house-wide, so the diagnostics and profile plots match the data plots.
+- **Redesigned the correlation figures for a compact, unified look.** Both tables are now a tight lower-triangle matrix with the variable names on the diagonal, and the scatter output is a lower-triangle scatter-plot matrix that mirrors it, rather than a square grid of all pairwise panels.
 
 ### Bugs
 
-- Partial-correlation p-values now use the correct degrees of freedom, `df = n - 2 - g` (g = number of conditioning variables), instead of `n - 2`; the coefficients are unchanged.
-- `Summary.txt` no longer lists the fit statistics twice for glmmTMB models (previously once rounded via the AIC/BIC/logLik attributes, then again at full precision from the model's fit-stats table); AIC/BIC/logLik/deviance are now printed once, each to 3 decimals.
-- The formula parser no longer mistakes the intercept controls `0` and `1` for random-slope variables. A random-effects term like `(0 + A | id)` or `(1 + A | id)` previously parsed `0`/`1` as slopes and failed validation with `Random slope variable(s) ['0'] not found in fixed-effect factors`; they are now recognised as intercept controls and stripped from the slope list. The parser also accepts the diagonal syntaxes `diag(1 + A | id)` (glmmTMB) and `(1 + A || id)` (lme4).
+- Partial-correlation p-values now use `df = n - 2 - g` (g = number of conditioning variables) instead of `n - 2`; the coefficients are unchanged.
+- `Summary.txt` no longer lists the fit statistics twice for glmmTMB models.
+- The formula parser no longer mistakes the intercept controls `0` and `1` for random-slope variables, and now accepts the diagonal syntaxes `diag(1 + A | id)` and `(1 + A || id)`.
 
 ### Documentation
 
-- Added Demo 17 (`dispersion` / `dispformula`): a Gamma model on `ToothGrowth` fitted with constant vs by-dose dispersion, showing the lower AIC when groups differ in relative scatter. Script, notebook, README table/list, and Colab playground entry.
-- STATISTICAL_NOTES.md: documented the Spearman correlation option and covariate adjustment (with the g-adjusted partial-correlation degrees of freedom) in the correlation section, and added a "Per-group dispersion (`dispformula`)" section (Demo 17).
-- README.md and STATISTICAL_NOTES.md document `slope_correlated`: the README options table gains a row, and the "Random slopes in GLMMs" section explains the correlated/diagonal/`'auto'` choice, when the correlated slope goes singular, and the lme4 `||` caveat (it does not decorrelate the levels within a categorical slope, unlike glmmTMB's `diag()`).
+- Demo 17 (`dispersion` / `dispformula`): a Gamma model on `ToothGrowth` fitted with constant against by-dose dispersion. README, STATISTICAL_NOTES and Colab entries for the Spearman option, the covariate adjustment and `slope_correlated`.
 
 ### Known limitations
 
-- **Diagonal random slopes for a *categorical* factor in a gaussian LMM are not fully uncorrelated.** `slope_correlated=False`/`'auto'` emits lme4's `(1 + s || id)` for gaussian LMMs, but lme4's `||` decorrelates only the intercept from the slope and distinct slope terms — it does *not* drop the correlations among the levels *within* a single categorical slope (it expands to `(1 | id) + (0 + factor | id)`, keeping that block correlated). glmmTMB's `diag()` decorrelates fully, so the non-gaussian families are unaffected; only gaussian LMMs with a categorical random slope see the limitation. A genuinely diagonal structure there needs the factor expanded into indicator terms (afex-style `expand_re = TRUE`), which is not done automatically. Possible future work: either that expansion, or a small engine-override option to fit a gaussian model via glmmTMB (which would gain the correct `diag()` at the cost of lme4's Kenward-Roger / Satterthwaite denominator df). Deferred until a real case needs it.
+- **Diagonal random slopes for a *categorical* factor in a gaussian LMM are not fully uncorrelated.** lme4's `||` decorrelates the intercept from the slope and distinct slope terms, but not the correlations among the levels *within* a single categorical slope. glmmTMB's `diag()` decorrelates fully, so only gaussian LMMs with a categorical random slope are affected.
+
+  <details><summary>What a real fix would need</summary>
+
+  `(1 + s || id)` expands to `(1 | id) + (0 + factor | id)`, keeping that block correlated. A genuinely diagonal structure there needs the factor expanded into indicator terms (afex-style `expand_re = TRUE`), which is not done automatically. The alternatives are that expansion, or a small engine-override option to fit a gaussian model via glmmTMB, which would gain the correct `diag()` at the cost of lme4's Kenward-Roger / Satterthwaite denominator df. Deferred until a real case needs it.
+  </details>
 
 ## [1.9.0] - 2026-07-17
 
 ### Features
 
-- **Level-wise profile analysis** via `options.profile_across`. Names an ordered categorical factor and, on top of the usual analyses, profiles how the factor(s) interacting with it behave across its levels: per-level pairwise contrasts from the single fitted model (Layer 1), and the interaction as both a factor omnibus and a focused 1-df linear trend across the ordered positions (Layer 2 — a position-weighted contrast that honours real numeric spacing and reduces to the equal-spaced polynomial trend). Writes `LevelProfile.xlsx` and a profile plot; new `ModelResult` fields. Demo 16, README, and STATISTICAL_NOTES added.
-- **Bundled fonts, cross-platform.** kbstatpy now ships and registers Latin Modern Sans, TeX Gyre Heros, and TeX Gyre Termes (GUST Font License) on import, so plots render identically on every platform with no system font install. A request for `'Helvetica'`/`'Arial'` or `'Times'` keeps the real font on macOS/Windows and falls back to its bundled clone (TeX Gyre Heros / Termes) on Linux/Colab, instead of dropping to DejaVu Sans. Added friendly case-insensitive `options.font` aliases (`'Sans'`/`'Modern'` → Latin Modern Sans, `'Times'` → Times New Roman) and case-insensitive family matching.
-- **Run the demos on Google Colab.** Added `demos/kbstatpy_colab.ipynb` (a one-click playground) and per-demo "Open in Colab" links; each demo notebook self-installs via `demos/colab_setup.sh` (clones the repo, installs kbstatpy and the R packages, links the datasets). README "Open in Colab" badge and section.
+- **Level-wise profile analysis via `options.profile_across`.** Names an ordered categorical factor and profiles how the factors interacting with it behave across its levels: per-level pairwise contrasts from the single fitted model (Layer 1), and the interaction as both a factor omnibus and a focused 1-df linear trend across the ordered positions (Layer 2, a position-weighted contrast that honours real numeric spacing). Writes `LevelProfile.xlsx` and a profile plot. Demo 16.
+- **Bundled fonts, cross-platform.** kbstatpy ships and registers Latin Modern Sans, TeX Gyre Heros and TeX Gyre Termes (GUST Font License) on import, so plots render identically on every platform with no system font install. A request for `'Helvetica'`/`'Arial'` or `'Times'` keeps the real font on macOS/Windows and falls back to its bundled clone on Linux/Colab instead of dropping to DejaVu Sans. Case-insensitive `options.font` aliases (`'Sans'`/`'Modern'`, `'Times'`).
+- **Run the demos on Google Colab.** `demos/kbstatpy_colab.ipynb` plus per-demo "Open in Colab" links; each notebook self-installs via `demos/colab_setup.sh`.
 
 ### Changes
 
-- Enlarged the data, diagnostics, and profile plots' label/title/tick sizes (axis labels and panel titles 14, tick numbers 11, figure title 17); significance brackets unchanged, and the dense correlation grids keep their own sizes.
-- The descriptive-statistics table now uses `observed=True`, reporting only the factor-level combinations that occur rather than the full cartesian product padded with empty `N=0` cells.
-- When the body font resolves to Latin Modern Sans, `mathtext.fontset='cm'` so in-plot math (e.g. the Scale-Location √ label) matches the LaTeX look.
+- Enlarged the data, diagnostics and profile plots' label, title and tick sizes; significance brackets unchanged, and the dense correlation grids keep their own sizes.
+- The descriptive-statistics table uses `observed=True`, reporting only the factor-level combinations that occur rather than the full cartesian product padded with empty `N=0` cells.
+- When the body font resolves to Latin Modern Sans, `mathtext.fontset='cm'`, so in-plot math matches the LaTeX look.
 
 ### Bugs
 
-- Fixed a matplotlib "font family not found" warning for plot titles on platforms without Helvetica: the title font now resolves to an installed family, like the body font.
-- Silenced a pandas `FutureWarning` from the categorical groupby (`observed=True`).
-- Concise `__repr__` for `Output`/`ModelResult`/`CorrelationResult` (the dataclass default dumped the full summary text, DataFrames, and figure objects).
+- Fixed a matplotlib "font family not found" warning for plot titles on platforms without Helvetica.
+- Silenced a pandas `FutureWarning` from the categorical groupby.
+- Concise `__repr__` for `Output`/`ModelResult`/`CorrelationResult`; the dataclass default dumped the full summary text, DataFrames and figure objects.
 
 ### Documentation
 
-- STATISTICAL_NOTES: added Level-wise profile analysis (Demo 16) and Comparing any factor per cell (Demo 15), plus a note on why the two-level post-hoc is still reported.
-- README: the `profile_across` option and section, bundled-font behaviour and aliases, the Colab section, and demo 16.
+- STATISTICAL_NOTES: Level-wise profile analysis (Demo 16) and Comparing any factor per cell (Demo 15), plus a note on why the two-level post-hoc is still reported. README: the `profile_across` option and section, the bundled-font behaviour, the Colab section, and demo 16.
 
 ## [1.8.1] - 2026-07-16
 
