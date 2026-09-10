@@ -72,6 +72,16 @@ Only Python is installed per environment. The R packages go into your R user lib
 > **`python.exe : Python was not found; run without arguments to install from the Microsoft Store`**
 > PowerShell found the Microsoft Store placeholder named `python.exe` instead of your Python — usually because Anaconda is installed but no environment is activated in the shell you called from. Activate one, or pass `-Python`, as above. (Up to version 1.15.0 the installer aborted here with a `NativeCommandError` instead of moving on to the next interpreter; fixed in 1.15.1.)
 
+> **`unable to load shared object '...\library\stats\libs\x64\stats.dll': LoadLibrary failure: The specified module could not be found`**
+> R started (`rpy2` even reports its version) but cannot load its own libraries. The file it names is present; the R DLLs beside `R.dll` that it depends on are not on the search path, because R installs itself without touching `PATH`. From version 1.15.7 `import kbstatpy` puts them there itself. On an older version, or if it persists, set it for your account and open a new shell (with your own R version in the path):
+> ```powershell
+> $p = [Environment]::GetEnvironmentVariable('Path', 'User')
+> [Environment]::SetEnvironmentVariable('Path', $p + ';C:\Program Files\R\R-4.6.1\bin\x64', 'User')
+> ```
+
+> **`UnicodeDecodeError: 'utf-8' codec can't decode byte ...` while R prints a message**
+> R is reporting in a language whose accented characters `rpy2` cannot decode, so the real message is lost behind this one. Switch R to English and open a new shell: `[Environment]::SetEnvironmentVariable('LANGUAGE', 'en', 'User')`.
+
 Either installer:
 1. Checks the prerequisites and **stops with instructions if one is missing or too old** — which package manager command or download page to use for Python 3.10+ and R 4.4+ on your platform, rather than a failure further down that does not name the cause
 2. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
@@ -80,7 +90,7 @@ Either installer:
 
 Plus what the platform needs on top of that:
 - **macOS:** fixes the `rpy2` / R version symlink if needed, and warns about a mismatched Xcode Command Line Tools architecture
-- **Windows:** installs into the activated conda environment or venv if there is one (and reports which), finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand), and creates the personal R library that a non-interactive `Rscript` cannot create on demand
+- **Windows:** installs into the activated conda environment or venv if there is one (and reports which), finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand), and creates the personal R library that a non-interactive `Rscript` cannot create on demand. `import kbstatpy` then adds R's own library folder (`<R_HOME>\bin\x64`) to the search path of that Python process, so R can load the DLLs it fetches lazily, `Rlapack` above all; nothing has to be set by hand for this either
 
 On Windows nothing needs to be compiled: `rpy2` installs from a prebuilt `win_amd64` wheel, and CRAN serves the R packages as Windows binaries, so Rtools is not required.
 

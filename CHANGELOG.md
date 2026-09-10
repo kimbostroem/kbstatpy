@@ -1,5 +1,15 @@
 # Changes
 
+## [1.15.7] - 2026-09-10
+
+### Bugs
+
+- Windows: on a machine where R's library folder is not on the `PATH`, R started but every analysis then failed at its first `library()` call with `unable to load shared object ... stats.dll`, naming a file that is present rather than the R DLL beside it that is not. Importing kbstatpy now puts that folder on the search path, so no `PATH` setting is needed by hand.
+
+### Changes
+
+- The Windows installer's verification step now imports kbstatpy the way a script does, instead of testing `rpy2` on its own, and its failure message names the two causes actually seen in the wild: R's DLLs not being findable, and a non-English R whose accented characters `rpy2` cannot decode.
+
 ## [1.15.6] - 2026-09-09
 
 ### Changes

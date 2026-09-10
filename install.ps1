@@ -18,8 +18,10 @@
       * Non-interactive Rscript cannot answer R's "use a personal library?"
         prompt, so a fresh install fails at the first install.packages() unless
         the user library already exists. It is created up front.
-      * rpy2 loads R.dll out of R_HOME. When that fails it fails at *import*,
-        long before any statistics run, so the bridge is checked here rather
+      * rpy2 loads R.dll out of R_HOME, and R then loads its remaining DLLs
+        itself, out of the same folder - which is on no search path unless
+        something puts it there (kbstatpy does, at import). Both failures
+        happen before any statistics run, so the bridge is checked here rather
         than left for the user's first analysis.
 
     Anaconda and venv users: activate the environment first and the installer
@@ -195,6 +197,19 @@ function Resolve-RHome {
         if ($newest) { return $newest.FullName }
     }
 
+    return $null
+}
+
+function Get-RBinPath {
+    # The folder holding R.dll - R's own shared libraries live beside it, and
+    # R loads several of them (Rlapack in particular) only when a package first
+    # needs them. Same layout question as Get-RScriptPath: arch subfolder for
+    # R <= 4.1, bin\ for R >= 4.2.
+    param([string]$RHome)
+    foreach ($rel in @('bin\x64', 'bin\arm64', 'bin')) {
+        $path = Join-Path $RHome $rel
+        if (Test-Path (Join-Path $path 'R.dll')) { return $path }
+    }
     return $null
 }
 
@@ -516,16 +531,24 @@ Write-Host '[4/4] Verifying the rpy2 -> R bridge...'
 # one the registry happens to name.
 $env:R_HOME = $rHome
 
+# kbstatpy is imported first, before rpy2, and this order is the test rather
+# than an accident of tidiness. Importing kbstatpy is what a user does, and on
+# Windows it is also what puts R's DLL folder on the search path
+# (kbstatpy/_windows.py) - without which R starts but cannot load stats.dll,
+# and every analysis fails at its first library() call. Verifying rpy2 on its
+# own would exercise a path no analysis ever takes. The installer's own PATH is
+# deliberately left alone here for the same reason: what passes must be what
+# the user gets in a fresh shell.
 $pyCode = @'
+import kbstatpy
 import rpy2.robjects as ro
+print("  kbstatpy " + kbstatpy.__version__ + " imports")
 print("  rpy2 -> " + ro.r("R.version.string")[0])
 # glmmTMB and emmeans are the two packages every non-Gaussian analysis needs.
 # Loading them here turns a first-analysis failure into an install-time one.
 ro.r("suppressMessages(library(glmmTMB))")
 ro.r("suppressMessages(library(emmeans))")
 print("  glmmTMB and emmeans load through the bridge")
-import kbstatpy
-print("  kbstatpy " + kbstatpy.__version__ + " imports")
 '@
 
 $pyScriptFile = Join-Path $env:TEMP 'kbstatpy_verify.py'
@@ -538,15 +561,32 @@ try {
 }
 
 if ($verifyFailed) {
+    $rBin = Get-RBinPath -RHome $rHome
     Write-Host ''
-    Write-Host 'ERROR: rpy2 could not start R. Things to check, in order:'
-    Write-Host "  1. Both Python and R must be 64-bit (R at $rHome)."
-    Write-Host '  2. Set R_HOME permanently for your account, then open a new shell:'
-    Write-Host "       [Environment]::SetEnvironmentVariable('R_HOME', '$rHome', 'User')"
-    Write-Host '  3. Reinstall rpy2 from a wheel:'
-    Write-Host '       python -m pip install --force-reinstall --only-binary :all: rpy2'
-    Write-Host '  4. Failing all that, install inside WSL and follow the Linux steps'
-    Write-Host '     (see README.md).'
+    Write-Host 'ERROR: the bridge to R does not work. Read the message above first:'
+    Write-Host ''
+    if ($rBin) {
+        Write-Host '  * "unable to load shared object" / "LoadLibrary failure" / "the specified'
+        Write-Host '    module could not be found" - R started, but cannot find its own DLLs.'
+        Write-Host '    kbstatpy adds them to the search path itself, so seeing this means that'
+        Write-Host '    did not take. Set it for your account, then open a new shell:'
+        Write-Host "       `$p = [Environment]::GetEnvironmentVariable('Path', 'User')"
+        Write-Host "       [Environment]::SetEnvironmentVariable('Path', `$p + ';$rBin', 'User')"
+        Write-Host ''
+    }
+    Write-Host '  * A UnicodeDecodeError while R prints something - R is reporting in a'
+    Write-Host '    language whose accented characters rpy2 cannot decode. Switch R to'
+    Write-Host '    English, then open a new shell:'
+    Write-Host "       [Environment]::SetEnvironmentVariable('LANGUAGE', 'en', 'User')"
+    Write-Host ''
+    Write-Host '  * Anything else, in order:'
+    Write-Host "      1. Both Python and R must be 64-bit (R at $rHome)."
+    Write-Host '      2. Set R_HOME permanently for your account, then open a new shell:'
+    Write-Host "           [Environment]::SetEnvironmentVariable('R_HOME', '$rHome', 'User')"
+    Write-Host '      3. Reinstall rpy2 from a wheel:'
+    Write-Host '           python -m pip install --force-reinstall --only-binary :all: rpy2'
+    Write-Host '      4. Failing all that, install inside WSL and follow the Linux steps'
+    Write-Host '         (see README.md).'
     exit 1
 }
 
