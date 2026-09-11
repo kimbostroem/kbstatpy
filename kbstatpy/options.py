@@ -97,6 +97,22 @@ class KbstatOptions:
     # STATISTICAL_NOTES.md carries the measured timings and df comparisons.
     kr_max_obs: int = 5000
 
+    # Report ML information criteria for a ladder of fixed-effect structures
+    # (additive, all two-way, full factorial) alongside the fitted model, so the
+    # cost of the additive default is visible instead of implicit. Off by default.
+    #
+    # It is a REPORT, never a selection. Choosing a structure by AIC and then
+    # quoting the winner's p-values as if it had been fixed in advance inflates
+    # them: over 300 simulated datasets containing no interaction at all, a
+    # search of this same ladder kept one 30.7% of the time and called it
+    # significant in 13.0% of runs, against the 5.0% a pre-specified test gives.
+    # The model that is fitted, tested and reported stays the one you asked for.
+    #
+    # Costs one extra fit per rung, with the random-effect structure held fixed;
+    # that is about a second per variable on 18 000 rows with a random intercept,
+    # more with random slopes, which dominate the cost far more than row count.
+    model_comparison: bool = False
+
     remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting
     remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)
 

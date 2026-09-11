@@ -273,6 +273,22 @@ Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` use
 
 > **Caution:** when an interaction is significant, marginal main-effect estimates from `emmeans` average over the other factor. Main effects should be interpreted cautiously in that case — the interaction result is the primary finding.
 
+### Model structure, and why kbstatpy will not pick one for you
+
+`options.x = 'group, eyes, limb'` builds an **additive** model. That is not a neutral default: it asserts that each factor's effect is the same at every level of the others, and the post-hoc contrasts then come out identical in every cell, because the model forbids them from differing. `Summary.txt` names the structure under MODEL INFORMATION, and the post-hoc table blanks the repeated values and says why.
+
+Adding `options.interaction` lifts the constraint. Which structure is right is a question about the data, and `options.model_comparison` will report maximum-likelihood AIC and BIC for a ladder of them (additive, all two-way, full factorial), with the random effects held fixed so only the fixed effects vary.
+
+It stops at reporting, deliberately. Selecting a structure by AIC and then quoting the selected model's p-values, confidence intervals and effect sizes treats a model chosen *from* the data as though it had been specified in advance, and the inference is no longer valid. Simulated 300 times on data containing no interaction whatsoever: a pre-specified test of a given interaction was significant 5.0% of the time, exactly nominal, while a search over this ladder retained an interaction 30.7% of the time and reported it at p < 0.05 in 13.0% of runs. Selection also biases the retained term's effect size upward, and an AIC gap below about 2 is noise being read as a decision.
+
+For a factorial design the question usually needs no search at all: fit the full model and read its interaction tests, which are pre-specified and correctly calibrated.
+
+### Information criteria are computed by maximum likelihood
+
+Gaussian LMMs are fitted by REML, which is what the Kenward-Roger and Satterthwaite machinery above is derived for, and which estimates the variance components with less bias. But a REML likelihood is computed on residual contrasts that depend on the fixed-effect design matrix, so **REML AIC, BIC and logLik cannot be compared between models with different fixed effects** — which is exactly the comparison anyone running two variants of an analysis will make. On one real dataset the REML values read -820.6 for the additive model against -780.5 for the full factorial, an apparently decisive win, where the honest maximum-likelihood values are -857.1 and -857.3: a tie.
+
+kbstatpy therefore reports AIC, BIC and logLik from a maximum-likelihood refit, and says so beside them, while every estimate, standard error and test still comes from the REML fit. Switching the fit itself to ML is not an option: `pbkrtest` refuses outright ("Kenward-Roger's method is only available for REML model fits"). GLMMs are unaffected, since `glmmTMB` already fits by maximum likelihood.
+
 ### Degrees of freedom: Kenward-Roger and Satterthwaite
 
 The denominator degrees of freedom for the fixed-effect tests are controlled by the `df_method` option (default `'auto'`). The **same method is used for the omnibus ANOVA F-tests and the post-hoc contrasts alike**, so the two strata are always consistent, and the method actually used is reported in `Summary.txt` (under MODEL INFORMATION and beside the ANOVA and post-hoc tables).

@@ -1,5 +1,21 @@
 # Changes
 
+## [1.18.0] - 2026-09-11
+
+### Bugs
+
+- AIC, BIC and logLik for Gaussian LMMs came from the REML fit, and REML likelihoods do not compare between models with different fixed effects. On one dataset they read -820.6 additive against -780.5 full factorial, an apparently decisive win; the honest maximum-likelihood values are -857.1 and -857.3, a tie. They now come from an ML refit, while every estimate, standard error and test stays REML. **Any AIC or BIC from an earlier Gaussian LMM, and any model choice made from one, is worth revisiting.**
+
+### Changes
+
+- With no interaction between the compared factor and the factors the post-hoc table is split by, the contrast is the same in every cell by construction, but read as several tests that happened to agree exactly. `Summary.txt` shows the repeats once and says why; the exported table keeps every number.
+
+- MODEL INFORMATION names the fixed-effect structure, so the additive default is stated rather than assumed.
+
+### Features
+
+- New `model_comparison` (default off) reports maximum-likelihood AIC and BIC for a ladder of fixed-effect structures, random effects held fixed. A report, not a selection: picking a structure by AIC and then quoting its p-values inflates them.
+
 ## [1.17.0] - 2026-09-11
 
 ### Bugs

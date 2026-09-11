@@ -88,6 +88,7 @@ class ModelResult:
     data: object = None           # the data the model was fitted on
     fig_data: object = None       # data plot figure
     fig_diagnostics: object = None  # diagnostics figure
+    model_comparison: object = None  # ML criteria per fixed-effect structure, or None
     profile_across: object = None   # level-wise profile result dict, or None
     fig_profile_across: object = None  # profile plot figure, or None
     fig_profile_contrast: object = None  # differential (contrast) profile figure, or None
@@ -165,6 +166,7 @@ class Kbstat:
         self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
         self._df_runtime   = None             # df method after any runtime KR fallback (set in anova)
         self.n_obs_fit     = None             # rows the fit actually used (set in _construct_and_fit)
+        self.model_comparison_table = None    # ML criteria per fixed-effect structure (opt-in)
         self.output: Output = None            # populated by run(); read or pass to save()
 
     # ------------------------------------------------------------------
@@ -485,7 +487,8 @@ class Kbstat:
         # slope_correlated keeps its third value: 'auto' is a real mode, not a
         # spelling of on or off. Its consumers compare with `is not False` and
         # `== 'auto'`, both of which need exactly True / False / 'auto' here.
-        for _flag in ('remove_outliers_prefit', 'remove_outliers_postfit'):
+        for _flag in ('remove_outliers_prefit', 'remove_outliers_postfit',
+                      'model_comparison'):
             setattr(o, _flag, _as_flag(getattr(o, _flag), _flag))
         o.slope_correlated = _as_flag(o.slope_correlated, 'slope_correlated',
                                       {'auto': 'auto'})
@@ -595,6 +598,7 @@ class Kbstat:
                 anova=worker.anova_table,
                 posthoc=(worker.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=worker.statistics_table,
+                model_comparison=getattr(worker, 'model_comparison_table', None),
                 summary=worker._summary_text() if worker.model is not None else '',
                 data=worker.data,
                 fig_data=worker.fig_data,
@@ -666,6 +670,7 @@ class Kbstat:
                 anova=self.anova_table,
                 posthoc=(self.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=self.statistics_table,
+                model_comparison=getattr(self, 'model_comparison_table', None),
                 summary=self._summary_text(),
                 data=self.data,
                 fig_data=self.fig_data,
@@ -690,6 +695,8 @@ class Kbstat:
             self.fit()
         self.anova()
         self.posthoc()
+        if self.options.model_comparison:
+            self.model_comparison_table = self._compare_model_structures()
         if self.options.profile_across:
             self.profile_across()
         self.plot_diagnostics()
@@ -803,15 +810,35 @@ class Kbstat:
         # model's own nobs() and fall back to the row count we handed it.
         self.n_obs_fit = len(data_to_use)
 
-        # Extract AIC, BIC, logLik from the R model object
+        # Information criteria. lmer fits by REML, whose likelihood is computed on
+        # residual contrasts that depend on the fixed-effect design matrix -- so
+        # REML AIC/BIC/logLik cannot be compared between models with different
+        # fixed effects, which is the comparison anyone running two variants of an
+        # analysis will make. On one real dataset the REML values said -820.6
+        # additive against -780.5 full factorial, a decisive-looking win, where the
+        # honest ML values are -857.1 and -857.3, a tie. So the criteria come from
+        # an ML refit, while the model used for every estimate, standard error and
+        # test stays REML: ML biases the variance components low, and pbkrtest
+        # refuses Kenward-Roger on an ML fit outright ("Kenward-Roger's method is
+        # only available for REML model fits").
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        self.ic_refit_ml = False
         if r_obj is not None:
+            ic_obj = r_obj
+            if isinstance(self.model, Lmer):
+                try:
+                    ro.globalenv['._kbstat_remlfit'] = r_obj
+                    ic_obj = ro.r('update(._kbstat_remlfit, REML = FALSE)')
+                    self.ic_refit_ml = True
+                except Exception:
+                    ic_obj = r_obj                      # fall back to the REML values
             try:
-                self.AIC    = float(ro.r('AIC')(r_obj)[0])
-                self.BIC    = float(ro.r('BIC')(r_obj)[0])
-                self.logLik = float(ro.r('logLik')(r_obj)[0])
+                self.AIC    = float(ro.r('AIC')(ic_obj)[0])
+                self.BIC    = float(ro.r('BIC')(ic_obj)[0])
+                self.logLik = float(ro.r('logLik')(ic_obj)[0])
             except Exception:
                 self.AIC = self.BIC = self.logLik = None
+                self.ic_refit_ml = False
             try:
                 self.n_obs_fit = int(ro.r('nobs')(r_obj)[0])
             except Exception:
@@ -2196,6 +2223,9 @@ class Kbstat:
             if res.statistics is not None:
                 self._disp_cols(res.statistics).to_excel(os.path.join(d, 'Statistics.xlsx'), index=False)
                 print(f'Saved Statistics.xlsx to {d}')
+            if getattr(res, 'model_comparison', None) is not None and len(res.model_comparison):
+                res.model_comparison.to_excel(os.path.join(d, 'ModelComparison.xlsx'), index=False)
+                print(f'Saved ModelComparison.xlsx to {d}')
             if res.data is not None:
                 res.data.to_csv(os.path.join(d, 'Data.csv'), index=False)
                 print(f'Saved Data.csv to {d}')
@@ -3917,6 +3947,112 @@ class Kbstat:
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
 
+    def _model_structure_label(self) -> str:
+        """Whether the fixed effects are additive, full factorial, or in between.
+
+        Worth stating: `x = 'group, eyes, limb'` builds an additive model, and
+        that is not a neutral default but an assertion that each factor's effect
+        is the same at every level of the others. Left unsaid, it surfaces later
+        as post-hoc rows that are identical across cells and look like a fault.
+        """
+        labels = []
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is not None:
+            try:
+                labels = [str(t) for t in
+                          ro.r('function(m) attr(terms(m), "term.labels")')(r_obj)]
+            except Exception:
+                labels = []
+        if not labels:                              # formula fallback
+            f = str(getattr(self.model, 'formula', '') or '')
+            rhs = f.split('~', 1)[1] if '~' in f else ''
+            rhs = re.sub(r'\([^)]*\)', '', rhs)
+            labels = [t.strip() for t in rhs.split('+') if t.strip()]
+            if any('*' in t for t in labels):
+                return 'full factorial' if len(labels) == 1 else 'partial (some interactions)'
+        inter = [t for t in labels if ':' in t]
+        if not inter:
+            return 'additive (no interaction terms)'
+        k = len({t for lab in labels for t in lab.split(':')})
+        full = 2 ** k - k - 1                       # every interaction among k factors
+        return 'full factorial' if len(inter) >= full else 'partial (some interactions)'
+
+    def _compare_model_structures(self):
+        """ML information criteria for a ladder of fixed-effect structures.
+
+        Reported, never acted on: see options.model_comparison for why choosing
+        by AIC and then quoting the winner's p-values is not sound. The random
+        effects are held fixed across the rungs, since the comparison is about
+        the fixed effects and the random part is what costs the time. Fitted by
+        ML, because REML likelihoods do not compare across fixed-effect
+        structures (that is the trap this table exists to keep people out of).
+
+        Returns a DataFrame, or None when there is nothing to compare: an
+        explicit formula (the caller owns the structure) or fewer than two
+        factors (no interaction is possible).
+        """
+        if self.model is None or self.options.formula:
+            return None
+        factors = [f for f in (self.options.x or [])]
+        if len(factors) < 2:
+            return None
+        covs = [c for c in (self.options.covariate or []) if c not in factors]
+        fitted_formula = str(getattr(self.model, 'formula', '') or '')
+        re_terms = re.findall(r'\([^)]*\|[^)]*\)', fitted_formula)
+        tail = ''.join(f' + {t}' for t in re_terms) + ''.join(f' + {c}' for c in covs)
+
+        rungs = [('additive', ' + '.join(factors))]
+        if len(factors) > 2:
+            rungs.append(('all two-way', f"({' + '.join(factors)})^2"))
+        rungs.append(('full factorial', ' * '.join(factors)))
+
+        y = self.options.y if isinstance(self.options.y, str) else ''
+        data_to_use = self.data
+        if 'is_outlier' in self.data.columns:
+            data_to_use = self.data[~self.data['is_outlier']]
+        import rpy2.robjects.pandas2ri as p2ri
+        from rpy2.robjects import default_converter
+        from rpy2.robjects.conversion import localconverter
+        with localconverter(default_converter + p2ri.converter):
+            ro.globalenv['._kbstat_cmp_data'] = data_to_use
+
+        family = self._family()
+        link = self.options.link if self.options.link not in ('auto', '') else ''
+        fam_expr = f'{family}(link="{link}")' if link and link != 'default' else family
+        has_random = bool(re_terms)
+
+        rows = []
+        for label, rhs in rungs:
+            f = f'{y} ~ {rhs}{tail}'
+            try:
+                if family == 'gaussian' and has_random:
+                    ro.r('suppressMessages(library(lmerTest))')
+                    m = ro.r(f'lmerTest::lmer({f}, data = ._kbstat_cmp_data, REML = FALSE)')
+                elif family == 'gaussian':
+                    m = ro.r(f'lm({f}, data = ._kbstat_cmp_data)')
+                else:
+                    ro.r('suppressMessages(library(glmmTMB))')
+                    m = ro.r(f'glmmTMB({f}, data = ._kbstat_cmp_data, family = {fam_expr})')
+                rows.append({
+                    'Structure': label,
+                    'Fixed effects': rhs,
+                    'npar': int(ro.r('function(m) attr(logLik(m), "df")')(m)[0]),
+                    'logLik': float(ro.r('logLik')(m)[0]),
+                    'AIC': float(ro.r('AIC')(m)[0]),
+                    'BIC': float(ro.r('BIC')(m)[0]),
+                })
+            except Exception as exc:
+                warnings.warn(f"model_comparison: the {label!r} structure could not be "
+                              f"fitted ({type(exc).__name__}); it is left out of the table.",
+                              stacklevel=2)
+        if len(rows) < 2:
+            return None
+        df = pd.DataFrame(rows)
+        df['dAIC'] = df['AIC'] - df['AIC'].min()
+        fitted = self._model_structure_label().split(' (')[0]
+        df['fitted'] = ['<-- fitted' if r == fitted else '' for r in df['Structure']]
+        return df
+
     def _fit_method_label(self) -> str:
         """The estimator that actually ran, for MODEL INFORMATION.
 
@@ -3992,6 +4128,7 @@ class Kbstat:
             f'  Distribution           : {self.options.distribution}',
             f'  Link function          : {link}',
             f'  Fit method             : {fit_method}',
+            f'  Model structure        : {self._model_structure_label()}',
         ]
         if self.options.id:
             lines.append(f'  Random grouping factor : {self.options.id}')
@@ -4018,6 +4155,9 @@ class Kbstat:
                 fit_stat_vals = {col: fs_df[col].iloc[0] for col in fs_df.columns}
         elif self.AIC is not None:
             fit_stat_vals = {'AIC': self.AIC, 'BIC': self.BIC, 'logLik': self.logLik}
+        if getattr(self, 'ic_refit_ml', False):
+            lines.append('  (AIC/BIC/logLik from an ML refit, so they compare across models;')
+            lines.append('   everything else comes from the REML fit)')
         for name, val in fit_stat_vals.items():
             try:
                 lines.append(f'  {name:<24}: {float(val):.3f}')
@@ -4078,6 +4218,20 @@ class Kbstat:
                         '',
                     ]
 
+        # --- Model-structure comparison (opt-in) ---
+        mc = getattr(self, 'model_comparison_table', None)
+        if mc is not None and len(mc):
+            show = mc.copy()
+            for c in ('logLik', 'AIC', 'BIC', 'dAIC'):
+                if c in show.columns:
+                    show[c] = show[c].map(lambda v: f'{v:.3f}')
+            lines += ['MODEL STRUCTURE COMPARISON', '--------------------------',
+                      show.to_string(index=False),
+                      '  Maximum likelihood, same random effects throughout; lower AIC is better.',
+                      '  For information only. Everything else in this file comes from the fitted',
+                      '  structure, and choosing another one by AIC would make its p-values too',
+                      '  small: re-running with it is a decision you make, not one AIC makes.', '']
+
         # --- Post-hoc ---
         if self.posthoc_table is not None:
             ph = self.posthoc_table
@@ -4086,7 +4240,21 @@ class Kbstat:
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
             lines += [f'  Correction: {self.options.posthoc_correction}',
                       f'  Denominator df method: {self._df_method_label()}', '']
-            lines += [_bounded_p_table(ph).to_string(index=False), '']
+            _ph_show, _n_blanked = _blank_repeated_contrasts(ph, self.options.x[0]
+                                                            if self.options.x else '')
+            lines += [_bounded_p_table(_ph_show).to_string(index=False), '']
+            if _n_blanked:
+                _f = self.options.x[0]
+                _by = [b for b in (self.options.x[1:] if self.options.x else [])
+                       if b in ph.columns]
+                lines += [
+                    f'  Blank = same value as the row above it. The model has no interaction',
+                    f'  between {_f} and ' + (' or '.join(_by) if _by else 'the other factors')
+                    + f', so the {_f} contrast is the same in every',
+                    '  cell by construction and is shown once; only the marginal means differ.',
+                    f'  Add the interaction (options.interaction) to let it vary by cell.',
+                    '',
+                ]
 
             # Caution about the df approximation behind the fallback effect sizes.
             _ph_inf = False
@@ -4286,6 +4454,57 @@ class Kbstat:
 # ------------------------------------------------------------------
 # Statistical helper functions
 # ------------------------------------------------------------------
+
+def _blank_repeated_contrasts(df, factor_col):
+    """Display copy of the post-hoc table with values that merely repeat blanked.
+
+    A model without an interaction between the compared factor and the factors
+    the table is split by asserts that the contrast is the same in every cell, so
+    emmeans returns the same test in each and the rows differ only in their
+    marginal means. Printed in full that reads as several tests on several
+    subsets which happen to agree exactly, rather than one test shown several
+    times; the repeats are blanked so the distinct numbers stand out.
+
+    Done per column against the first row of each level pair, which also covers
+    the mixed case a non-identity link produces: there the back-transformed
+    difference varies from cell to cell while the test behind it does not, so
+    `diff` survives and `t`, `df`, `p` blank out.
+
+    Returns (display frame, number of rows with something blanked).
+    """
+    out = df.copy()
+    pair_cols = [c for c in (f'{factor_col}_1', f'{factor_col}_2') if c in out.columns]
+    value_cols = [c for c in ('diff', 't', 'df', 'p', 'pCorr', 'SMD', 'etaSqp',
+                              'effectSize', 'significance') if c in out.columns]
+    if not pair_cols or not value_cols or len(out) < 2:
+        return out, 0
+
+    def _same(a, b):
+        try:
+            fa, fb = float(a), float(b)
+            return (fa == fb) or (fa != fa and fb != fb)     # equal, or both NaN
+        except (TypeError, ValueError):
+            return str(a) == str(b)
+
+    # '' cannot go into a float64 column, so the value columns become object
+    # first. Display only -- the exported table keeps its numeric dtypes.
+    for col in value_cols:
+        out[col] = out[col].astype(object)
+
+    blanked_rows = set()
+    for _, idx in out.groupby(pair_cols, sort=False).groups.items():
+        idx = list(idx)
+        if len(idx) < 2:
+            continue
+        first = idx[0]
+        for col in value_cols:
+            ref = out.at[first, col]
+            for i in idx[1:]:
+                if _same(out.at[i, col], ref):
+                    out.at[i, col] = ''
+                    blanked_rows.add(i)
+    return out, len(blanked_rows)
+
 
 def _bounded_p_table(df):
     """Copy of `df` whose p-value columns print underflow as '<1e-308'.
