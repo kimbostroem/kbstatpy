@@ -194,22 +194,34 @@ class KbstatOptions:
     #   'text'   (default) omit the points but annotate the count and percentage
     #            of outliers as text at the bottom (south) of each panel
     #   'hide'   omit outliers entirely, no annotation
+    # 'plot' marks them with red X markers, 'text' (default) annotates the count
+    # and percentage, 'none' hides them silently ('off' / 'hide' also accepted).
     data_outliers: str = 'text'
-    # How diagnostic outliers appear in the diagnostic distribution panels
-    # (histogram and Q-Q). These are the DHARMa quantile residuals that fall
-    # outside the entire simulated range: DHARMa caps them at z = +/-7, where they
-    # pile up as an edge spike in the histogram and a horizontal band at the top/
-    # bottom of the Q-Q. They flag a model-vs-data misfit (heavy tails) and are a
-    # DIFFERENT concept from the data outliers above (pre-fit data cleaning vs
-    # post-fit model adequacy). Same vocabulary as data_outliers:
-    #   'plot'   draw the capped points in a distinct colour (orange)
-    #   'text'   (default) omit the capped points and annotate the count and
-    #            percentage at the bottom of each distribution panel
-    #   'hide'   omit the capped points entirely, no annotation
-    diagnostic_outliers: str = 'text'
+    # Number of simulated datasets behind the DHARMa quantile residuals used by
+    # the diagnostic distribution panels. 'auto' (the default) scales it with the
+    # data; give an integer to pin it.
+    #
+    # The count sets the RESOLUTION of those residuals, which is why it is worth
+    # a knob. A quantile residual is the observation's position in the empirical
+    # CDF of the simulations, so it can only take the values k/n_sim: the most
+    # extreme value expressible is qnorm(1/n_sim), and every observation beyond
+    # it lands either on that value or in the capped pile. DHARMa's own default
+    # of 250 puts that limit at z = +/-2.65, which on a few thousand rows shows
+    # up as horizontal rows of points at the ends of the Q-Q plot -- not ties in
+    # the data, just the grid running out. It also inflates the capped count:
+    # the same fit reported 1.67% capped at 250 simulations and 0.91% at 1000.
+    #
+    # 'auto' asks for 2 x n_obs, which is what it takes to resolve the most
+    # extreme order statistic of an n_obs sample (its tail probability is about
+    # 1/(2 n_obs)), bounded to [1000, 5000] and then held under a memory budget:
+    # DHARMa keeps an n_obs x n_sim matrix, which at 18 000 rows and 5000
+    # simulations would be some 750 MB. The budget caps the product instead, and
+    # never drops below DHARMa's own 250, so a very large fit degrades to
+    # today's behaviour rather than exhausting memory.
+    diagnostic_sims: object = 'auto'
+
     # Deprecated alias for data_outliers (the option name up to 1.10.0). None
-    # means unset; if given, it overrides data_outliers with a DeprecationWarning,
-    # and the old value 'none' is accepted as a synonym for 'hide'.
+    # means unset; if given, it overrides data_outliers with a DeprecationWarning.
     show_outliers: object = None
     # y-axis scale for the DATA plots and the profile plot (options.profile_across):
     #   'linear' (default)
