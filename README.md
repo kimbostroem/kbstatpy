@@ -190,9 +190,10 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 | `constraints` | str | `''` | Row filter applied before analysis, e.g. `'Year > 1950'` or `'group != "control"'`. Standard Python operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `\|` (or) |
 | `distribution` | str | `'normal'` | Response distribution (see below) |
 | `link` | str | `'auto'` | Link function (`'auto'`, `'log'`, `'logit'`, …) |
-| `fit_method` | str | `'MPL'` | Fit method passed to lme4 |
+| `fit_method` | str | `'MPL'` | Label for the estimator shown in `Summary.txt`. Left at its default, the summary names the estimator actually used (REML for `lmer`, ML for `glmmTMB`, OLS for `lm`); set it to override that text. Nothing is passed to the fitting engine |
 | `max_iterations` | int | `10000` | Maximum optimizer iterations/function evaluations for glmmTMB fits (non-Gaussian GLMMs). Large fixed-effect models (e.g. a factor×factor interaction with many levels) can hit the default cap and emit a benign "iteration limit reached" warning even at the optimum; raising this lets them converge cleanly |
-| `df_method` | str | `'auto'` | Denominator-df method for the fixed-effect ANOVA F-tests and post-hoc contrasts (used for both, so they stay consistent). `'auto'`: Kenward-Roger for Gaussian LMMs when `pbkrtest` is installed, else Satterthwaite; exact residual df for plain LMs; asymptotic (`df = Inf`) for GLMMs. Override with `'kenward-roger'`, `'satterthwaite'`, or `'asymptotic'` (aliases `'kr'`, `'satt'`, `'wald'`). An unavailable request warns and falls back. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) |
+| `df_method` | str | `'auto'` | Denominator-df method for the fixed-effect ANOVA F-tests and post-hoc contrasts (used for both, so they stay consistent). `'auto'`: Kenward-Roger for Gaussian LMMs when `pbkrtest` is installed, else Satterthwaite; exact residual df for plain LMs; asymptotic (`df = Inf`) for GLMMs. Override with `'kenward-roger'`, `'satterthwaite'`, or `'asymptotic'` (aliases `'kr'`, `'satt'`, `'wald'`). An unavailable request warns and falls back. kbstatpy raises `emmeans`' observation caps so a large LMM is tested by the method it reports (before 1.16.0 any LMM over 3000 rows silently got asymptotic df). See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) |
+| `kr_max_obs` | int | `5000` | Observation count above which `df_method='auto'` uses Satterthwaite instead of Kenward-Roger. KR costs of the order of a minute on a fit of 18 000 rows against a tenth of a second for Satterthwaite, and at that size the two agree to five digits, so `'auto'` does not pay for it. An explicit `df_method='kenward-roger'` is still honoured at any size (with a warning); `0` removes the cap |
 | `remove_outliers_prefit` | bool | `False` | Flag and exclude outliers before fitting using the IQR rule (1.5 × IQR beyond Q1/Q3) per group. Protects the model from extreme raw values. Like every on/off option, it also accepts `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'` (= off); an unrecognised value raises rather than being read as truthy |
 | `remove_outliers_postfit` | bool | `False` | Flag and exclude outliers after fitting based on Pearson residuals (z > 3), then refit. Catches observations that become outliers only in relation to the model. Can be combined with `remove_outliers_prefit` |
 | `posthoc_method` | str | `'emm'` | Post-hoc method (currently `'emm'` for emmeans) |
@@ -477,7 +478,7 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 
 - **Effects coding** (`contr.sum`) — why it is used and why treatment coding is problematic
 - **Type III sums of squares** — when Type II would differ and why Type III is preferred
-- **Kenward-Roger / Satterthwaite df vs. df = Inf** — the `df_method` option, and why GLMMs yield asymptotic tests
+- **Kenward-Roger / Satterthwaite df vs. df = Inf** — the `df_method` option, why GLMMs yield asymptotic tests, and how large fits are handled
 - **Post-hoc comparisons with emmeans** — marginal means and Holm correction
 - **VIF and multicollinearity** — what VIF measures and when it matters
 

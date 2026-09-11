@@ -1,5 +1,21 @@
 # Changes
 
+## [1.16.0] - 2026-09-11
+
+### Bugs
+
+- Gaussian LMMs fitted on more than 3000 observations were tested asymptotically (`df = Inf`) while `Summary.txt` reported Kenward-Roger or Satterthwaite. **Those results should be regenerated:** the p-values change little on designs well replicated within subjects, but the confidence intervals were too narrow, and an effect resting on few subjects could have been tested far too liberally. GLMMs are unaffected.
+
+- Post-hoc SMD and partial eta-squared came back `NaN` on those same fits. They are populated again, now from the test's own finite df rather than the liberal `n - p` fallback.
+
+- p-values too small to represent as a double printed as `0`, now as `<1e-308`.
+
+- `Summary.txt` reported `Fit method: MPL`, which neither engine uses; it now names the estimator that ran. The note explaining `df = Inf` no longer blames GLMMs unconditionally.
+
+### Features
+
+- New option `kr_max_obs` (default 5000): the fit size above which `df_method='auto'` uses Satterthwaite rather than Kenward-Roger, which costs about a minute on 18 000 rows for df that agree to five digits. An explicit `df_method='kenward-roger'` is still honoured; `0` removes the cap.
+
 ## [1.15.7] - 2026-09-10
 
 ### Bugs

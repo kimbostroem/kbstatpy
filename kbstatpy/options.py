@@ -86,6 +86,15 @@ class KbstatOptions:
     # (see Kbstat._validate_df_method). Aliases: 'kr', 'satt', 'wald'.
     df_method: str = 'auto'
 
+    # Observation count above which df_method='auto' stops using Kenward-Roger
+    # and uses Satterthwaite instead. Kenward-Roger is markedly more expensive
+    # on large fits (~80 s against ~0.1 s at n = 18000) and the two methods
+    # agree to five digits once n is well beyond the number of parameters, so
+    # 'auto' buys nothing by paying for it. An explicit
+    # df_method='kenward-roger' is still honoured at any n (with a warning about
+    # the cost); set kr_max_obs=0 to lift the cap for 'auto' as well.
+    kr_max_obs: int = 5000
+
     remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting
     remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)
 

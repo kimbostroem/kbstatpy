@@ -885,8 +885,23 @@ class Kbstat:
             return 'exact' if isinstance(self.model, Lm) else 'asymptotic'
         req = self._canonical_df_request() or 'auto'    # unknown value -> auto (validate warns)
         if req in ('auto', 'kenward-roger'):
-            return 'kenward-roger' if self._pbkrtest_available() else 'satterthwaite'
+            if not self._pbkrtest_available():
+                return 'satterthwaite'
+            # Kenward-Roger's cost grows steeply with n (~80 s against ~0.1 s at
+            # n = 18000) while its df converge on Satterthwaite's, so 'auto'
+            # drops it on the large fits; an explicit request still gets it.
+            if req == 'auto' and self._exceeds_kr_limit():
+                return 'satterthwaite'
+            return 'kenward-roger'
         return req                                      # 'satterthwaite' or 'asymptotic'
+
+    def _exceeds_kr_limit(self):
+        """True if the fit is larger than options.kr_max_obs (0 = no cap)."""
+        try:
+            cap = max(0, int(getattr(self.options, 'kr_max_obs', 0) or 0))
+        except (TypeError, ValueError):
+            cap = 0
+        return bool(cap and (self.n_obs_fit or 0) > cap)
 
     def _df_method(self):
         """emmeans lmer.df argument for the current model, honouring df_method.
@@ -897,6 +912,25 @@ class Kbstat:
         if not isinstance(self.model, Lmer):
             return None                                 # LM: ignored (exact); GLMM: default asymptotic
         return self._resolve_df_method()                # 'kenward-roger'|'satterthwaite'|'asymptotic'
+
+    def _lift_emm_obs_limits(self, method):
+        """Raise emmeans' observation caps so the requested df method survives.
+
+        emmeans stops computing finite-sample df once the fit exceeds
+        pbkrtest.limit / lmerTest.limit -- both 3000 by default -- and quietly
+        returns asymptotic df = Inf instead. Every Gaussian LMM past 3000 rows
+        would otherwise be reported as Kenward-Roger or Satterthwaite while
+        actually being tested by Wald z. Satterthwaite is cheap at any size, so
+        its cap always goes up; the Kenward-Roger cap follows only when KR is
+        the method in force, which _resolve_df_method already withholds from
+        'auto' on the large fits where KR would be ruinously slow.
+        """
+        n = int(self.n_obs_fit or 0)
+        if n <= 0 or not isinstance(self.model, Lmer):
+            return                                      # LM (exact) / GLMM (asymptotic): no caps apply
+        ro.r(f'emmeans::emm_options(lmerTest.limit = {n})')
+        if method == 'kenward-roger':
+            ro.r(f'emmeans::emm_options(pbkrtest.limit = {n})')
 
     def _df_method_label(self):
         """Human-readable denominator-df method, for reporting in Summary.txt."""
@@ -940,6 +974,13 @@ class Kbstat:
                     "df_method='kenward-roger' requires the R package 'pbkrtest', which is "
                     "not installed; using Satterthwaite. Install pbkrtest, or set df_method "
                     "to 'satterthwaite', 'asymptotic', or 'auto'.", stacklevel=2)
+            elif req == 'kenward-roger' and self._exceeds_kr_limit():
+                warnings.warn(
+                    f"df_method='kenward-roger' on {self.n_obs_fit} observations is slow "
+                    f"(of the order of a minute per dependent variable) and at this size "
+                    "gives the same df as Satterthwaite to several digits. Honouring the "
+                    "request; set df_method='satterthwaite' or 'auto' to skip the cost.",
+                    stacklevel=2)
 
     def anova(self):
         """Extract and enrich the ANOVA table from the fitted model.
@@ -957,6 +998,7 @@ class Kbstat:
             data_to_use = self.data[~self.data['is_outlier']]
 
         method = self._df_method() or 'satterthwaite'  # ignored by LM (exact) / GLMM (asymptotic)
+        self._lift_emm_obs_limits(method)
         try:
             self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
         except Exception as exc:
@@ -1013,6 +1055,7 @@ class Kbstat:
         _dfm = self._df_method()
         if _dfm:
             ro.r("emmeans::emm_options(lmer.df = '%s')" % _dfm)
+        self._lift_emm_obs_limits(_dfm)
         self.model.emmeans(
             marginal_var=factors[0],
             p_adjust=self.options.posthoc_correction,
@@ -1238,10 +1281,7 @@ class Kbstat:
         except Exception:
             _n_obs = int(len(getattr(self.model, 'fits', []) or
                              getattr(self.model, 'residuals', []) or []))
-        try:
-            _p = int(len(self.model.coefs))
-        except Exception:
-            _p = 0
+        _p = self._n_fixed_params(_rm)
         df_resid = float(_n_obs - _p) if (_n_obs and _p and _n_obs > _p) else float('nan')
 
         levels = emm_df[factor_col].astype(str).unique().tolist()
@@ -1279,6 +1319,27 @@ class Kbstat:
             })
             rows.append(row)
         return pd.DataFrame(rows)
+
+    def _n_fixed_params(self, r_obj):
+        """Number of fixed-effect columns in the fitted model.
+
+        Asked of R rather than read off the model wrapper: only the glmmTMB
+        wrapper carries a `.coefs` table, pymer4's lmer does not, so the wrapper
+        route silently counted 0 on the Gaussian LMM path and turned every
+        fallback effect size into NaN. fixef() serves both engines -- lme4
+        returns a plain vector, glmmTMB a list whose conditional component is
+        the fixed-effect one.
+        """
+        if r_obj is not None:
+            try:
+                return int(ro.r('function(m) { fe <- fixef(m); '
+                                'if (is.list(fe)) fe <- fe$cond; length(fe) }')(r_obj)[0])
+            except Exception:
+                pass
+        try:
+            return int(len(self.model.coefs))
+        except Exception:
+            return 0
 
     def _profile_level_order(self, B):
         """Ordered level labels for factor B: options.x_order[B] if given, else B's
@@ -3841,6 +3902,25 @@ class Kbstat:
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
 
+    def _fit_method_label(self) -> str:
+        """The estimator that actually ran, for MODEL INFORMATION.
+
+        Reported from the engine rather than from options.fit_method, which is
+        never passed to anything: its 'MPL' default described neither lmer (REML)
+        nor glmmTMB (ML), so the summary named an estimator that had not been
+        used. A caller who sets fit_method explicitly still gets their string.
+        """
+        override = (self.options.fit_method or '').strip()
+        if override and override != 'MPL':
+            return override
+        if isinstance(self.model, Lmer):
+            return 'REML (lme4::lmer)'
+        if isinstance(self.model, Lm):
+            return 'OLS (stats::lm)'
+        if self.model is not None:
+            return 'ML (glmmTMB)'
+        return override or 'unknown'
+
     def _n_obs_label(self) -> str:
         """The observation count the fit used, plus what was held out.
 
@@ -3888,7 +3968,7 @@ class Kbstat:
         n_obs = self._n_obs_label()
         family = self._family()
         link = self.options.link if self.options.link not in ('auto', '') else 'default'
-        fit_method = self.options.fit_method
+        fit_method = self._fit_method_label()
         lines += [
             'MODEL INFORMATION',
             '-----------------',
@@ -3938,7 +4018,8 @@ class Kbstat:
         # --- ANOVA table ---
         if self.anova_table is not None:
             at = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
-            lines += ['ANOVA (Type III)', '----------------', at.to_string(index=False),
+            lines += ['ANOVA (Type III)', '----------------',
+                      _bounded_p_table(at).to_string(index=False),
                       f'  Denominator df method: {self._df_method_label()}', '']
 
             # Check for infinite df2 and add explanatory note
@@ -3946,25 +4027,39 @@ class Kbstat:
             if 'DF2' in at.columns:
                 has_inf_df = bool(np.any(np.isinf(at['DF2'].astype(float).values)))
             if has_inf_df:
-                lines += [
-                    'NOTE: df = Inf in ANOVA table',
-                    '------------------------------',
-                    'Finite-sample df methods (Kenward-Roger and Satterthwaite) are defined',
-                    'only for linear mixed models (LMMs, distribution = normal); this package',
-                    'uses Kenward-Roger when pbkrtest is available, else Satterthwaite. For',
-                    'generalised linear mixed models (GLMMs) the likelihood is not quadratic',
-                    'and neither method applies, so R\'s emmeans falls back to asymptotic',
-                    'inference, yielding df = Inf and Wald chi-square tests.',
-                    '',
-                    'This is mathematically correct behaviour — not a software error.',
-                    '',
-                    'For comparison: MATLAB\'s fitglme also does not support these methods',
-                    'for GLMMs. Instead it uses the finite approximation df2 = n - p, where',
-                    'n is the number of observations and p is the number of fixed-effect',
-                    'columns. Both approaches are approximations; the asymptotic (df = Inf)',
-                    'method used here is the more principled one.',
-                    '',
-                ]
+                lines += ['NOTE: df = Inf in ANOVA table',
+                          '------------------------------']
+                if isinstance(self.model, Lmer):
+                    # A Gaussian LMM reaches asymptotic df only on request.
+                    lines += [
+                        'This is a linear mixed model, for which finite-sample df are',
+                        'available (Kenward-Roger, Satterthwaite). They were not used because',
+                        'df_method resolved to the asymptotic Wald test, which reports df = Inf',
+                        'and a chi-square statistic. Set df_method to \'auto\', \'satterthwaite\'',
+                        'or \'kenward-roger\' for finite-sample df.',
+                        '',
+                        'The two agree closely once the number of observations is large',
+                        'relative to the number of parameters, and diverge when it is not.',
+                        '',
+                    ]
+                else:
+                    lines += [
+                        'Finite-sample df methods (Kenward-Roger and Satterthwaite) are defined',
+                        'only for linear mixed models (LMMs, distribution = normal); this package',
+                        'uses Kenward-Roger when pbkrtest is available, else Satterthwaite. For',
+                        'generalised linear mixed models (GLMMs) the likelihood is not quadratic',
+                        'and neither method applies, so R\'s emmeans falls back to asymptotic',
+                        'inference, yielding df = Inf and Wald chi-square tests.',
+                        '',
+                        'This is mathematically correct behaviour — not a software error.',
+                        '',
+                        'For comparison: MATLAB\'s fitglme also does not support these methods',
+                        'for GLMMs. Instead it uses the finite approximation df2 = n - p, where',
+                        'n is the number of observations and p is the number of fixed-effect',
+                        'columns. Both approaches are approximations; the asymptotic (df = Inf)',
+                        'method used here is the more principled one.',
+                        '',
+                    ]
 
         # --- Post-hoc ---
         if self.posthoc_table is not None:
@@ -3974,17 +4069,17 @@ class Kbstat:
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
             lines += [f'  Correction: {self.options.posthoc_correction}',
                       f'  Denominator df method: {self._df_method_label()}', '']
-            lines += [ph.to_string(index=False), '']
+            lines += [_bounded_p_table(ph).to_string(index=False), '']
 
-            # Caution about the df approximation behind the GLMM effect sizes.
+            # Caution about the df approximation behind the fallback effect sizes.
             _ph_inf = False
             if 'df' in ph.columns:
                 _ph_inf = bool(np.any(np.isinf(
                     pd.to_numeric(ph['df'], errors='coerce').to_numpy(dtype=float))))
             if _ph_inf:
                 lines += [
-                    'NOTE: effect sizes for GLMM contrasts (SMD, etaSqp)',
-                    '---------------------------------------------------',
+                    'NOTE: effect sizes for asymptotic contrasts (SMD, etaSqp)',
+                    '---------------------------------------------------------',
                     'The pairwise tests above are asymptotic (df = Inf), so the standardized',
                     'effect sizes — SMD (Cohen\'s d) and partial eta-squared (etaSqp) — cannot',
                     'be derived from the test df. They are computed from the contrast F = t^2',
@@ -4165,6 +4260,26 @@ class Kbstat:
 # ------------------------------------------------------------------
 # Statistical helper functions
 # ------------------------------------------------------------------
+
+def _bounded_p_table(df):
+    """Copy of `df` whose p-value columns print underflow as '<1e-308'.
+
+    A chi-square of 77000 on 1 df has p on the order of 1e-16000, far below the
+    smallest positive double, so it arrives here as an exact 0. Printing '0'
+    reads as a defect in the test; the bound says what is actually known. Only
+    the reported text is affected -- the tables and workbooks keep the double.
+    """
+    out = df.copy()
+    for col in ('p', 'pCorr'):
+        if col not in out.columns:
+            continue
+        vals = pd.to_numeric(out[col], errors='coerce')
+        if not (vals == 0).any():
+            continue
+        out[col] = ['' if pd.isna(v) else ('<1e-308' if v == 0 else f'{v:.6e}')
+                    for v in vals]
+    return out
+
 
 def _f2eta_sq_p(F, df1, df2, n_obs=None):
     """Partial eta-squared from F statistic. Uses sample size as df2 when df2 is infinite."""

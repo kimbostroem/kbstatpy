@@ -8,5 +8,5 @@ prepare_r_dll_path()
 from .options import KbstatOptions   # noqa: E402
 from .kbstat import Kbstat           # noqa: E402
 
-__version__ = "1.15.7"
+__version__ = "1.16.0"
 __all__ = ["Kbstat", "KbstatOptions", "__version__"]
