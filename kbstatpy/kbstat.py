@@ -3993,15 +3993,17 @@ class Kbstat:
         # AIC/BIC/logLik/deviance), otherwise the AIC/BIC/logLik attributes
         # (LM/LMM). Emit each stat once, formatted consistently.
         lines += ['FIT STATISTICS', '--------------']
-        stats = {}
+        # Not `stats`: that is scipy.stats at module level, and shadowing it here
+        # made any later use of it in this method an AttributeError.
+        fit_stat_vals = {}
         if hasattr(self.model, 'fit_stats') and self.model.fit_stats is not None:
             fs = self.model.fit_stats
             fs_df = fs.to_pandas() if hasattr(fs, 'to_pandas') else fs
             if len(fs_df) > 0:
-                stats = {col: fs_df[col].iloc[0] for col in fs_df.columns}
+                fit_stat_vals = {col: fs_df[col].iloc[0] for col in fs_df.columns}
         elif self.AIC is not None:
-            stats = {'AIC': self.AIC, 'BIC': self.BIC, 'logLik': self.logLik}
-        for name, val in stats.items():
+            fit_stat_vals = {'AIC': self.AIC, 'BIC': self.BIC, 'logLik': self.logLik}
+        for name, val in fit_stat_vals.items():
             try:
                 lines.append(f'  {name:<24}: {float(val):.3f}')
             except (TypeError, ValueError):
