@@ -4053,6 +4053,51 @@ class Kbstat:
         df['fitted'] = ['<-- fitted' if r == fitted else '' for r in df['Structure']]
         return df
 
+    # Below this AIC gap two structures are not meaningfully distinguishable
+    # (Burnham & Anderson's rule of thumb). Above it the larger model has real
+    # support; below it, preferring the smaller one is parsimony, not a verdict.
+    _AIC_INDIFFERENCE = 2.0
+
+    def _model_comparison_verdict(self, mc):
+        """Lines reading the comparison table: which structure the criteria
+        actually favour, and where they favour nothing.
+
+        The failure mode this exists to prevent is reading a gap of a fraction of
+        an AIC unit as a result. Among the structures the data cannot separate,
+        the recommendation is the smallest one, which is parsimony rather than a
+        finding -- and where that is not the fitted structure, the caveat about
+        choosing a model from the data comes with it.
+        """
+        if mc is None or len(mc) < 2:
+            return []
+        best = mc['AIC'].min()
+        close = mc[mc['AIC'] - best < self._AIC_INDIFFERENCE]
+        pick = close.sort_values(['npar', 'AIC']).iloc[0]
+        fitted_rows = mc[mc['fitted'] != '']
+        fitted = fitted_rows.iloc[0]['Structure'] if len(fitted_rows) else None
+
+        out = []
+        if len(close) == len(mc):
+            out.append(f'  All {len(mc)} structures lie within {self._AIC_INDIFFERENCE:.0f} AIC '
+                       'of each other, so the criteria do not')
+            out.append('  choose between them.')
+        elif len(close) > 1:
+            out.append(f'  {len(close)} structures lie within {self._AIC_INDIFFERENCE:.0f} AIC of '
+                       'the best, so the criteria do not separate those.')
+
+        if pick['Structure'] == fitted:
+            out.append(f"  Of those, '{pick['Structure']}' is the smallest, and it is the one "
+                       'fitted:')
+            out.append('  nothing here argues for changing it.')
+        else:
+            out.append(f"  The smallest structure the criteria do not rule out is "
+                       f"'{pick['Structure']}'")
+            out.append(f"  (dAIC {pick['dAIC']:.2f}, {int(pick['npar'])} parameters), against the "
+                       f"fitted '{fitted}'.")
+            out.append('  Re-fitting with it is your decision, not one the table makes: p-values')
+            out.append('  from a structure picked this way are optimistic, so say it was chosen.')
+        return out
+
     def _fit_method_label(self) -> str:
         """The estimator that actually ran, for MODEL INFORMATION.
 
@@ -4227,10 +4272,9 @@ class Kbstat:
                     show[c] = show[c].map(lambda v: f'{v:.3f}')
             lines += ['MODEL STRUCTURE COMPARISON', '--------------------------',
                       show.to_string(index=False),
-                      '  Maximum likelihood, same random effects throughout; lower AIC is better.',
-                      '  For information only. Everything else in this file comes from the fitted',
-                      '  structure, and choosing another one by AIC would make its p-values too',
-                      '  small: re-running with it is a decision you make, not one AIC makes.', '']
+                      '  Maximum likelihood, same random effects throughout; lower AIC is better.']
+            lines += self._model_comparison_verdict(mc)
+            lines += ['']
 
         # --- Post-hoc ---
         if self.posthoc_table is not None:

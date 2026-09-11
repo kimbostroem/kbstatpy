@@ -1,5 +1,11 @@
 # Changes
 
+## [1.19.0] - 2026-09-11
+
+### Features
+
+- `model_comparison` now reads its own table. An AIC column invites treating any gap as a result, so structures within 2 AIC of the best are reported as indistinguishable and the smallest of those is named -- parsimony, not a verdict. Where that is the structure already fitted, the note says there is nothing to change; where it is not, the recommendation carries the caveat that p-values from a structure chosen this way are optimistic and that the choice should be disclosed.
+
 ## [1.18.0] - 2026-09-11
 
 ### Bugs

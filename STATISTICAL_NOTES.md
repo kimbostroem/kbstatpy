@@ -281,6 +281,8 @@ Adding `options.interaction` lifts the constraint. Which structure is right is a
 
 It stops at reporting, deliberately. Selecting a structure by AIC and then quoting the selected model's p-values, confidence intervals and effect sizes treats a model chosen *from* the data as though it had been specified in advance, and the inference is no longer valid. Simulated 300 times on data containing no interaction whatsoever: a pre-specified test of a given interaction was significant 5.0% of the time, exactly nominal, while a search over this ladder retained an interaction 30.7% of the time and reported it at p < 0.05 in 13.0% of runs. Selection also biases the retained term's effect size upward, and an AIC gap below about 2 is noise being read as a decision.
 
+The table is followed by a reading of itself, because the error people make with an AIC column is treating any gap as a result. Structures within 2 AIC of the best are reported as indistinguishable (Burnham & Anderson's rule of thumb), and among those the smallest is named -- parsimony, not a verdict. Where that is the structure already fitted, the note says there is nothing to change; where it is not, the recommendation carries the caveat that p-values from a structure chosen this way are optimistic and that the choice should be disclosed.
+
 For a factorial design the question usually needs no search at all: fit the full model and read its interaction tests, which are pre-specified and correctly calibrated.
 
 ### Information criteria are computed by maximum likelihood

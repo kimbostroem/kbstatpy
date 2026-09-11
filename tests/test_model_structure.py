@@ -31,8 +31,9 @@ from kbstatpy.kbstat import Kbstat, _blank_repeated_contrasts   # noqa: E402
 from kbstatpy.options import KbstatOptions                      # noqa: E402
 
 
-def toy_data(seed=0, n_subj=16, n_rep=4):
-    """Three crossed two-level factors, additive in truth."""
+def toy_data(seed=0, n_subj=16, n_rep=4, interaction=0.0):
+    """Three crossed two-level factors. Additive in truth unless `interaction`
+    plants a grp:limb effect."""
     rng = np.random.default_rng(seed)
     rows = []
     for s in range(n_subj):
@@ -42,13 +43,18 @@ def toy_data(seed=0, n_subj=16, n_rep=4):
                 for c in ('sl', 'wl'):
                     for _ in range(n_rep):
                         y = (1 + 0.4 * (a == 'ctrl') + 0.3 * (b == 'open')
-                             + 0.2 * (c == 'sl') + re_ + rng.normal(scale=0.4))
+                             + 0.2 * (c == 'sl')
+                             + interaction * (a == 'ctrl') * (c == 'sl')
+                             + re_ + rng.normal(scale=0.4))
                         rows.append({'subject': f'S{s:02d}', 'grp': a,
                                      'eyes': b, 'limb': c, 'Y': y})
     return pd.DataFrame(rows)
 
 
-def fit(**opts):
+def fit(plant_interaction=0.0, **opts):
+    """`plant_interaction` sizes a real grp:limb effect in the generated data.
+    Not to be confused with the kbstatpy option `interaction`, which goes
+    through **opts and changes the model rather than the truth."""
     o = KbstatOptions()
     o.y = 'Y'; o.x = 'grp, eyes, limb'; o.id = 'subject'
     o.distribution = 'normal'
@@ -56,7 +62,7 @@ def fit(**opts):
     for k, v in opts.items():
         setattr(o, k, v)
     k = Kbstat(o)
-    k.data = toy_data()
+    k.data = toy_data(interaction=plant_interaction)
     k._normalize_options()
     k.fit()
     k.anova()
@@ -138,6 +144,46 @@ def test_comparison_is_skipped_when_there_is_nothing_to_compare():
 
 def test_comparison_is_off_by_default():
     assert KbstatOptions().model_comparison is False
+
+
+def test_verdict_keeps_the_fitted_structure_when_nothing_beats_it():
+    """On additive data the additive fit is both best and smallest, so the
+    verdict must not invent a reason to change."""
+    k = fit(model_comparison=True)
+    mc = k._compare_model_structures()
+    verdict = ' '.join(k._model_comparison_verdict(mc))
+    assert 'nothing here argues for changing it' in verdict, verdict
+    assert 'your decision' not in verdict, 'warned about a change it did not recommend'
+
+
+def test_verdict_names_a_better_structure_when_one_exists():
+    """With a planted interaction the additive fit is badly beaten, and the
+    verdict has to say so -- and carry the post-selection caveat."""
+    k = fit(plant_interaction=0.9, model_comparison=True)
+    mc = k._compare_model_structures()
+    assert mc.loc[mc['Structure'] == 'additive', 'dAIC'].iloc[0] > 10, \
+        'the planted interaction did not separate the structures, test is vacuous'
+    verdict = ' '.join(k._model_comparison_verdict(mc))
+    assert 'additive' not in verdict.split('against the fitted')[0], verdict
+    assert 'your decision' in verdict and 'optimistic' in verdict, \
+        'recommended a change without the post-selection caveat'
+
+
+def test_verdict_refuses_to_choose_inside_the_indifference_band():
+    """A gap of a fraction of an AIC unit is not a result. Structures within the
+    band must be reported as indistinguishable however the AIC column sorts."""
+    k = fit(model_comparison=True)
+    mc = k._compare_model_structures().copy()
+    mc['AIC'] = [100.0, 99.0, 99.5]          # best is NOT the fitted row
+    mc['dAIC'] = mc['AIC'] - mc['AIC'].min()
+    verdict = ' '.join(k._model_comparison_verdict(mc))
+    assert 'do not' in verdict and 'choose between them' in verdict, verdict
+    # parsimony breaks the tie towards the fitted (smallest) structure
+    assert 'nothing here argues for changing it' in verdict, verdict
+
+
+def test_indifference_band_is_the_conventional_two_units():
+    assert Kbstat._AIC_INDIFFERENCE == 2.0
 
 
 if __name__ == '__main__':

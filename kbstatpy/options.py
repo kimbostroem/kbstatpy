@@ -107,6 +107,9 @@ class KbstatOptions:
     # search of this same ladder kept one 30.7% of the time and called it
     # significant in 13.0% of runs, against the 5.0% a pre-specified test gives.
     # The model that is fitted, tested and reported stays the one you asked for.
+    # The table is followed by a reading of it: structures within 2 AIC of the best
+    # are called indistinguishable and parsimony breaks the tie, so a gap of a
+    # fraction of a unit is not presented as a result.
     #
     # Costs one extra fit per rung, with the random-effect structure held fixed;
     # that is about a second per variable on 18 000 rows with a random intercept,
