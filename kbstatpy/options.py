@@ -87,12 +87,14 @@ class KbstatOptions:
     df_method: str = 'auto'
 
     # Observation count above which df_method='auto' stops using Kenward-Roger
-    # and uses Satterthwaite instead. Kenward-Roger is markedly more expensive
-    # on large fits (~80 s against ~0.1 s at n = 18000) and the two methods
-    # agree to five digits once n is well beyond the number of parameters, so
-    # 'auto' buys nothing by paying for it. An explicit
+    # and uses Satterthwaite instead. A cost threshold, not a statistical one:
+    # KR's cost grows as roughly n^2.5 (80 s at n = 18000 against a flat ~0.06 s
+    # for Satterthwaite) while the two methods stop differing meaningfully above
+    # roughly a thousand observations, so the default sits at the knee of the
+    # cost curve with a wide margin above the convergence point. An explicit
     # df_method='kenward-roger' is still honoured at any n (with a warning about
     # the cost); set kr_max_obs=0 to lift the cap for 'auto' as well.
+    # STATISTICAL_NOTES.md carries the measured timings and df comparisons.
     kr_max_obs: int = 5000
 
     remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting

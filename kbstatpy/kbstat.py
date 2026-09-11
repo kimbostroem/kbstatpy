@@ -887,9 +887,9 @@ class Kbstat:
         if req in ('auto', 'kenward-roger'):
             if not self._pbkrtest_available():
                 return 'satterthwaite'
-            # Kenward-Roger's cost grows steeply with n (~80 s against ~0.1 s at
-            # n = 18000) while its df converge on Satterthwaite's, so 'auto'
-            # drops it on the large fits; an explicit request still gets it.
+            # Kenward-Roger's cost grows as roughly n^2.5 (~80 s at n = 18000
+            # against a flat ~0.06 s) while its df converge on Satterthwaite's,
+            # so 'auto' drops it on the large fits; an explicit request keeps it.
             if req == 'auto' and self._exceeds_kr_limit():
                 return 'satterthwaite'
             return 'kenward-roger'
@@ -978,7 +978,7 @@ class Kbstat:
                 warnings.warn(
                     f"df_method='kenward-roger' on {self.n_obs_fit} observations is slow "
                     f"(of the order of a minute per dependent variable) and at this size "
-                    "gives the same df as Satterthwaite to several digits. Honouring the "
+                    "differs from Satterthwaite by well under a percent. Honouring the "
                     "request; set df_method='satterthwaite' or 'auto' to skip the cost.",
                     stacklevel=2)
 

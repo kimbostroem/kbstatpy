@@ -287,7 +287,22 @@ You can override the choice with `df_method = 'kenward-roger'`, `'satterthwaite'
 
 `emmeans` will not compute finite-sample df above its own observation caps (`pbkrtest.limit` and `lmerTest.limit`, both 3000 by default): past that size it silently returns asymptotic `df = Inf` instead. kbstatpy raises both caps to the size of the fit, so an LMM of any size is tested by the method it reports. Before kbstatpy 1.16.0 it did not, and **every Gaussian LMM fitted on more than 3000 rows was tested by Wald z while `Summary.txt` reported Kenward-Roger or Satterthwaite** — see the changelog for what to re-run.
 
-Kenward-Roger is the expensive one: it inverts a covariance matrix that grows with the number of observations, taking of the order of a minute on a fit of 18 000 rows against a tenth of a second for Satterthwaite, while the two give df that agree to five significant digits once `n` far exceeds the number of parameters (the small-sample correction KR exists for has nothing left to correct). `df_method = 'auto'` therefore uses Kenward-Roger only up to `kr_max_obs` observations (default 5000) and Satterthwaite above it; `Summary.txt` names whichever was used. An explicit `df_method = 'kenward-roger'` is honoured at any size, with a warning about the cost, and `kr_max_obs = 0` removes the cap for `'auto'` as well.
+Kenward-Roger is the expensive one. Its cost grows as roughly `n^2.5` where Satterthwaite's is flat, and its small-sample correction has less and less left to correct as the variance components become precisely estimated. On a 12-subject, three-factor repeated-measures design (a random intercept, the full factorial) the two methods compare as follows:
+
+| observations | Kenward-Roger | Satterthwaite | largest relative difference in p |
+| --- | --- | --- | --- |
+| 500 | 0.18 s | 0.07 s | 1.1 × 10⁻¹ |
+| 1 000 | 0.12 s | 0.06 s | 5.6 × 10⁻⁴ |
+| 3 000 | 0.84 s | 0.06 s | 3.0 × 10⁻⁴ |
+| 5 000 | 2.6 s | 0.06 s | 9.0 × 10⁻⁵ |
+| 12 000 | 23 s | 0.06 s | 1.2 × 10⁻⁴ |
+| 18 589 | 80 s | 0.07 s | 1.1 × 10⁻⁴ |
+
+So the methods part company below about a thousand observations, which is where Kenward-Roger earns its reputation, and are interchangeable for practical purposes above it. That convergence is not merely a matter of the denominator df being large: in the same data a purely **between-subject** factor, whose df stay at 10 however many rows are added, still receives identical df and p from both methods at `n` = 18 589, because 18 589 rows pin down the random-intercept variance whether or not they inform that particular contrast. The hardest case tested, a **random slope** `(1 + condition | subject)` at `n` = 8 000, is where they differ most at scale, and even there it is 11.10 df against 11.16 and p-values 2.4 % apart, which is well short of changing an inference.
+
+`kr_max_obs` is therefore a **cost threshold, not a statistical one**: its default of 5000 sits at the knee of the cost curve (2.6 s there against 23 s at 12 000 and 80 s at 18 589, multiplied by every dependent variable in the run) and keeps a wide margin above the size at which the two methods converge, so `'auto'` errs towards the more conservative method wherever that is cheap. `Summary.txt` names whichever was used. An explicit `df_method = 'kenward-roger'` is honoured at any size, with a warning about the cost, and `kr_max_obs = 0` removes the cap for `'auto'` as well.
+
+These timings are from one machine and one model family; a fit with a heavier random-effect structure will sit higher on the curve. `kr_max_obs` exists so that the trade-off can be moved rather than argued about.
 
 #### Generalised linear mixed models (GLMMs, any other distribution)
 
