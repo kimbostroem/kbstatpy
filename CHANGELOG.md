@@ -1,5 +1,19 @@
 # Changes
 
+## [1.17.0] - 2026-09-11
+
+### Bugs
+
+- The histogram and Q-Q panels drew horizontal rows of points at their extremes, which look like a truncated distribution but were an artifact of simulating only 250 datasets: the residuals could take just 250 distinct values and piled onto the outermost ones. They are now drawn from within their interval, which is the exact value under the null. **Only the diagnostic figures were affected** -- no estimate, statistic or p-value has ever come from these simulations -- but a "% capped" figure quoted from an older run was mostly simulation budget rather than misfit.
+
+### Changes
+
+- Residuals of observations falling outside the simulated range are no longer plotted: their position is a placeholder for an undefined value, not a measurement. How many there were moved to `Summary.txt`, which now also states that the simulations serve the diagnostics only. The `diagnostic_outliers` option is removed.
+
+- New `diagnostic_sims` (default `'auto'`) scales the number of simulated datasets with the size of the data, within a memory budget.
+
+- Corrected the 1.16.0 claim that Kenward-Roger and Satterthwaite agree to five significant digits; with random slopes it is three.
+
 ## [1.16.0] - 2026-09-11
 
 ### Bugs
