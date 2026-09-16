@@ -1,5 +1,31 @@
 # Changes
 
+## [1.20.0] - 2026-09-16
+
+### Features
+
+- New option `posthoc_family` decides what the post-hoc correction is applied over. `'cell'` (default, unchanged behaviour) corrects within each cell; `'pooled'` corrects every conditional comparison as one family; `'cross'` corrects within each cell and then Bonferroni across the cells, for the exact methods (`'tukey'`, `'mvt'`, `'dunnettx'`) that have no pooled form. With one comparison per cell `'pooled'` is always at least as powerful as `'cross'`, and picking the weaker one warns.
+
+- `options.id` takes several random grouping factors, comma-separated, read as crossed: `'subject, session'` gives each its own random intercept. lme4's nesting operators work inside a name — `'subject/trial'`, `'subject:trial'` — for a replicate index whose labels recur inside each subject. kbstatpy warns when a factor read as crossed has the shape of a nested one, naming both the nested spelling and the option of leaving the factor out, and when a crossed grouping factor has fewer than three levels. Previously a comma-separated `id` produced an invalid formula and the fit failed.
+
+- `analysis_template.py` in the repository root: a starting point to copy, with the five required options filled in and the rest commented out. Each commented line shows the value kbstatpy uses anyway, so an active line is always a deliberate change and a commented one documents the default.
+
+- The list-valued options (`x`, `slope`, `interaction`, `covariate`, `y_units`, `x_units`, `correlation`, `correlation_control`) all default to `''` now. Four of them defaulted to `[]` before, so the README's default column showed two spellings for options that behave identically. Both spellings still work and still normalise to the same list; only the default changed. `KbstatOptions().x` is therefore `''` rather than `[]` before a run, which matters only to a script that mutates it in place (`options.x.append(...)`) instead of assigning it.
+
+- `correlation_method` and `correlation_control` are in the README option table, having been documented nowhere before, and `correlation_control` is normalised to a list like every other list-valued option instead of keeping whichever spelling it was given.
+
+- `correlation` and `constraints` also answer to `correlate` and `constraint`. Both spellings are equally valid; previously the unrecognised one was accepted and silently ignored, so the option simply appeared not to work.
+
+### Bugs
+
+- Values were missing from the `significance` and `effectSize` columns of the post-hoc table in `Summary.txt` while `Posthoc_<var>.xlsx` and the plot showed them. Rows were blanked as repeats column by column, so cells that genuinely differed were emptied whenever they happened to share a label — as significant cells usually do. Blanking now requires the whole test to repeat. The note about a missing interaction, which the same check triggered, no longer appears under a model that has one.
+
+### Changes
+
+- `Summary.txt` states the post-hoc family and how many comparisons it held, instead of just naming the method. **A two-level factor compared per cell gives each family a single comparison, so the correction is the identity and the corrected p-values equal the uncorrected ones** -- correct, and previously indistinguishable from a correction that was not running. The cells are also not corrected for one another; `posthoc_family='pooled'` does that.
+
+- With more than one dependent variable, `Summary.txt` now says whether anything is corrected across them, and names `y_correction` when nothing is.
+
 ## [1.19.0] - 2026-09-11
 
 ### Features

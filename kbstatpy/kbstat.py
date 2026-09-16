@@ -138,6 +138,7 @@ class Kbstat:
 
     def __init__(self, options: KbstatOptions):
         self.options = options
+        self._resolve_synonyms()
         self.data: pd.DataFrame = None
         self.model = None
         self.anova_table: pd.DataFrame = None
@@ -145,6 +146,12 @@ class Kbstat:
         self.contrasts_table: pd.DataFrame = None
         self.contrasts_by_var: dict = {}   # {factor: contrasts table} per posthoc_compare variable
         self.posthoc_by_var: dict = {}      # {factor: posthoc table} per posthoc_compare variable
+        # {factor: what posthoc_family did} -- family, cell count and per-cell
+        # family sizes, so Summary.txt can state whether the correction could
+        # act at all rather than leaving 'pCorr == p' to be read as a defect.
+        self._posthoc_family_info: dict = {}
+        self._posthoc_family_warned: bool = False
+        self._n_y: int = 1                  # dependent variables in the run (set by run())
         self.statistics_table: pd.DataFrame = None
         self.AIC    = None
         self.BIC    = None
@@ -452,12 +459,40 @@ class Kbstat:
             return False
         return True
 
+    def _resolve_synonyms(self):
+        """Copy any alternative option spelling onto its canonical option.
+
+        A dataclass takes any attribute assignment, so an unrecognised spelling
+        would otherwise be stored and silently ignored -- the option would simply
+        appear not to work. Both spellings are supported equally, so neither
+        warns; the alias is cleared once copied, which keeps the second call
+        (_normalize_options runs on both run() and fit()) a no-op.
+        """
+        o = self.options
+        for alias, canon in _OPTION_SYNONYMS.items():
+            val = getattr(o, alias, None)
+            if val is None:
+                continue
+            cur = getattr(o, canon, None)
+            if cur not in ('', None, [], {}) and cur != val:
+                raise ValueError(
+                    f"options.{alias} and options.{canon} are the same option, "
+                    f"but were set to different values ({val!r} and {cur!r}). "
+                    "Set only one of them.")
+            setattr(o, canon, val)
+            setattr(o, alias, None)
+
     def _normalize_options(self):
         """Normalize comma-separated string options to lists and resolve paths."""
         o = self.options
+        self._resolve_synonyms()
         o.in_file = self._resolve_path(o.in_file)
         o.out_dir = self._resolve_path(o.out_dir)
-        for attr in ('x', 'slope', 'covariate'):
+        # correlation_control joined this late: it was added with its splitting
+        # done inline in correlate(), never here, so it was the one list-valued
+        # option that kept whatever spelling it was given. The inline handling
+        # stays, since it also covers a direct correlate() call.
+        for attr in ('x', 'slope', 'covariate', 'correlation_control'):
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
@@ -470,6 +505,32 @@ class Kbstat:
             raise ValueError(
                 "y_correction must be one of: none, bonferroni, holm, FDR, "
                 f"FDR_correlated (got {yc!r})")
+        # posthoc_family: scope of the family posthoc_correction is applied over.
+        # Resolved here rather than at the point of use because _pairwise_for
+        # runs inside a broad try/except -- a ValueError raised there would not
+        # surface as an error, it would silently cost the whole post-hoc table.
+        pf = o.posthoc_family
+        o.posthoc_family = (pf or 'cell').strip().lower()
+        if o.posthoc_family not in _POSTHOC_FAMILIES:
+            raise ValueError(
+                "posthoc_family must be one of: cell, pooled, cross "
+                f"(got {pf!r})")
+        _pc = str(o.posthoc_correction or 'none').strip().lower()
+        if o.posthoc_family == 'pooled' and _pc not in _POSTHOC_ADJUST_MAP:
+            warnings.warn(
+                f"posthoc_correction={o.posthoc_correction!r} is an exact "
+                "within-family method and has no pooled form across cells; "
+                "falling back to posthoc_family='cross' (corrected within each "
+                "cell, then Bonferroni across them).", stacklevel=2)
+            o.posthoc_family = 'cross'
+        # run() and fit() both normalise, so the advice is gated on a flag rather
+        # than repeated once per call.
+        if (o.posthoc_family != 'cell' and _pc == 'none'
+                and not self._posthoc_family_warned):
+            warnings.warn(
+                f"posthoc_family={o.posthoc_family!r} has no effect while "
+                "posthoc_correction='none'.", stacklevel=2)
+        self._posthoc_family_warned = True
         # show_emm_lines: off, on, or on with an explicit line style. Accepts
         # False/True, their string spellings ('true'/'false'), and any style in
         # _EMM_LINE_STYLES. Normalises to False or to the style string the
@@ -590,6 +651,7 @@ class Kbstat:
                 self.options.y = y_var
                 self.options.y_units = units_list[i] if i < len(units_list) else ''
                 worker = self
+            worker._n_y = len(y_list)
             worker._compute_single()
             worker.print_summary()
             self.output.results.append(ModelResult(
@@ -707,6 +769,7 @@ class Kbstat:
         if self.data is None:
             self._load_data()
         self._normalize_options()
+        self._check_id_groups()
         # Reset the resolved random-slope structure so a re-fit (e.g. after
         # postfit outlier removal) re-decides the correlated/diagonal choice.
         self._slope_correlated_effective = None
@@ -954,6 +1017,46 @@ class Kbstat:
         if method == 'kenward-roger':
             ro.r(f'emmeans::emm_options(pbkrtest.limit = {n})')
 
+    def _posthoc_family_lines(self, info):
+        """The 'Correction:' block of Summary.txt: the method, the family it was
+        applied over, and how many comparisons that family held.
+
+        A correction over a family of one is the identity, so a two-level factor
+        compared within each cell yields pCorr == p throughout. That is correct
+        and it is also indistinguishable from a broken correction, which is why
+        the family sizes are stated rather than just the method name.
+        """
+        method = self.options.posthoc_correction
+        if not info or info.get('n_cells', 0) < 1:
+            return [f'  Correction: {method}']
+        fam, n_cells = info['family'], info['n_cells']
+        sizes, n_tests = info['cell_sizes'], info['n_tests']
+        if fam == 'cell':
+            scope = 'within each cell'
+        elif fam == 'pooled':
+            scope = 'across all cells as one family'
+        else:
+            scope = 'within each cell, then Bonferroni across the cells'
+        out = [f"  Correction: {method}, {scope} (posthoc_family='{fam}')"]
+        if fam == 'pooled':
+            out += [f'  1 family of {n_tests} comparisons.']
+            return out
+        _sz = (f'{sizes[0]} comparison{"s" if sizes[0] != 1 else ""} each'
+               if len(set(sizes)) == 1 else f'{n_tests} comparisons in total')
+        out += [f'  {n_cells} famil{"y" if n_cells == 1 else "ies"} of {_sz}.']
+        if fam == 'cross' and n_cells > 1:
+            out += [f'  Each cell is held to alpha / {n_cells}, so the union of all '
+                    f'{n_tests} comparisons',
+                    '  is controlled at alpha.', '']
+        elif fam == 'cell' and max(sizes) == 1 and n_cells > 1:
+            out += [
+                '  A family of one admits no adjustment, so pCorr equals p',
+                f'  throughout and the {n_cells} cells are not corrected for one',
+                "  another. Set posthoc_family='pooled' if you want to correct",
+                '  them as one family.', '',
+            ]
+        return out
+
     def _df_method_label(self):
         """Human-readable denominator-df method, for reporting in Summary.txt."""
         return {
@@ -1109,6 +1212,7 @@ class Kbstat:
         compare_vars = self._compare_vars()
         self.contrasts_by_var = {}
         self.posthoc_by_var = {}
+        self._posthoc_family_info = {}
         primary_emm = None
         for var in compare_vars:
             if r_obj is None:
@@ -1213,8 +1317,13 @@ class Kbstat:
                         for b, lvl in zip(by_factors, combo):
                             dfc[b] = lvl  # supply the cell labels ourselves
                     adj_parts.append(ca); raw_parts.append(cr)
+                cell_sizes = [len(a) for a in adj_parts]
                 ct_adj = pd.concat(adj_parts, ignore_index=True) if adj_parts else None
                 ct_raw = pd.concat(raw_parts, ignore_index=True) if raw_parts else None
+                # Widen the family beyond the single cell if asked to. Done on the
+                # concatenated contrasts, so the plot brackets (ct_adj) and the
+                # exported table stay in agreement automatically.
+                ct_adj = self._apply_posthoc_family(var, ct_adj, ct_raw, cell_sizes)
                 # EMM display values come from the labelled full interaction grid.
                 emm_df = self._emm_df_full
                 cond_tbl = self._build_posthoc_table(var, by_factors, emm_df, ct_adj, ct_raw)
@@ -1235,6 +1344,54 @@ class Kbstat:
         except Exception:
             pass
         return ct_adj, posthoc_df, emm_df
+
+    def _apply_posthoc_family(self, var, ct_adj, ct_raw, cell_sizes):
+        """Re-correct the conditional contrasts over a wider family, per
+        ``options.posthoc_family``. Returns ct_adj with its ``p.value`` replaced
+        (or unchanged for 'cell'), and records what was done for Summary.txt.
+
+        'pooled' pools every cell's contrasts into one family and corrects the
+        RAW p-values once. 'cross' keeps the per-cell correction and multiplies
+        by the number of cells: each cell is then held to alpha / n_cells, so a
+        Bonferroni argument over the cells controls the union at alpha without
+        needing the cells to be the same size (which emmeans' own `cross.adjust`
+        does require).
+
+        Only 'pooled' is available for the exact within-family methods, and only
+        by falling back -- see _normalize_options, which resolves that before any
+        of this runs.
+        """
+        n_cells = len(cell_sizes)
+        fam = self.options.posthoc_family
+        adj = str(self.options.posthoc_correction or 'none').strip().lower()
+        info = {'family': fam, 'n_cells': n_cells, 'cell_sizes': cell_sizes,
+                'correction': adj, 'n_tests': int(sum(cell_sizes))}
+        self._posthoc_family_info[var] = info
+        if ct_adj is None or ct_raw is None or n_cells < 2 or fam == 'cell':
+            # A single cell makes all three definitions the same family.
+            info['family'] = 'cell' if n_cells < 2 else fam
+            return ct_adj
+        if fam == 'pooled':
+            ct_adj = ct_adj.copy()
+            ct_adj['p.value'] = _adjust_pvalues(ct_raw['p.value'].to_numpy(float), adj)
+        else:  # 'cross'
+            if adj in _POSTHOC_ADJUST_MAP and max(cell_sizes) == 1:
+                # Provable, not a matter of taste: with one contrast per cell the
+                # within-cell stage is the identity, so 'cross' degenerates to a
+                # plain Bonferroni over the cells, which step-down Holm (and the
+                # FDR methods) beat at the same family-wise level. With two or
+                # more contrasts per cell neither choice dominates, so no advice
+                # is offered there.
+                warnings.warn(
+                    f"posthoc_family='cross' with posthoc_correction={adj!r} and "
+                    f"1 comparison per cell: the within-cell stage is the identity, "
+                    f"so this is a plain Bonferroni over the {n_cells} cells. "
+                    "posthoc_family='pooled' controls the same family-wise error "
+                    "rate and is uniformly more powerful here.", stacklevel=2)
+            ct_adj = ct_adj.copy()
+            ct_adj['p.value'] = np.minimum(
+                1.0, n_cells * ct_adj['p.value'].to_numpy(float))
+        return ct_adj
 
     def _build_posthoc_table(self, factor_col, by_factors, emm_df, ct_adj, ct_raw):
         """Rich pairwise posthoc DataFrame for ``factor_col``, conditional on
@@ -2612,7 +2769,10 @@ class Kbstat:
         x_var = x_list[0]                # Violin / x-axis variable  (e.g. Chocolate)
         y_var = self.options.y           # Dependent variable        (e.g. Distance)
         facet_var = x_list[1] if n_vars > 1 else None  # Panel variable (e.g. Gender)
-        id_var = self.options.id         # Subject identifier for connecting lines
+        # Subject identifier for connecting lines. With several grouping factors
+        # the first one is the subject; a replicate index or a crossed factor
+        # does not identify a line to connect.
+        id_var = (self._id_vars() or [''])[0]
         # y_units is a scalar string for this variable, but fit() re-runs
         # _normalize_options and re-wraps it into a single-element list; accept
         # either form so the units aren't silently dropped from the axis label.
@@ -3404,7 +3564,7 @@ class Kbstat:
             if 'is_outlier' in self.data.columns else self.data
         _model_vars = []
         for _grp in (self.options.y, self.options.x, self.options.covariate,
-                     self.options.slope, self.options.id):
+                     self.options.slope, self._id_vars()):
             if isinstance(_grp, list):
                 _model_vars.extend(_grp)
             elif _grp:
@@ -3525,7 +3685,7 @@ class Kbstat:
         # linear model), fall back to a Scale-Location plot so the panel is never
         # empty. Both apply regardless of family.
         re_vals = None
-        grp = self.options.id
+        grp = (self._id_vars() or [None])[0]
         if r_obj is not None and grp:
             try:
                 # ranef() dispatches for both glmmTMB (nested under $cond) and
@@ -3735,7 +3895,7 @@ class Kbstat:
             problems.append(
                 f"  options.y='{self.options.y}' but formula has dependent variable '{parsed['y']}'"
             )
-        if self.options.id and self.options.id != parsed['id']:
+        if self.options.id and parsed['id'] not in self._id_vars():
             problems.append(
                 f"  options.id='{self.options.id}' but formula has grouping variable '{parsed['id']}'"
             )
@@ -3805,6 +3965,74 @@ class Kbstat:
         return ('uncorrelated slopes' if short else
                 'uncorrelated (diagonal) random slopes (slope_correlated=False)')
 
+    def _id_groups(self):
+        """``options.id`` split into random-effect grouping TERMS.
+
+        One term per comma, each kept whole so lme4's nesting operators survive:
+        'subject, session' -> ['subject', 'session'] (crossed, one intercept
+        each), 'subject/trial' -> ['subject/trial'] (one term that lme4 expands
+        to subject + subject:trial).
+        """
+        raw = str(self.options.id or '').strip()
+        if not raw:
+            return []
+        return [g.strip() for g in raw.split(',') if g.strip()]
+
+    def _id_vars(self):
+        """The data COLUMNS referenced by options.id, in order and deduplicated.
+
+        Distinct from _id_groups: the grouping term 'subject/trial' is one term
+        but two columns, and both have to survive the NaN drop and be cast to
+        categorical or R sees a numeric replicate index as a covariate.
+        """
+        out = []
+        for grp in self._id_groups():
+            for v in re.split(r'[/:]', grp):
+                v = v.strip()
+                if v and v not in out:
+                    out.append(v)
+        return out
+
+    def _check_id_groups(self):
+        """Warn where a crossed reading of options.id is unlikely to be meant.
+
+        Two shapes are worth catching, both silent disasters otherwise. A second
+        grouping factor whose levels all recur inside every level of the first is
+        an implicitly NESTED replicate index -- read as crossed it asserts that
+        'repetition 1' means the same thing for every subject, and lme4 will fit
+        that happily. And a crossed grouping factor with fewer than three levels
+        has a variance component estimated from two numbers, which is not
+        estimable in any useful sense.
+        """
+        groups = self._id_groups()
+        if len(groups) < 2 or self.data is None:
+            return
+        plain = [g for g in groups if not re.search(r'[/:]', g)]
+        outer = plain[0] if plain else None
+        for g in plain[1:]:
+            if g not in self.data.columns or outer not in self.data.columns:
+                continue
+            per_outer = self.data.groupby(outer, observed=True)[g].apply(
+                lambda c: frozenset(c.dropna().unique()))
+            n_lev = self.data[g].nunique(dropna=True)
+            if len(per_outer) > 1 and len(set(per_outer)) == 1 and n_lev > 1:
+                warnings.warn(
+                    f"options.id='{self.options.id}' fits '{g}' as CROSSED with "
+                    f"'{outer}', but every level of '{outer}' contains the same "
+                    f"{n_lev} levels of '{g}' -- the shape of a replicate index "
+                    f"nested inside '{outer}', not of a factor shared across it. "
+                    f"Crossed, this pools '{g}' levels across all of '{outer}'. "
+                    f"Write id='{outer}/{g}' for the nested reading, or leave "
+                    f"'{g}' out of options.id altogether: a block term the data "
+                    "do not support comes back as a zero variance component and "
+                    "a singular fit, and the simpler model is then the right one.",
+                    stacklevel=2)
+            if n_lev < 3:
+                warnings.warn(
+                    f"options.id groups by '{g}', which has {n_lev} level(s): a "
+                    "variance component estimated from that many groups is "
+                    "unreliable. Consider a fixed effect instead.", stacklevel=2)
+
     def _build_formula(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one."""
         if self.options.formula:
@@ -3831,8 +4059,12 @@ class Kbstat:
             x = ' + '.join(self.options.x)
         covs = ' + '.join(self.options.covariate)
         rhs = f'{x} + {covs}' if covs else x
-        subject = self.options.id
-        if subject:
+        groups = self._id_groups()
+        if groups:
+            # Slopes attach to the first grouping factor only. Repeating them on
+            # every factor would multiply the variance components and is almost
+            # never what a second grouping factor is there for.
+            subject = groups[0]
             slopes = self.options.slope
             if slopes:
                 random_term = ' + '.join(['1'] + slopes)
@@ -3842,8 +4074,10 @@ class Kbstat:
                     re_term = f'({random_term} || {subject})'      # lme4 diagonal
                 else:
                     re_term = f'diag({random_term} | {subject})'   # glmmTMB diagonal
-                return f'{y} ~ {rhs} + {re_term}'
-            return f'{y} ~ {rhs} + (1 | {subject})'
+            else:
+                re_term = f'(1 | {subject})'
+            re_terms = [re_term] + [f'(1 | {g})' for g in groups[1:]]
+            return f'{y} ~ {rhs} + ' + ' + '.join(re_terms)
         return f'{y} ~ {rhs}'
 
     def _parse_formula(self, formula: str) -> dict:
@@ -4176,7 +4410,11 @@ class Kbstat:
             f'  Model structure        : {self._model_structure_label()}',
         ]
         if self.options.id:
-            lines.append(f'  Random grouping factor : {self.options.id}')
+            _groups = self._id_groups()
+            _label = ('Random grouping factor ' if len(_groups) < 2
+                      else 'Random grouping factors')
+            _how = '' if len(_groups) < 2 else '  (crossed: one intercept each)'
+            lines.append(f'  {_label}: {", ".join(_groups)}{_how}')
         re_note = self._re_structure_note()
         if re_note:
             lines.append(f'  Random-slope structure : {re_note}')
@@ -4282,8 +4520,10 @@ class Kbstat:
             if hasattr(ph, 'to_pandas'):
                 ph = ph.to_pandas()
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
-            lines += [f'  Correction: {self.options.posthoc_correction}',
-                      f'  Denominator df method: {self._df_method_label()}', '']
+            _primary = (self._compare_vars() or [None])[0]
+            lines += self._posthoc_family_lines(
+                self._posthoc_family_info.get(_primary))
+            lines += [f'  Denominator df method: {self._df_method_label()}', '']
             _ph_show, _n_blanked = _blank_repeated_contrasts(ph, self.options.x[0]
                                                             if self.options.x else '')
             lines += [_bounded_p_table(_ph_show).to_string(index=False), '']
@@ -4319,6 +4559,33 @@ class Kbstat:
                     'these effect sizes are correspondingly LIBERAL (approximate upper bounds).',
                     'Read them as rough magnitudes, not exact values; the p-values and EMMs',
                     'are unaffected.',
+                    '',
+                ]
+
+        # --- Across-variable multiplicity ---
+        # A second axis of multiplicity, invisible from inside a single model:
+        # every p-value in this file is corrected (at most) within this model,
+        # while the run tested several dependent variables. Stated whether or not
+        # y_correction is set, so the scope of every p-value above is on the page.
+        if self._n_y > 1:
+            _n = self._n_y
+            lines += ['MULTIPLE DEPENDENT VARIABLES', '----------------------------',
+                      f'  This run fits {_n} dependent variables, each in its own model.']
+            if self.options.y_correction == 'none':
+                lines += [
+                    '  The p-values above are corrected only within this model. Nothing',
+                    f'  is corrected across the {_n} variables (y_correction=\'none\'), so the',
+                    '  chance of at least one false positive grows with their number.',
+                    "  Set y_correction to 'bonferroni', 'holm', 'FDR' or 'FDR_correlated'",
+                    '  if you want to read the variables as one family.',
+                    '',
+                ]
+            else:
+                lines += [
+                    f'  Their omnibus p-values are additionally corrected across the {_n}',
+                    f"  variables with y_correction='{self.options.y_correction}', one family per model",
+                    '  term. Those adjusted values are in MultipleComparisons.xlsx; the',
+                    '  tables above show the within-model values.',
                     '',
                 ]
 
@@ -4459,8 +4726,8 @@ class Kbstat:
 
     def _apply_categorical(self):
         categorical_vars = self.options.x.copy()
-        if self.options.id:
-            categorical_vars.append(self.options.id)
+        categorical_vars.extend(v for v in self._id_vars()
+                                if v not in categorical_vars)
 
         if self.data is not None:
             for var in categorical_vars:
@@ -4509,10 +4776,17 @@ def _blank_repeated_contrasts(df, factor_col):
     subsets which happen to agree exactly, rather than one test shown several
     times; the repeats are blanked so the distinct numbers stand out.
 
-    Done per column against the first row of each level pair, which also covers
-    the mixed case a non-identity link produces: there the back-transformed
-    difference varies from cell to cell while the test behind it does not, so
-    `diff` survives and `t`, `df`, `p` blank out.
+    Whether a row repeats is decided by its TEST -- `t`, `df` and `p` together --
+    and only then are its remaining columns blanked where they match. Deciding it
+    per column instead blanks on coincidence: two cells that genuinely differ
+    still share a `significance` of '***' or an `effectSize` of 'small' most of
+    the time, and those cells were being emptied out of `Summary.txt` while the
+    exported table and the plot showed them. It also fired the explanatory note
+    about a missing interaction under a full factorial model, where it is false.
+
+    Keying on the test also covers the mixed case a non-identity link produces:
+    there the back-transformed difference varies from cell to cell while the test
+    behind it does not, so `diff` survives and `t`, `df`, `p` blank out.
 
     Returns (display frame, number of rows with something blanked).
     """
@@ -4520,7 +4794,8 @@ def _blank_repeated_contrasts(df, factor_col):
     pair_cols = [c for c in (f'{factor_col}_1', f'{factor_col}_2') if c in out.columns]
     value_cols = [c for c in ('diff', 't', 'df', 'p', 'pCorr', 'SMD', 'etaSqp',
                               'effectSize', 'significance') if c in out.columns]
-    if not pair_cols or not value_cols or len(out) < 2:
+    test_cols = [c for c in ('t', 'df', 'p') if c in out.columns]
+    if not pair_cols or not value_cols or not test_cols or len(out) < 2:
         return out, 0
 
     def _same(a, b):
@@ -4541,10 +4816,11 @@ def _blank_repeated_contrasts(df, factor_col):
         if len(idx) < 2:
             continue
         first = idx[0]
-        for col in value_cols:
-            ref = out.at[first, col]
-            for i in idx[1:]:
-                if _same(out.at[i, col], ref):
+        for i in idx[1:]:
+            if not all(_same(out.at[i, c], out.at[first, c]) for c in test_cols):
+                continue        # a different test, however much of it agrees
+            for col in value_cols:
+                if _same(out.at[i, col], out.at[first, col]):
                     out.at[i, col] = ''
                     blanked_rows.add(i)
     return out, len(blanked_rows)
@@ -4664,16 +4940,39 @@ _Y_CORRECTION_MAP = {
 }
 
 
+# The posthoc_family values, and the emmeans `adjust=` values R's p.adjust can
+# reproduce. Only the latter have a pooled form: 'tukey', 'mvt', 'dunnettx',
+# 'scheffe' and 'sidak' are defined relative to the structure of ONE family (the
+# number of means in it, the correlation among its contrasts), so there is no
+# way to apply them to the union of several cells. Hence posthoc_family='cross'
+# for those, which keeps them inside the cell where they are defined.
+_POSTHOC_FAMILIES = ('cell', 'pooled', 'cross')
+
+# Accepted alternative spellings: {alias: canonical}. Synonyms, not deprecations
+# -- neither spelling warns and neither is preferred. Resolved in __init__ and
+# again in _normalize_options, so a synonym set after construction still takes.
+_OPTION_SYNONYMS = {
+    'correlate':  'correlation',
+    'constraint': 'constraints',
+}
+_POSTHOC_ADJUST_MAP = {
+    'holm': 'holm', 'hochberg': 'hochberg', 'hommel': 'hommel',
+    'bonferroni': 'bonferroni', 'bh': 'BH', 'by': 'BY', 'fdr': 'fdr',
+    'none': 'none',
+}
+
+
 def _adjust_pvalues(pvals, method):
     """Adjust a vector of p-values with R's p.adjust. `method` is a user-facing
-    y_correction value (lowercased). NaNs are preserved and excluded from the
-    family size n, so the adjustment is over the present p-values only."""
+    y_correction value or a posthoc_correction value (lowercased in both cases).
+    NaNs are preserved and excluded from the family size n, so the adjustment is
+    over the present p-values only."""
     p = np.asarray(pvals, dtype=float)
     out = np.full(p.shape, np.nan)
     mask = ~np.isnan(p)
     if not mask.any():
         return out
-    r_method = _Y_CORRECTION_MAP[method]
+    r_method = _Y_CORRECTION_MAP.get(method) or _POSTHOC_ADJUST_MAP[method]
     adjusted = ro.r['p.adjust'](ro.FloatVector(p[mask].tolist()), method=r_method)
     out[mask] = np.asarray(adjusted, dtype=float)
     return out

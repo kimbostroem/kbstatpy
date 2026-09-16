@@ -9,7 +9,14 @@ _DEMO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 @dataclass
 class KbstatOptions:
-    """Configuration for a kbstat analysis run."""
+    """Configuration for a kbstat analysis run.
+
+    The list-valued options (x, slope, interaction, covariate, y_units, x_units,
+    correlation, correlation_control) all accept either a Python list or a
+    comma-separated string, and all default to '' rather than []. They used to be
+    split between the two spellings for no reason anyone could name, which left
+    the documented default depending on which one an option happened to carry.
+    """
 
     # Data input / output
     in_file: str = ''
@@ -33,11 +40,26 @@ class KbstatOptions:
     correlation_method: str = 'pearson'  # 'pearson' | 'spearman' — for the raw and partial correlations
     correlation_control: object = ''  # variable(s) to partial out of every correlation, e.g. 'Age' (list or comma-separated); adjusts both the raw and partial tables and is not shown in the matrix
     y_transform: str = ''     # optional transform expression using 'y' as placeholder, e.g. 'log(y)'
-    x: list = field(default_factory=list)
+    x: object = ''           # fixed-effect factor(s) (list or comma-separated)
     x_order: object = None   # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column
+    # Random grouping factor(s). One name, or several separated by commas, in
+    # which case each gets its own random intercept and they are CROSSED:
+    # 'subject, session' -> (1 | subject) + (1 | session). lme4's nesting
+    # operators are accepted inside a name and mean what they do in lme4:
+    #   'subject/trial'  -> (1 | subject) + (1 | subject:trial)   [trial nested]
+    #   'subject:trial'  -> (1 | subject:trial)                   [that pair only]
+    # Use the nested form when the second factor's labels are reused inside each
+    # level of the first (a replicate index 1, 2, 3 ... per subject). Read as
+    # crossed, such a factor would pool replicate 1 across all subjects, which is
+    # not a thing; kbstatpy inspects the data and warns when it sees that shape.
+    # The nested reading is not automatically the right one either: a block term
+    # the data do not support fits as a zero variance component and a singular
+    # fit, and one grouping factor is then the better model.
+    # Random slopes (options.slope) attach to the FIRST grouping factor; the rest
+    # get intercepts only.
     id: str = ''
-    slope: list = field(default_factory=list)
+    slope: object = ''       # random slope(s) on id (list or comma-separated)
     # Random-effect correlation structure for the slopes. Accepts True, False, or
     # 'auto' (the default).
     #   True   fits the full covariance among the random intercept and slopes,
@@ -52,7 +74,7 @@ class KbstatOptions:
     #          structure. The fallback is reported in Summary.txt and the
     #          diagnostics footer. Ignored when an explicit `formula` is supplied.
     slope_correlated: object = 'auto'
-    interaction: list = field(default_factory=list)
+    interaction: object = ''  # factors allowed to interact (list or comma-separated)
 
     # GLM settings
     distribution: str = 'normal'
@@ -120,7 +142,7 @@ class KbstatOptions:
     remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)
 
     # Covariates: included in model and ANOVA, excluded from plots and post-hoc
-    covariate: list = field(default_factory=list)
+    covariate: object = ''   # numeric covariates (list or comma-separated)
 
     # Plot settings
     # Data-plot title prefix. When set, the title becomes '<title> (<DV>)',
@@ -260,6 +282,29 @@ class KbstatOptions:
     # Post-hoc settings
     posthoc_method: str = 'emm'
     posthoc_correction: str = 'holm'
+    # Scope of the family that posthoc_correction is applied over, when the
+    # comparison is conditional (one block of contrasts per cell of the
+    # conditioning factors — see posthoc_compare).
+    #   'cell' (default) — each cell is its own family, corrected independently.
+    #           Matches the emmeans default (`pairs(..., by = )` adjusts within
+    #           each by-group). With a two-level factor each family holds a
+    #           single contrast, so the correction is the identity and pCorr
+    #           equals p; the cells are then not corrected for one another.
+    #   'pooled' — every conditional contrast forms ONE family, corrected
+    #           together in a single pass. Appropriate when the same question is
+    #           asked in each cell and the cells are read jointly. Requires a
+    #           poolable posthoc_correction (an R p.adjust method).
+    #   'cross' — two-stage: corrected within each cell, then Bonferroni across
+    #           the cells. Each cell is thereby held to alpha / n_cells, so the
+    #           union is controlled at alpha. Use when posthoc_correction is an
+    #           exact within-family method ('tukey', 'mvt', 'dunnettx') that has
+    #           no pooled form.
+    # With one contrast per cell 'pooled' is uniformly at least as powerful as
+    # 'cross'; with two or more, neither dominates ('cross' is stronger when the
+    # effects concentrate in one cell, 'pooled' when they spread across cells).
+    # The marginal ('any') block of Posthoc_<var>.xlsx is excluded from every
+    # family: it is the ANOVA term for that factor, not an additional test.
+    posthoc_family: str = 'cell'
     # Which fixed-effect factor(s) to run pairwise level comparisons on. Each
     # listed factor is plotted as if it were the first x-variable — its levels on
     # the x-axis, the others as facet panels — with significance brackets between
@@ -306,3 +351,13 @@ class KbstatOptions:
     #   | 'FDR_correlated' (Benjamini-Yekutieli, valid under dependence)
     # Case-insensitive.
     y_correction: str = 'none'
+
+    # --- Alternative spellings -------------------------------------------------
+    # Synonyms, not deprecations: both spellings are equally valid and neither
+    # warns. They exist because the singular/plural and noun/verb forms are what
+    # people type from memory, and being silently ignored (a dataclass accepts
+    # any attribute assignment) is worse than either name winning. None means
+    # unset, which is why it is the default rather than '': '' is a legitimate
+    # value for both canonical options, meaning "off".
+    correlate: object = None     # synonym for `correlation`
+    constraint: object = None    # synonym for `constraints`

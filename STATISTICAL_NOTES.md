@@ -26,11 +26,13 @@
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Kenward-Roger and Satterthwaite](#degrees-of-freedom-kenward-roger-and-satterthwaite)
   - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
+    - [What counts as a family (`posthoc_family`)](#what-counts-as-a-family-posthoc_family)
   - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
 - [Technical aspects](#technical-aspects)
   - [Long vs. wide data format](#long-vs-wide-data-format)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
+    - [Crossed and nested grouping factors](#crossed-and-nested-grouping-factors)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
   - [Data plots: violin or bar plot](#data-plots-violin-or-bar-plot)
@@ -227,7 +229,7 @@ Detecting collinearity before interpreting individual predictor effects is essen
 
 By default the post-hoc pairwise comparisons run on the first fixed-effect factor. `options.posthoc_compare` points them at any factor instead — or several — each replotted as if it were the first variable (its levels on the x-axis, the remaining factors as facet panels), with its own significance brackets and `Posthoc_<factor>.xlsx`.
 
-The statistically important part is that these comparisons are **conditional (per cell)**, not marginal: a factor's levels are compared *within each combination of the other factors*, so every facet panel carries its own brackets and the answer can differ between panels. That is exactly the contrast a significant interaction calls for — the **simple effects** of one factor at each level of another — rather than a marginal comparison that averages over the interacting factor and can mislead, or even reverse, when the interaction is strong. Per-cell p-values are Holm-corrected within the cell; the table additionally carries a marginal block (conditioning columns set to `any`) for reference. See [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans) for the mechanics and the caution about interpreting marginal main-effect estimates when an interaction is present.
+The statistically important part is that these comparisons are **conditional (per cell)**, not marginal: a factor's levels are compared *within each combination of the other factors*, so every facet panel carries its own brackets and the answer can differ between panels. That is exactly the contrast a significant interaction calls for — the **simple effects** of one factor at each level of another — rather than a marginal comparison that averages over the interacting factor and can mislead, or even reverse, when the interaction is strong. Per-cell p-values are Holm-corrected within the cell by default, which `options.posthoc_family` widens to all cells at once; the table additionally carries a marginal block (conditioning columns set to `any`) for reference. See [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans) for the mechanics and the caution about interpreting marginal main-effect estimates when an interaction is present.
 
 ### Level-wise profile analysis (Demo 16)
 
@@ -346,13 +348,38 @@ All non-Gaussian GLMMs are fitted with `glmmTMB`, not `lme4::glmer`. This matter
 
 Post-hoc pairwise comparisons are computed via R's `emmeans` package (estimated marginal means). This correctly averages over the random-effects structure and accounts for unbalanced designs.
 
-By default comparisons are run on the first fixed-effect factor. `options.posthoc_compare` selects one or more factors to compare instead (each gets its own `DataPlots_<var>` and `Posthoc_<var>`). These comparisons are **conditional (per cell)**: a factor's levels are compared *within each combination of the other factors* rather than marginally, so each facet panel carries its own brackets and the result can differ across panels (e.g. two doses may differ significantly under one supplement but not another). Per-cell p-values are corrected within the cell. This is the kind of within-cell contrast a significant interaction calls for — see the caution above about interpreting marginal main effects when an interaction is present. For reference, `Posthoc_<var>.xlsx` also includes a **marginal block** (every conditioning column set to `any`) giving the comparison averaged over the conditioning factors; this appears in the table only — the plot brackets stay per-cell.
+By default comparisons are run on the first fixed-effect factor. `options.posthoc_compare` selects one or more factors to compare instead (each gets its own `DataPlots_<var>` and `Posthoc_<var>`). These comparisons are **conditional (per cell)**: a factor's levels are compared *within each combination of the other factors* rather than marginally, so each facet panel carries its own brackets and the result can differ across panels (e.g. two doses may differ significantly under one supplement but not another). Per-cell p-values are corrected within the cell by default; `options.posthoc_family` widens that family (see below). This is the kind of within-cell contrast a significant interaction calls for — see the caution above about interpreting marginal main effects when an interaction is present. For reference, `Posthoc_<var>.xlsx` also includes a **marginal block** (every conditioning column set to `any`) giving the comparison averaged over the conditioning factors; this appears in the table only — the plot brackets stay per-cell.
 
 P-value adjustment defaults to **Holm's step-down method** (`posthoc_correction = 'holm'`), which controls the family-wise error rate and is uniformly more powerful than Bonferroni.
 
+#### What counts as a family (`posthoc_family`)
+
+A family-wise correction controls the probability of at least one false positive *within a family*. The method says how to correct once the family is fixed; it does not say what the family is. That has never had a formal definition — it is a judgement about which tests jointly support one conclusion — so kbstatpy makes it an explicit option rather than an inherited default.
+
+`posthoc_family = 'cell'` (the default) treats each cell as its own family, matching `emmeans`, whose documentation states that the adjustment "always is applied *separately* to each table or sub-table that you see in the printed output". **This has a consequence that reads like a bug.** When the compared factor has two levels there is one contrast per cell, a family of one admits no adjustment, and `pCorr` comes back equal to `p` in every row — while the conditional cells, which are several distinct tests shown side by side, are not corrected for one another at all. The numbers are right for the family that was defined; the family was just narrower than the table looks. `Summary.txt` therefore reports the family scope and the number of comparisons in each family, so a correction that could not act says so rather than being inferred from the method name.
+
+The two wider scopes:
+
+| `posthoc_family` | Family | Use when |
+|---|---|---|
+| `'cell'` (default) | Each cell separately | Simple effects read one at a time; gated by a significant interaction |
+| `'pooled'` | All conditional contrasts as one | The same question asked in each cell, read jointly |
+| `'cross'` | Within each cell, then Bonferroni across cells | `posthoc_correction` is an exact within-family method |
+
+`'cross'` exists because `'tukey'`, `'mvt'`, `'dunnettx'` and `'scheffe'` are defined relative to the structure of one family (the number of means in it, the correlations among its contrasts) and have no pooled form. Holding each of *k* cells to α / *k* controls the union at α by a Bonferroni argument over families — which, unlike `emmeans`' own `cross.adjust`, needs no assumption that the cells are the same size. `'pooled'` requires a poolable correction (an R `p.adjust` method); asking for it with an exact method warns and falls back to `'cross'`.
+
+Which of the two is stronger depends on the family size, not on taste:
+
+- **One contrast per cell** (a two-level factor): the within-cell stage of `'cross'` is the identity, so `'cross'` degenerates to a plain Bonferroni over the cells. Step-down Holm on the pooled family beats it at the same family-wise level, so `'pooled'` is *uniformly* at least as powerful and kbstatpy warns if `'cross'` is chosen here.
+- **Two or more contrasts per cell**: neither dominates. `'cross'` is stronger when the effects concentrate in one cell (that cell's own step-down does the work, then one fixed factor *k*), `'pooled'` when they spread across cells (the global step-down loosens fastest). No advice is offered, because none is correct in general.
+
+The marginal (`any`) block is excluded from every family. It is the same test as that factor's ANOVA term, not an additional comparison, so correcting it against the cells would penalise a test twice for being reported twice.
+
+A caveat that no setting can address from inside one model: this corrects within a single dependent variable. When several are tested in one run, `options.y_correction` corrects across them (see below), and `Summary.txt` states which of the two layers is in force.
+
 For LMMs, `emmeans` reports t-ratios with Kenward-Roger or Satterthwaite degrees of freedom (per `df_method`, matching the omnibus). For GLMMs it reports z-ratios (asymptotic), which kbstatpy detects automatically.
 
-For a single factor with only two levels there is exactly one pairwise comparison, so the post-hoc *test* is redundant with the omnibus: F = t², the same df and p-value, and the multiple-comparison correction is a no-op. kbstatpy still reports it, because the post-hoc table is the only place the **effect estimate** appears — the between-group difference with its direction and 95 % confidence interval (and, for GLMMs, the back-transformed ratio: an odds ratio, a rate ratio). The ANOVA says *whether* there is an effect and *how large in standardised terms* (partial η², SMD); the post-hoc says *by how much, in which direction, on the response scale* — usually the number one actually reports. So the redundancy is confined to the hypothesis test, not the information.
+For a single factor with only two levels there is exactly one pairwise comparison, so the post-hoc *test* is redundant with the omnibus: F = t², the same df and p-value, and the multiple-comparison correction is a no-op (see `posthoc_family` above, which decides whether the *conditional* comparisons are nonetheless corrected for one another). kbstatpy still reports it, because the post-hoc table is the only place the **effect estimate** appears — the between-group difference with its direction and 95 % confidence interval (and, for GLMMs, the back-transformed ratio: an odds ratio, a rate ratio). The ANOVA says *whether* there is an effect and *how large in standardised terms* (partial η², SMD); the post-hoc says *by how much, in which direction, on the response scale* — usually the number one actually reports. So the redundancy is confined to the hypothesis test, not the information.
 
 ### Why estimated marginal means?
 
@@ -491,9 +518,33 @@ The left side of `|` specifies which terms vary by subject; the right side names
 
 **In kbstatpy**, the formula is assembled automatically from `options.y`, `options.x`, `options.id`, `options.slope`, and `options.interaction`. The `options.formula` field accepts a full Wilkinson formula string and overrides all of these when set, giving full control for non-standard model specifications.
 
+#### Crossed and nested grouping factors
+
+`options.id` takes more than one grouping factor, comma-separated, and reads them as **crossed** — one random intercept each, which is what `(1 | a) + (1 | b)` means in lme4:
+
+```python
+options.id = 'subject, session'    # y ~ x + (1 | subject) + (1 | session)
+```
+
+Crossed is right when the second factor's levels mean the same thing across the first: the same three test sessions, the same four raters, the same stimuli seen by everyone. It is wrong — and wrong in a way nothing complains about — when the second factor is a **replicate index whose labels are reused inside each subject**. Repetition 1 for subject A has nothing to do with repetition 1 for subject B, but `(1 | repetition)` asserts that it does, pooling every subject's first repetition into a single random effect. This is lme4's classic implicit-nesting trap, and it fits without error.
+
+The nested spelling says what is meant, using lme4's own operators inside the name:
+
+```python
+options.id = 'subject/repetition'  # y ~ x + (1 | subject/repetition)
+                                   #   = (1 | subject) + (1 | subject:repetition)
+options.id = 'subject:repetition'  # that pair alone, no subject-level intercept
+```
+
+kbstatpy inspects the data and warns when a factor read as crossed has the shape of a nested one — every level of the outer factor containing the same set of inner levels — naming the nested spelling in the warning. It also warns when a crossed grouping factor has fewer than three levels: a variance component estimated from two groups is not estimable in any useful sense, and such a factor almost always belongs in the fixed effects instead.
+
+**Nesting is not automatically the answer.** Whether the blocks need a term of their own is an empirical question, and the fit answers it: an unsupported block term comes back as a variance component of exactly zero and a `boundary (singular) fit` warning from lme4, and adding it costs 2 AIC for no gain in likelihood. Where that happens, the single grouping factor is the better model and the inner factor belongs nowhere in the formula. Note also what the block term is *not*: a systematic shift between the repeats, such as learning or fatigue, is a fixed effect and belongs in `options.x`. Random intercepts are mean-zero by construction and cannot represent a consistent drift; `(1 | subject:repetition)` captures only run-to-run variability with no common direction.
+
+Random slopes (`options.slope`) attach to the first grouping factor only. Repeating them on every factor multiplies the variance components and is rarely what a second grouping factor is there for; where it is wanted, `options.formula` writes it out explicitly.
+
 ### Data filtering: `constraints`
 
-`options.constraints` accepts a Python expression string that is passed directly to `pandas.DataFrame.query()`. The filter is applied before model fitting and before any correlation or VIF analysis — it is equivalent to manually subsetting the data before passing it to kbstatpy.
+`options.constraints` (also spelled `options.constraint`) accepts a Python expression string that is passed directly to `pandas.DataFrame.query()`. The filter is applied before model fitting and before any correlation or VIF analysis — it is equivalent to manually subsetting the data before passing it to kbstatpy.
 
 ```python
 options.constraints = 'Year > 1950'                  # numeric comparison
