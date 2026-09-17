@@ -1,5 +1,21 @@
 # Changes
 
+## [1.21.0] - 2026-09-17
+
+### Features
+
+- `interaction` accepts a structure as well as a list of terms: an integer `n` for every factor in `x` up to that order, `'all'` for the full factorial, and `'auto'` for every interaction the design can support. `'auto'` and `'all'` fit the same model whenever the design is complete.
+
+- Where a design has empty cells, an interaction term over them carries no degrees of freedom and cannot be estimated. `'auto'` leaves such terms out and `Summary.txt` reports which, and which cells were missing; `'all'`, an explicit order, or a named term list raise instead, naming the same. Terms that are only *partially* estimable are always kept, since their remaining contrasts are real. This is settled on the model matrix alone, never on the response, so no p-value depends on it -- unlike `model_comparison`, which consults the likelihood and therefore reports rather than chooses.
+
+- An incomplete design makes `emmeans` mark a term with `e` in the ANOVA's note column and collect the unattributable degrees of freedom in a row called `(confounded)`. Its own legend for these does not reach `Summary.txt`, so both arrived unexplained; `Summary.txt` now says what each means -- `e` that the term's df1 was reduced because some of its contrasts are not estimable, `(confounded)` that those df belong to no single term and are normally not reported.
+
+- `Summary.txt` reports the interaction structure next to the model information rather than after the results, since it describes the model.
+
+### Bugs
+
+- A model whose interaction was not estimable used to fit and then fail during the ANOVA with an error from R about mismatched column counts, naming neither the term nor the cells responsible. **Any run that died that way can now be completed**, with `interaction='auto'`, or diagnosed from the message the other spellings raise.
+
 ## [1.20.0] - 2026-09-16
 
 ### Features

@@ -22,6 +22,8 @@
   - [Comparing any factor, per cell (Demo 15)](#comparing-any-factor-per-cell-demo-15)
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
   - [Per-group dispersion: `dispformula` (Demo 17)](#per-group-dispersion-dispformula-demo-17)
+  - [Model structure, and why kbstatpy will not pick one for you](#model-structure-and-why-kbstatpy-will-not-pick-one-for-you)
+    - [Describing the structure instead of listing the terms](#describing-the-structure-instead-of-listing-the-terms)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Kenward-Roger and Satterthwaite](#degrees-of-freedom-kenward-roger-and-satterthwaite)
@@ -38,7 +40,7 @@
   - [Data plots: violin or bar plot](#data-plots-violin-or-bar-plot)
   - [Diagnostic plots](#diagnostic-plots)
   - [Back-transformation of EMM and CI](#back-transformation-of-emm-and-ci)
-  - [Random slopes in GLMMs — pymer4 bug and workaround](#random-slopes-in-glmms-pymer4-bug-and-workaround)
+  - [Random slopes in GLMMs](#random-slopes-in-glmms)
 
 ---
 
@@ -280,6 +282,36 @@ Type III + effects coding is a coherent, principled pair. MATLAB's `fitglme` use
 `options.x = 'group, eyes, limb'` builds an **additive** model. That is not a neutral default: it asserts that each factor's effect is the same at every level of the others, and the post-hoc contrasts then come out identical in every cell, because the model forbids them from differing. `Summary.txt` names the structure under MODEL INFORMATION, and the post-hoc table blanks the repeated values and says why.
 
 Adding `options.interaction` lifts the constraint. Which structure is right is a question about the data, and `options.model_comparison` will report maximum-likelihood AIC and BIC for a ladder of them (additive, all two-way, full factorial), with the random effects held fixed so only the fixed effects vary.
+
+#### Describing the structure instead of listing the terms
+
+`options.interaction` also accepts a description of the structure, which kbstatpy expands into terms: an integer `n` for every factor in `x` up to that order (R's `(A+B+C)^n`), `'all'` for the full factorial, `'auto'` for every interaction the design can support. The number of terms grows quickly, which is why the order is a number rather than a set of words:
+
+| factors | additive | ≤ 2-way | ≤ 3-way | ≤ 4-way | full factorial |
+|---|---|---|---|---|---|
+| 3 | 3 | 6 | 7 | | 7 |
+| 4 | 4 | 10 | 14 | 15 | 15 |
+| 5 | 5 | 15 | 25 | 30 | 31 |
+| 6 | 6 | 21 | 41 | 56 | 63 |
+
+**`'auto'` is not model selection, and the distinction is worth being precise about.** Whether a term is estimable depends on *which cells were observed* — a property of the design matrix — and never on the response values. A term whose cells are empty cannot be estimated whatever the data say, so leaving it out is forced rather than chosen, and no p-value is affected by the decision. That is categorically different from choosing a structure by AIC, which consults the likelihood and therefore the response; `options.model_comparison` does that, and consequently reports rather than chooses — see the section it sits in, [Model structure, and why kbstatpy will not pick one for you](#model-structure-and-why-kbstatpy-will-not-pick-one-for-you).
+
+Nothing is being dropped that would otherwise have been fitted, either. Given an unestimable term, `lme4` already removes it — `fixed-effect model matrix is rank deficient so dropping 1 column / coefficient` — and before this option existed the fit then succeeded while the ANOVA died inside R with a message about mismatched column counts, naming neither the term nor the cells. The choice is between dropping the term deliberately and reporting it, or having it dropped silently and crashing afterwards.
+
+**Only wholly unestimable terms go.** A term's estimable degrees of freedom are the rank the model matrix gains by adding it; its nominal degrees of freedom are the columns it adds. Where the two differ the term is *partially* estimable, and it is kept:
+
+| design | A:B nominal df | estimable df | |
+|---|---|---|---|
+| 2 × 2, one empty cell | 1 | 0 | wholly unestimable — dropped |
+| 3 × 3, one empty cell | 4 | 3 | partially estimable — kept |
+| 3 × 3, two empty cells | 4 | 2 | partially estimable — kept |
+
+In the 3 × 3 case the interaction still carries three testable contrasts. Removing the whole term to tidy away one aliased column would discard estimable information that nothing requires us to lose, so the term stays, R drops the redundant column, and `emmeans` marks the unreachable cells non-estimable.
+
+A partially estimable term leaves two marks in the ANOVA table, both from `emmeans::joint_tests` and both easy to misread as faults. A term whose df1 was reduced because some of its contrasts are not estimable is flagged `e` in the note column: its F-test is a valid test of the contrasts that remain, on the df shown, but not of the full term a complete design would give. And degrees of freedom that are testable yet belong to no single term appear in a row labelled `(confounded)` — effects the design cannot separate. That row is not a test of any interpretable hypothesis and is normally not reported; it is shown so the degrees of freedom account for themselves. `Summary.txt` explains both whenever they appear, because emmeans' own one-line legend does not survive into the table.
+
+`Summary.txt` reports the structure requested, the terms actually fitted, and every term dropped with the empty cells responsible. In a multi-`y` run different dependent variables can legitimately end up with different structures, because their missing-value patterns differ — which is exactly why the fitted structure is stated per outcome rather than left to be inferred from an absent ANOVA row.
+
 
 It stops at reporting, deliberately. Selecting a structure by AIC and then quoting the selected model's p-values, confidence intervals and effect sizes treats a model chosen *from* the data as though it had been specified in advance, and the inference is no longer valid. Simulated 300 times on data containing no interaction whatsoever: a pre-specified test of a given interaction was significant 5.0% of the time, exactly nominal, while a search over this ladder retained an interaction 30.7% of the time and reported it at p < 0.05 in 13.0% of runs. Selection also biases the retained term's effect size upward, and an AIC gap below about 2 is noise being read as a decision.
 

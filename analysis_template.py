@@ -33,9 +33,17 @@ options.x  = 'group, condition'             # fixed factor(s), the first goes on
 options.id = 'subject'                      # random grouping factor, '' for no random effect
 
 # options.interaction = 'group, condition'  # let these interact; the default is additive
+# options.interaction = 'auto'             # every interaction the design can support
+# options.interaction = 'all'              # the full factorial; raises if not estimable
+# options.interaction = 2                  # every factor in x, up to two-way
 # options.covariate   = 'age'               # numeric covariates: in the model, out of the plots
 # options.slope       = 'condition'         # random slope(s) on options.id, not just an intercept
 # options.formula     = 'y ~ group * condition + (1 | subject)'   # overrides everything above
+
+# 'auto' and 'all' fit the same thing when the design is complete. They differ
+# only where a term is not estimable because cells are empty: 'auto' leaves it
+# out and says so in Summary.txt, 'all' raises. That is judged on which cells
+# were observed, never on the response, so it is not model selection.
 
 # Several grouping factors, comma-separated, are CROSSED (one intercept each).
 # For a replicate index whose labels recur inside every subject, nest it instead

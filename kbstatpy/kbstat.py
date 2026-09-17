@@ -150,6 +150,8 @@ class Kbstat:
         # family sizes, so Summary.txt can state whether the correction could
         # act at all rather than leaving 'pCorr == p' to be read as a defect.
         self._posthoc_family_info: dict = {}
+        # Resolved interaction structure: (terms, dropped), or None before a fit.
+        self._interaction_cache = None
         self._posthoc_family_warned: bool = False
         self._n_y: int = 1                  # dependent variables in the run (set by run())
         self.statistics_table: pd.DataFrame = None
@@ -559,8 +561,30 @@ class Kbstat:
         if o.y_scale not in ('linear', 'log'):
             raise ValueError(f"y_scale must be 'linear' or 'log' (got {ys!r})")
         # interaction: a flat comma-separated string becomes a flat list (single interaction pair)
-        if isinstance(o.interaction, str):
-            o.interaction = self._split_csv(o.interaction)
+        # interaction: 'auto' / 'all' / an integer order describe a STRUCTURE, so
+        # they are resolved before the comma split that turns a list of factor
+        # names into a list. 'auto' and 'all' are therefore reserved names.
+        _ia = o.interaction
+        if isinstance(_ia, bool):
+            raise ValueError(
+                "interaction must be factor names, an integer order, 'auto' or "
+                f"'all' (got {_ia!r})")
+        if isinstance(_ia, int):
+            if _ia < 1:
+                raise ValueError(
+                    f"interaction as an order must be 1 or more (got {_ia!r}); "
+                    "1 is the additive model, same as ''")
+            o.interaction = _ia
+        elif isinstance(_ia, str) and _ia.strip().lower() in ('auto', 'all'):
+            o.interaction = _ia.strip().lower()
+            _clash = [f for f in (o.x or [])
+                      if str(f).strip().lower() in ('auto', 'all')]
+            if _clash:
+                raise ValueError(
+                    f"Fixed-effect factor(s) {_clash} use a name reserved by "
+                    "options.interaction ('auto'/'all'). Please rename them.")
+        elif isinstance(_ia, str):
+            o.interaction = self._split_csv(_ia)
         # y_units / x_units: normalize to list, matched positionally to y / x variables
         if isinstance(o.y_units, str):
             o.y_units = self._split_csv(o.y_units)
@@ -770,6 +794,9 @@ class Kbstat:
             self._load_data()
         self._normalize_options()
         self._check_id_groups()
+        # Cleared per fit: postfit outlier removal changes which cells are
+        # populated, so estimability has to be judged again on the rows kept.
+        self._interaction_cache = None
         # Reset the resolved random-slope structure so a re-fit (e.g. after
         # postfit outlier removal) re-decides the correlated/diagonal choice.
         self._slope_correlated_effective = None
@@ -4033,12 +4060,137 @@ class Kbstat:
                     "variance component estimated from that many groups is "
                     "unreliable. Consider a fixed effect instead.", stacklevel=2)
 
+    # --- interaction structure -------------------------------------------------
+
+    def _interaction_order_terms(self, factors, order):
+        """All interaction terms among `factors` of order 2..order, canonically
+        ordered (by order, then by the position of the factors in x)."""
+        import itertools
+        order = min(int(order), len(factors))
+        return [tuple(c) for k in range(2, order + 1)
+                for c in itertools.combinations(factors, k)]
+
+    def _term_estimability(self, factors, terms):
+        """How many of each term's degrees of freedom the DESIGN can support.
+
+        Returns [(term, nominal_df, estimable_df), ...], each term judged on top
+        of the ones already accepted before it.
+
+        This reads the model matrix only -- which cells were observed -- and never
+        the response, so it is not model selection: a term whose cells are missing
+        cannot be estimated whatever the data say. Compare options.model_comparison,
+        which does look at the likelihood and therefore reports rather than chooses.
+
+        A term contributing 0 df is wholly unestimable. One contributing some but
+        not all of its df is PARTIALLY estimable: R drops the redundant column and
+        the remaining contrasts are real, so the term is kept -- dropping it would
+        discard estimable information, which no necessity requires.
+        """
+        import rpy2.robjects.pandas2ri as p2ri
+        from rpy2.robjects import default_converter
+        from rpy2.robjects.conversion import localconverter
+
+        d = self.data
+        if 'is_outlier' in d.columns:
+            d = d[~d['is_outlier']]
+        cols = [c for c in dict.fromkeys(list(factors)) if c in d.columns]
+        d = d.dropna(subset=cols)[cols]
+        if d.empty or not terms:
+            return [(t, 0, 0) for t in terms]
+
+        ro.r(_R_TERM_RANKS)
+        base = ' + '.join(factors)
+        cands = [':'.join(t) for t in terms]
+        with localconverter(default_converter + p2ri.converter):
+            m = ro.r['kbstat_term_ranks'](d, base, ro.StrVector(cands))
+        m = np.asarray(m, dtype=float).reshape(len(terms), 2)
+        return [(t, int(m[i, 0]), int(m[i, 1])) for i, t in enumerate(terms)]
+
+    def _empty_cells(self, term):
+        """The level combinations of `term` the data never observe -- the reason a
+        term is unestimable, and the only actionable part of saying so."""
+        import itertools
+        d = self.data
+        if 'is_outlier' in d.columns:
+            d = d[~d['is_outlier']]
+        cols = [c for c in term if c in d.columns]
+        if len(cols) != len(term):
+            return []
+        levels = [[str(v) for v in (d[c].cat.categories if hasattr(d[c], 'cat')
+                                    else sorted(d[c].dropna().unique()))]
+                  for c in cols]
+        seen = {tuple(str(v) for v in row)
+                for row in d[cols].dropna().itertuples(index=False)}
+        return [c for c in itertools.product(*levels) if c not in seen]
+
+    def _resolve_interaction(self):
+        """The interaction terms to fit, and what was dropped getting there.
+
+        Returns (terms, dropped): terms a list of factor-name tuples, dropped a
+        list of (term, empty_cells) for the wholly unestimable ones. (None, [])
+        means options.interaction named its terms explicitly and the older path
+        in _build_formula handles it.
+
+        Cached per fit, because the rank computation needs R and the formula is
+        rebuilt several times in a run.
+        """
+        cached = getattr(self, '_interaction_cache', None)
+        if cached is not None:
+            return cached
+        ia = self.options.interaction
+        factors = list(self.options.x or [])
+        mode = ia if isinstance(ia, str) and ia in ('auto', 'all') else None
+        order = ia if isinstance(ia, int) and not isinstance(ia, bool) else None
+        if mode is None and order is None:
+            return None, []
+        if len(factors) < 2:
+            self._interaction_cache = ([], [])
+            return self._interaction_cache
+        wanted = self._interaction_order_terms(
+            factors, len(factors) if mode else order)
+        if self.data is None:
+            return wanted, []          # not cached: the check still has to run
+
+        graded = self._term_estimability(factors, wanted)
+        keep, dropped = [], []
+        for term, nominal, got in graded:
+            if got == 0 and nominal > 0:
+                dropped.append((term, self._empty_cells(term)))
+            else:
+                keep.append(term)
+        if dropped and mode != 'auto':
+            names = ', '.join(':'.join(t) for t, _ in dropped)
+            detail = '; '.join(
+                "{} has no observations for {}{}".format(
+                    ':'.join(t), ', '.join('/'.join(c) for c in cells[:4]),
+                    ' ...' if len(cells) > 4 else '')
+                for t, cells in dropped if cells)
+            raise ValueError(
+                "The requested interaction structure is not estimable: {} cannot "
+                "be estimated because the design has empty cells. {}. Use "
+                "interaction='auto' to fit the estimable terms and have the "
+                "dropped ones reported, or name the terms you want explicitly."
+                .format(names, detail))
+        self._interaction_cache = (keep, dropped)
+        return self._interaction_cache
+
     def _build_formula(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one."""
         if self.options.formula:
             return self.options.formula
         y = self.options.y
         ia = self.options.interaction
+        # 'auto' / 'all' / an integer order resolve to an explicit list of terms,
+        # written out with ':' so a single unestimable one can be left out. The
+        # '*' shorthand cannot express that, since it always implies every
+        # lower-order term with it.
+        _terms, _ = self._resolve_interaction()
+        if _terms is not None:
+            factors = list(self.options.x or [])
+            rhs_terms = list(factors) + [':'.join(t) for t in _terms]
+            x = ' + '.join(rhs_terms)
+            covs = ' + '.join(self.options.covariate)
+            return self._formula_tail(y, f'{x} + {covs}' if covs else x)
         # Normalise: flat list ['A','B'] → [['A','B']]; nested stays as-is
         if ia and not isinstance(ia[0], list):
             ia = [ia]
@@ -4059,6 +4211,11 @@ class Kbstat:
             x = ' + '.join(self.options.x)
         covs = ' + '.join(self.options.covariate)
         rhs = f'{x} + {covs}' if covs else x
+        return self._formula_tail(y, rhs)
+
+    def _formula_tail(self, y, rhs):
+        """Attach the random-effect terms to a finished fixed-effect right-hand
+        side. Shared by the explicit and the resolved-structure paths."""
         groups = self._id_groups()
         if groups:
             # Slopes attach to the first grouping factor only. Repeating them on
@@ -4427,6 +4584,35 @@ class Kbstat:
         # Use a single source: the model's fit_stats table when present (glmmTMB:
         # AIC/BIC/logLik/deviance), otherwise the AIC/BIC/logLik attributes
         # (LM/LMM). Emit each stat once, formatted consistently.
+        # --- Interaction structure that was actually fitted ---
+        # Only when options.interaction asked for a structure rather than naming
+        # its terms: a reader comparing two runs needs to see that one lost a
+        # term the other kept, and why, rather than inferring it from an absent
+        # ANOVA row. Different dependent variables can legitimately differ here,
+        # since their missing-value patterns differ.
+        _ia_terms, _ia_dropped = self._resolve_interaction()
+        if _ia_terms is not None:
+            _spec = self.options.interaction
+            _asked = ("every estimable interaction" if _spec == 'auto'
+                      else "the full factorial" if _spec == 'all'
+                      else f"interactions up to order {_spec}")
+            lines += ['INTERACTION STRUCTURE', '---------------------',
+                      f'  Requested: {_asked} (options.interaction={_spec!r})']
+            lines += [('  Fitted   : ' + (', '.join(':'.join(t) for t in _ia_terms)
+                                          or 'no interaction terms'))]
+            if _ia_dropped:
+                lines += ['',
+                          '  Dropped as not estimable (the design has no observations in',
+                          '  these cells, so the term carries no degrees of freedom; this',
+                          '  follows from which cells were measured, not from the data values):']
+                for _t, _cells in _ia_dropped:
+                    _shown = ', '.join('/'.join(c) for c in _cells[:6])
+                    _more = f' (+{len(_cells) - 6} more)' if len(_cells) > 6 else ''
+                    lines += [f'    {":".join(_t)}  -- empty: {_shown}{_more}'
+                              if _cells else f'    {":".join(_t)}']
+                lines += ["  Use interaction='all' to have this raise instead."]
+            lines += ['']
+
         lines += ['FIT STATISTICS', '--------------']
         # Not `stats`: that is scipy.stats at module level, and shadowing it here
         # made any later use of it in this method an AttributeError.
@@ -4461,6 +4647,45 @@ class Kbstat:
             lines += ['ANOVA (Type III)', '----------------',
                       _bounded_p_table(at).to_string(index=False),
                       f'  Denominator df method: {self._df_method_label()}', '']
+
+            # --- The two markers an incomplete design puts in the table ---
+            # emmeans::joint_tests prints its own one-line legend for these; that
+            # legend does not survive into the table kbstatpy builds, so a reader
+            # meets a bare 'e' and a row called '(confounded)' with nothing to
+            # say what either means. Both appear only when the design has empty
+            # cells, which is also when they most need explaining.
+            _terms_col = at['Term'].astype(str) if 'Term' in at.columns else pd.Series([], dtype=str)
+            _has_conf = bool((_terms_col == '(confounded)').any())
+            _has_e = bool('note' in at.columns
+                          and at['note'].astype(str).str.contains('e').any())
+            if _has_conf or _has_e:
+                lines += ['NOTE: estimability markers in the ANOVA table',
+                          '---------------------------------------------',
+                          'The design does not observe every combination of the factor levels,',
+                          'so some contrasts cannot be estimated and the Type III table cannot',
+                          'attribute every degree of freedom to a single term.', '']
+                if _has_e:
+                    lines += [
+                        "  e            in the note column: that term's df1 was REDUCED because",
+                        '               some of its contrasts are not estimable. The F-test is a',
+                        '               valid test of the contrasts that remain, on the df shown,',
+                        '               not of the full term you would get from a complete design.',
+                    ]
+                if _has_conf:
+                    lines += [
+                        '  (confounded) degrees of freedom that are testable but belong to no one',
+                        '               term -- effects the design cannot separate. This row is not',
+                        '               a test of any interpretable hypothesis and is normally not',
+                        '               reported; it is shown so the df account for themselves.',
+                    ]
+                lines += [
+                    '',
+                    'Both come from emmeans::joint_tests. Neither is an error, and neither',
+                    'means the model is wrong -- they are the design telling you which',
+                    'questions it can answer. INTERACTION STRUCTURE above, when present,',
+                    'names the cells that are empty.',
+                    '',
+                ]
 
             # Check for infinite df2 and add explanatory note
             has_inf_df = False
@@ -4947,6 +5172,30 @@ _Y_CORRECTION_MAP = {
 # way to apply them to the union of several cells. Hence posthoc_family='cross'
 # for those, which keeps them inside the cell where they are defined.
 _POSTHOC_FAMILIES = ('cell', 'pooled', 'cross')
+
+# Rank contributed by each candidate interaction term, given the terms already
+# accepted. Returns one row per candidate: (nominal df, estimable df). Written in
+# R rather than Python because model.matrix applies the same contrast coding the
+# fit will use, so the ranks are the ones lme4 would see.
+_R_TERM_RANKS = """
+kbstat_term_ranks <- function(d, base, cands) {
+  cur <- base
+  out <- list()
+  X <- model.matrix(as.formula(paste("~", cur)), d)
+  r0 <- qr(X)$rank; c0 <- ncol(X)
+  for (t in cands) {
+    f  <- paste("~", paste(c(cur, t), collapse = " + "))
+    Xi <- model.matrix(as.formula(f), d)
+    ri <- qr(Xi)$rank; ci <- ncol(Xi)
+    out[[length(out) + 1]] <- c(ci - c0, ri - r0)
+    if (ri - r0 > 0) {
+      cur <- paste(c(cur, t), collapse = " + ")
+      r0 <- ri; c0 <- ci
+    }
+  }
+  do.call(rbind, out)
+}
+"""
 
 # Accepted alternative spellings: {alias: canonical}. Synonyms, not deprecations
 # -- neither spelling warns and neither is preferred. Resolved in __init__ and
