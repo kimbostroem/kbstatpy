@@ -209,6 +209,22 @@ def test_explicit_spellings_are_untouched():
         'y ~ A + B + C + (1 | subj)'
 
 
+def test_auto_is_the_default():
+    """The default changed in 1.22.0, from '' (additive) to 'auto'. An additive
+    model asserts no interaction, which the post-hoc table then reproduces as an
+    identical contrast in every cell; making that assertion by omission was the
+    thing worth changing."""
+    assert KbstatOptions().interaction == 'auto'
+    k = fit(FULL_ABC, KbstatOptions().interaction, 'A, B, C')
+    assert terms_of(k) == ['A:B', 'A:C', 'B:C', 'A:B:C'], terms_of(k)
+
+
+def test_the_additive_model_is_still_reachable():
+    k = fit(FULL_ABC, '', 'A, B, C')
+    assert terms_of(k) == [] or k._resolve_interaction()[0] is None
+    assert k._build_formula() == 'y ~ A + B + C + (1 | subj)', k._build_formula()
+
+
 def test_bad_values_are_rejected():
     for bad in (0, -1, True):
         try:

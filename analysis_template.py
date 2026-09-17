@@ -32,8 +32,9 @@ options.y  = 'my_outcome'                   # dependent variable, comma-separate
 options.x  = 'group, condition'             # fixed factor(s), the first goes on the x-axis
 options.id = 'subject'                      # random grouping factor, '' for no random effect
 
-# options.interaction = 'group, condition'  # let these interact; the default is additive
-# options.interaction = 'auto'             # every interaction the design can support
+# options.interaction = 'auto'             # DEFAULT: every interaction the design supports
+# options.interaction = ''                 # additive: main effects only, no interactions
+# options.interaction = 'group, condition' # just these interact
 # options.interaction = 'all'              # the full factorial; raises if not estimable
 # options.interaction = 2                  # every factor in x, up to two-way
 # options.covariate   = 'age'               # numeric covariates: in the model, out of the plots

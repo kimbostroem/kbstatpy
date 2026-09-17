@@ -41,13 +41,20 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIST_VALUED = ('x', 'slope', 'interaction', 'covariate',
                'y_units', 'x_units', 'correlation', 'correlation_control')
 
+# interaction takes the same spellings as the rest, but its default is the
+# structure keyword 'auto' rather than "nothing" -- an additive model is a
+# choice, not an absence, so it is one the caller makes explicitly.
+EMPTY_BY_DEFAULT = tuple(o for o in LIST_VALUED if o != 'interaction')
+
 
 
 def test_all_list_valued_options_default_to_empty_string():
     fields = {f.name: f for f in dataclasses.fields(KbstatOptions)}
-    wrong = {n: fields[n].default for n in LIST_VALUED
+    wrong = {n: fields[n].default for n in EMPTY_BY_DEFAULT
              if fields[n].default != ''}
     assert not wrong, f'these should default to \'\': {wrong}'
+    assert fields['interaction'].default == 'auto', \
+        f"interaction should default to 'auto', got {fields['interaction'].default!r}"
 
 
 def test_no_list_valued_option_uses_a_default_factory():
@@ -69,7 +76,7 @@ def test_string_and_list_spellings_normalise_alike():
 
 
 def test_the_empty_default_normalises_to_an_empty_list():
-    for name in LIST_VALUED:
+    for name in EMPTY_BY_DEFAULT:
         k = Kbstat(KbstatOptions())
         k._normalize_options()
         assert getattr(k.options, name) == [], \

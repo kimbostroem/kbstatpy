@@ -1,62 +1,66 @@
 # Changes
 
+## [1.22.0] - 2026-09-17
+
+### Changes
+
+- `interaction` defaults to `'auto'` instead of `''`, so a model includes every interaction its design can support rather than none. **This changes what is estimated: ANOVA terms, p-values, marginal means and post-hoc contrasts all differ from earlier versions, and results produced with them should be regenerated.** An additive model does not decline to model an interaction, it asserts there is none, and that is better asserted deliberately than by omission. `interaction = ''` still fits it, and `Summary.txt` states which structure was used.
+
 ## [1.21.0] - 2026-09-17
 
 ### Features
 
-- `interaction` accepts a structure as well as a list of terms: an integer `n` for every factor in `x` up to that order, `'all'` for the full factorial, and `'auto'` for every interaction the design can support. `'auto'` and `'all'` fit the same model whenever the design is complete.
+- `interaction` also takes a structure instead of a list of terms: an integer for the highest interaction order, `'all'` for the full factorial, `'auto'` for every interaction the design can support.
 
-- Where a design has empty cells, an interaction term over them carries no degrees of freedom and cannot be estimated. `'auto'` leaves such terms out and `Summary.txt` reports which, and which cells were missing; `'all'`, an explicit order, or a named term list raise instead, naming the same. Terms that are only *partially* estimable are always kept, since their remaining contrasts are real. This is settled on the model matrix alone, never on the response, so no p-value depends on it -- unlike `model_comparison`, which consults the likelihood and therefore reports rather than chooses.
+- An interaction over empty cells cannot be estimated. `'auto'` leaves such terms out and `Summary.txt` reports which went and which cells were empty; the other spellings raise instead. Partially estimable terms are kept. Estimability is read off the design, never the response, so no p-value depends on it.
 
-- An incomplete design makes `emmeans` mark a term with `e` in the ANOVA's note column and collect the unattributable degrees of freedom in a row called `(confounded)`. Its own legend for these does not reach `Summary.txt`, so both arrived unexplained; `Summary.txt` now says what each means -- `e` that the term's df1 was reduced because some of its contrasts are not estimable, `(confounded)` that those df belong to no single term and are normally not reported.
-
-- `Summary.txt` reports the interaction structure next to the model information rather than after the results, since it describes the model.
+- `Summary.txt` explains the `e` marker and the `(confounded)` row that an incomplete design produces in the ANOVA table, and reports the interaction structure alongside the model information.
 
 ### Bugs
 
-- A model whose interaction was not estimable used to fit and then fail during the ANOVA with an error from R about mismatched column counts, naming neither the term nor the cells responsible. **Any run that died that way can now be completed**, with `interaction='auto'`, or diagnosed from the message the other spellings raise.
+- A model whose interaction was not estimable fitted and then failed during the ANOVA, with an error from R naming neither the term nor the cells responsible. Such a run now completes, or says what is wrong.
 
 ## [1.20.0] - 2026-09-16
 
 ### Features
 
-- New option `posthoc_family` decides what the post-hoc correction is applied over. `'cell'` (default, unchanged behaviour) corrects within each cell; `'pooled'` corrects every conditional comparison as one family; `'cross'` corrects within each cell and then Bonferroni across the cells, for the exact methods (`'tukey'`, `'mvt'`, `'dunnettx'`) that have no pooled form. With one comparison per cell `'pooled'` is always at least as powerful as `'cross'`, and picking the weaker one warns.
+- New option `posthoc_family` sets what the post-hoc correction is applied over: each cell separately (default, unchanged), every cell as one family, or within each cell and then across them.
 
-- `options.id` takes several random grouping factors, comma-separated, read as crossed: `'subject, session'` gives each its own random intercept. lme4's nesting operators work inside a name — `'subject/trial'`, `'subject:trial'` — for a replicate index whose labels recur inside each subject. kbstatpy warns when a factor read as crossed has the shape of a nested one, naming both the nested spelling and the option of leaving the factor out, and when a crossed grouping factor has fewer than three levels. Previously a comma-separated `id` produced an invalid formula and the fit failed.
+- `options.id` takes several random grouping factors, comma-separated and read as crossed, and lme4's nesting operators work inside a name. kbstatpy warns when a factor read as crossed has the shape of a nested one, and when a crossed factor has too few levels to estimate. A comma-separated `id` previously produced an invalid formula.
 
-- `analysis_template.py` in the repository root: a starting point to copy, with the five required options filled in and the rest commented out. Each commented line shows the value kbstatpy uses anyway, so an active line is always a deliberate change and a commented one documents the default.
+- `analysis_template.py` in the repository root: a file to copy, with the required options filled in and the rest commented out at their defaults.
 
-- The list-valued options (`x`, `slope`, `interaction`, `covariate`, `y_units`, `x_units`, `correlation`, `correlation_control`) all default to `''` now. Four of them defaulted to `[]` before, so the README's default column showed two spellings for options that behave identically. Both spellings still work and still normalise to the same list; only the default changed. `KbstatOptions().x` is therefore `''` rather than `[]` before a run, which matters only to a script that mutates it in place (`options.x.append(...)`) instead of assigning it.
+- The list-valued options all default to `''`, where four defaulted to `[]` before and so documented a different default from options that behave identically. Both spellings still work.
 
-- `correlation_method` and `correlation_control` are in the README option table, having been documented nowhere before, and `correlation_control` is normalised to a list like every other list-valued option instead of keeping whichever spelling it was given.
+- `correlation_method` and `correlation_control` are documented in the README, and `correlation_control` is normalised like the other list-valued options.
 
-- `correlation` and `constraints` also answer to `correlate` and `constraint`. Both spellings are equally valid; previously the unrecognised one was accepted and silently ignored, so the option simply appeared not to work.
+- `correlation` and `constraints` also answer to `correlate` and `constraint`. The unrecognised spelling was previously accepted and then ignored, so the option appeared not to work.
 
 ### Bugs
 
-- Values were missing from the `significance` and `effectSize` columns of the post-hoc table in `Summary.txt` while `Posthoc_<var>.xlsx` and the plot showed them. Rows were blanked as repeats column by column, so cells that genuinely differed were emptied whenever they happened to share a label — as significant cells usually do. Blanking now requires the whole test to repeat. The note about a missing interaction, which the same check triggered, no longer appears under a model that has one.
+- Values were missing from the `significance` and `effectSize` columns of the post-hoc table in `Summary.txt` while the exported table and the plot showed them. Rows are now blanked as repeats only when the whole test repeats, and the note about a missing interaction no longer appears under a model that has one.
 
 ### Changes
 
-- `Summary.txt` states the post-hoc family and how many comparisons it held, instead of just naming the method. **A two-level factor compared per cell gives each family a single comparison, so the correction is the identity and the corrected p-values equal the uncorrected ones** -- correct, and previously indistinguishable from a correction that was not running. The cells are also not corrected for one another; `posthoc_family='pooled'` does that.
+- `Summary.txt` states the post-hoc family and how many comparisons it held. **A two-level factor compared per cell gives each family one comparison, so the correction is the identity and the corrected p-values equal the uncorrected ones**, which was indistinguishable from a correction that was not running. The cells are not corrected against one another unless asked.
 
-- With more than one dependent variable, `Summary.txt` now says whether anything is corrected across them, and names `y_correction` when nothing is.
+- With more than one dependent variable, `Summary.txt` says whether anything is corrected across them.
 
 ## [1.19.0] - 2026-09-11
 
 ### Features
 
-- `model_comparison` now reads its own table. An AIC column invites treating any gap as a result, so structures within 2 AIC of the best are reported as indistinguishable and the smallest of those is named -- parsimony, not a verdict. Where that is the structure already fitted, the note says there is nothing to change; where it is not, the recommendation carries the caveat that p-values from a structure chosen this way are optimistic and that the choice should be disclosed.
+- `model_comparison` reads its own table: structures too close to the best to separate are reported as indistinguishable and the most parsimonious of them named, with the caveat that p-values from a structure chosen this way are optimistic and the choice should be disclosed.
 
 ## [1.18.0] - 2026-09-11
 
 ### Bugs
 
-- AIC, BIC and logLik for Gaussian LMMs came from the REML fit, and REML likelihoods do not compare between models with different fixed effects. On one dataset they read -820.6 additive against -780.5 full factorial, an apparently decisive win; the honest maximum-likelihood values are -857.1 and -857.3, a tie. They now come from an ML refit, while every estimate, standard error and test stays REML. **Any AIC or BIC from an earlier Gaussian LMM, and any model choice made from one, is worth revisiting.**
+- AIC, BIC and logLik for Gaussian LMMs came from the REML fit, and REML likelihoods do not compare between models with different fixed effects. They now come from a maximum-likelihood refit, while every estimate, standard error and test stays REML. **Any AIC or BIC from an earlier Gaussian LMM, and any model choice made from one, is worth revisiting.**
 
 ### Changes
 
-- With no interaction between the compared factor and the factors the post-hoc table is split by, the contrast is the same in every cell by construction, but read as several tests that happened to agree exactly. `Summary.txt` shows the repeats once and says why; the exported table keeps every number.
+- Where the model has no interaction between the compared factor and the factors the post-hoc table is split by, the contrast is identical in every cell by construction. `Summary.txt` shows it once and says why; the exported table keeps every number.
 
 - MODEL INFORMATION names the fixed-effect structure, so the additive default is stated rather than assumed.
 
@@ -68,11 +72,11 @@
 
 ### Bugs
 
-- The histogram and Q-Q panels drew horizontal rows of points at their extremes, which look like a truncated distribution but were an artifact of simulating only 250 datasets: the residuals could take just 250 distinct values and piled onto the outermost ones. They are now drawn from within their interval, which is the exact value under the null. **Only the diagnostic figures were affected** -- no estimate, statistic or p-value has ever come from these simulations -- but a "% capped" figure quoted from an older run was mostly simulation budget rather than misfit.
+- The histogram and Q-Q panels drew horizontal rows of points at their extremes, which look like a truncated distribution but are an artefact of the simulation resolution. They are now drawn from within their interval, the exact value under the null. **Only the diagnostic figures were affected**, but a "% capped" figure from an older run reflected the simulation budget more than misfit.
 
 ### Changes
 
-- Residuals of observations falling outside the simulated range are no longer plotted: their position is a placeholder for an undefined value, not a measurement. How many there were moved to `Summary.txt`, which now also states that the simulations serve the diagnostics only. The `diagnostic_outliers` option is removed.
+- Residuals of observations falling outside the simulated range are no longer plotted, their position being a placeholder for an undefined value rather than a measurement; `Summary.txt` reports how many there were. The `diagnostic_outliers` option is removed.
 
 - New `diagnostic_sims` (default `'auto'`) scales the number of simulated datasets with the size of the data, within a memory budget.
 

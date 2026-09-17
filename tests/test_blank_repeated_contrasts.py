@@ -58,8 +58,9 @@ def toy(n_subj=24, seed=3):
 def fit(df, interaction=True):
     o = KbstatOptions()
     o.y, o.x, o.id = 'y', 'group, limb, eyes', 'subject'
-    if interaction:
-        o.interaction = 'group, limb, eyes'
+    # Explicit either way: the default is 'auto' (every estimable interaction),
+    # so the additive model is now something a test has to ask for.
+    o.interaction = 'group, limb, eyes' if interaction else ''
     o.out_dir, o.figure_display = '/tmp/kbstatpy_blank', 'save_only'
     k = Kbstat(o)
     k.data = df.copy()

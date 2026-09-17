@@ -76,19 +76,23 @@ class KbstatOptions:
     slope_correlated: object = 'auto'
     # Which factors are allowed to interact. Either name the terms, or describe
     # the structure and let kbstatpy write them out:
-    #   ''              additive, main effects only (default)
+    #   'auto'          every interaction the DESIGN can support (default)
+    #   ''              additive, main effects only
     #   'A, B'          just those factors interact  -> A * B
     #   [['A','B'], ['C','D']]   separate interaction terms
     #   2, 3, ...       every factor in x, up to that order (R's (A+B+C)^n)
     #   'all'           the full factorial, every order
-    #   'auto'          every interaction the DESIGN can support
+    # The default was '' up to 1.21.0. An additive model asserts that each
+    # factor's effect is the same at every level of the others, which makes the
+    # post-hoc contrast identical in every cell by construction; an untested
+    # assumption of no interaction is still an assumption, and it is better made
+    # deliberately than by omission. Set interaction='' to ask for it.
     # 'auto' and 'all' fit the same structure whenever the design is complete.
     # They differ only when a term is not estimable because the design has empty
     # cells: 'auto' leaves that term out and reports it in Summary.txt, while
     # 'all' (and an explicit order or term list) raises, naming the term and the
     # missing cells. Use 'all' when the structure is pre-specified and you want
-    # to be told the data cannot carry it; use 'auto' to get on with the terms
-    # that are estimable.
+    # to be told the data cannot carry it.
     # Estimability is judged on the model matrix alone -- which cells were
     # observed -- and never on the response, so this is not model selection: a
     # term whose cells are missing cannot be estimated whatever the data say.
@@ -100,7 +104,7 @@ class KbstatOptions:
     # An order at or above the number of factors is the full factorial; 1 is the
     # additive model. 'auto' and 'all' are reserved -- a factor may not be named
     # either.
-    interaction: object = ''
+    interaction: object = 'auto'
 
     # GLM settings
     distribution: str = 'normal'

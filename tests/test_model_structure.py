@@ -63,6 +63,10 @@ def fit(plant_interaction=0.0, **opts):
         setattr(o, k, v)
     k = Kbstat(o)
     k.data = toy_data(interaction=plant_interaction)
+    # These tests were written when '' (additive) was the default structure. It
+    # is 'auto' now, so the additive baseline has to be requested explicitly.
+    if 'interaction' not in opts:
+        k.options.interaction = ''
     k._normalize_options()
     k.fit()
     k.anova()
