@@ -1,5 +1,11 @@
 # Changes
 
+## [1.23.1] - 2026-09-18
+
+### Bugs
+
+- Demo 11 fitted an interaction its own description did not mention, having been written when the additive model was the default. It asks for the additive model explicitly now. No library code is affected; only the demo and its notebook.
+
 ## [1.23.0] - 2026-09-18
 
 ### Bugs

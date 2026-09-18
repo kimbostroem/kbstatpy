@@ -31,6 +31,9 @@ options.in_file      = os.path.join(options.demo_dir, 'data/bacteria.csv')
 options.out_dir      = 'results/demo_11_glmm_binomial'
 options.y            = 'present'                   # binary outcome: 1 = bacteria present
 options.x            = 'trt, week'                 # fixed-effect factors
+options.interaction  = ''                          # additive: since 1.22.0 the default fits
+                                                   # every estimable interaction, and trt:week
+                                                   # costs 8 df here for p = .72
 options.id           = 'ID'                        # random intercept per child
 options.distribution = 'binomial'                  # binary outcome
 options.link         = 'logit'                     # logit link: maps linear predictor to probability
