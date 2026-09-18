@@ -1,5 +1,11 @@
 # Changes
 
+## [1.23.2] - 2026-09-18
+
+### Changes
+
+- Two code comments still described the additive model as the default, which it stopped being in 1.22.0. Comments only; no behaviour changes.
+
 ## [1.23.1] - 2026-09-18
 
 ### Bugs

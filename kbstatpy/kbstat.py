@@ -4385,10 +4385,12 @@ class Kbstat:
     def _model_structure_label(self) -> str:
         """Whether the fixed effects are additive, full factorial, or in between.
 
-        Worth stating: `x = 'group, eyes, limb'` builds an additive model, and
-        that is not a neutral default but an assertion that each factor's effect
-        is the same at every level of the others. Left unsaid, it surfaces later
-        as post-hoc rows that are identical across cells and look like a fault.
+        Worth stating either way. An additive model is not a neutral choice but
+        an assertion that each factor's effect is the same at every level of the
+        others, and left unsaid it surfaces later as post-hoc rows identical
+        across cells that look like a fault. A factorial one is worth naming
+        because it is what a plain `x` now gives: since 1.22.0 `interaction`
+        defaults to 'auto'.
         """
         labels = []
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))

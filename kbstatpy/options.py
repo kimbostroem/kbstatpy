@@ -154,8 +154,8 @@ class KbstatOptions:
     kr_max_obs: int = 5000
 
     # Report ML information criteria for a ladder of fixed-effect structures
-    # (additive, all two-way, full factorial) alongside the fitted model, so the
-    # cost of the additive default is visible instead of implicit. Off by default.
+    # (additive, all two-way, full factorial) alongside the fitted model, so what
+    # the chosen structure costs is visible instead of implicit. Off by default.
     #
     # It is a REPORT, never a selection. Choosing a structure by AIC and then
     # quoting the winner's p-values as if it had been fixed in advance inflates
