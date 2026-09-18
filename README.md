@@ -171,6 +171,8 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 
 ## Options reference
 
+**Values are case-insensitive, and a wrong one raises.** The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
+
 **Switching an option off.** Which of `''` and `'none'` turns something off depends on what the option names, and the two are not interchangeable. Options that name *things* — variables, factors, expressions (`x`, `covariate`, `slope`, `interaction`, `correlation`, `correlation_control`, `profile_across`, `dispersion`, `constraints`) — are switched off by leaving them **empty**; `'none'` there is read as a name, so `correlation = 'none'` looks for a column called `none` and fails. Options that name a *mode or method* (`posthoc_correction`, `y_correction`, `data_outliers`, `x_label`, `y_label`) take **`'none'`** as one of their listed choices, and `''` falls back to the default rather than to "off". On/off flags (`show_group_size`, `show_emm_lines`, `remove_outliers_*`) also accept `'none'` for off, alongside `False`. Two deliberate exceptions: `posthoc_compare` accepts either spelling, and for `title` the two differ — `''` shows the plain variable name, `'none'` removes the title entirely.
 
 | Option | Type | Description |
@@ -180,11 +182,11 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 | `demo_dir` | str | *(auto)* Absolute path to the bundled demo folder, for example inputs: `os.path.join(options.demo_dir, 'data/sleep.csv')` |
 | `formula` | str | Full Wilkinson formula. Overrides `y`, `x`, `id`, `slope` and `interaction` |
 | `y` | str or list | Dependent variable(s). Several run one analysis each, see [Multi-y](#multi-y) |
-| `y_units` | str or list | Unit label(s) for the y-axis, e.g. `'ms'`, or `'kg, N, m'` for multi-y, matched to `y` by position. An empty entry means no unit |
+| `y_units` | str or list | Default `''` (no units). Unit label(s) for the y-axis, e.g. `'ms'`, or `'kg, N, m'` for multi-y, matched to `y` by position. An empty entry, or `'1'`, means that variable has no unit |
 | `x` | list / str | Fixed-effect factor column names |
 | `x_order` | str or dict | Level order, e.g. `'dose: low, medium, high; supp: OJ, VC'`. With `rename`, use the renamed names |
 | `rename` | str or dict | Display labels for variables and levels, e.g. `'cyl -> Cylinders; cyl: 4 -> 4 cyl'`. Variable renames affect labels and headers, level renames affect the data before fitting |
-| `x_units` | list / str | Unit label(s) for x-axis tick groups, matched to `x` by position. An empty entry (or `'1'`) means that factor has no unit, e.g. `', mg'` |
+| `x_units` | list / str | Default `''` (no units). Unit label(s) for x-axis tick groups, matched to `x` by position. An empty entry, or `'1'`, means that factor has no unit, e.g. `', mg'` labels the second factor only |
 | `id` | str | Random grouping factor(s). Several, comma-separated, are crossed; lme4's `/` and `:` nest. See [Crossed and nested grouping factors](STATISTICAL_NOTES.md#crossed-and-nested-grouping-factors) |
 | `slope` | list / str | Variables with random slopes, e.g. `'A, B'` → `(1 + A + B \| id)` |
 | `slope_correlated` | bool or str | Default `'auto'`. Covariance structure for the slopes: `True` full, `False` diagonal, `'auto'` full with a diagonal fallback when it comes back singular |

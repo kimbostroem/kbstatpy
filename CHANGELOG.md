@@ -1,5 +1,17 @@
 # Changes
 
+## [1.23.0] - 2026-09-18
+
+### Bugs
+
+- A mistyped `distribution` fitted a Gaussian model and said nothing, because the family lookup fell back rather than complaining. **Any fit whose `distribution` was misspelled was a normal LMM, whatever was intended**; it is refused now.
+
+- `plot_style = 'Bar'` drew violins, since only the lower-case spelling was recognised.
+
+### Changes
+
+- The options that take a fixed set of values accept any capitalisation and refuse anything outside the set, instead of some doing that and others quietly falling back. A value that was previously ignored now raises. `posthoc_correction` keeps its case, because its value reaches R, where `BH` and `BY` are not `bh` and `by`.
+
 ## [1.22.2] - 2026-09-18
 
 ### Bugs

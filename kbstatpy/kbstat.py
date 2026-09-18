@@ -516,6 +516,24 @@ class Kbstat:
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
+        # Enumerated options: one lower-casing and one validation for all of them.
+        # An empty value is left alone, since several read it as "use the
+        # default"; anything else must be a value the option actually takes,
+        # because silently ignoring it is how a typo becomes a different model.
+        for _name, _allowed in _ENUM_OPTIONS.items():
+            _raw = getattr(o, _name)
+            _val = str(_raw if _raw is not None else '').strip().lower()
+            if not _val:
+                continue
+            if _val not in _allowed:
+                raise ValueError(
+                    f"{_name} must be one of: {', '.join(_allowed)} "
+                    f"(got {_raw!r})")
+            setattr(o, _name, _val)
+        # link goes to R as a name; lower-case it, but do not enumerate -- the
+        # set depends on the family and R has the authoritative list.
+        if isinstance(o.link, str):
+            o.link = o.link.strip().lower()
         # y_correction: normalize to lowercase, validate against the allowed set.
         yc = o.y_correction
         o.y_correction = (yc or 'none').strip().lower()
@@ -659,8 +677,16 @@ class Kbstat:
             o.data_outliers = o.show_outliers
             o.show_outliers = None
         v = str(o.data_outliers or 'text').strip().lower()
-        o.data_outliers = (v if v in ('plot', 'text')
-                           else 'none' if v in ('hide', 'off', 'none') else 'text')
+        if v in ('plot', 'text'):
+            o.data_outliers = v
+        elif v in ('hide', 'off', 'none'):
+            o.data_outliers = 'none'
+        else:
+            # Was a silent fall back to 'text', which is how a typo turned into
+            # a plot that quietly did not show what was asked for.
+            raise ValueError(
+                "data_outliers must be one of: text, plot, none ('hide' and "
+                f"'off' also mean none) (got {o.data_outliers!r})")
 
     def run(self):
         """Compute the full analysis and gather the results into ``self.output``.
@@ -5190,6 +5216,28 @@ _Y_CORRECTION_MAP = {
 # way to apply them to the union of several cells. Hence posthoc_family='cross'
 # for those, which keeps them inside the cell where they are defined.
 _POSTHOC_FAMILIES = ('cell', 'pooled', 'cross')
+
+# Enumerated string options and the values they take, lower-cased. Kept in one
+# table because the options used to disagree about both halves of the problem:
+# some normalised case and raised on an unknown value, others took whatever they
+# were given and quietly fell back, so `plot_style='Bar'` drew violins and a
+# mistyped distribution fitted a Gaussian without a word.
+#
+# Deliberately absent: `posthoc_correction`, whose value goes to R, where the
+# method names are case-sensitive ('BH', 'BY'); `df_method`, which has its own
+# alias table and warns; and the free-text options (`fit_method`, `font`,
+# `color_scheme`, `title`), which have no fixed set.
+_ENUM_OPTIONS = {
+    'distribution':       ('normal', 'gaussian', 'binomial', 'poisson', 'gamma',
+                           'inverse_gaussian'),
+    'plot_style':         ('violin', 'bar', 'auto'),
+    'figure_display':     ('save_only', 'show_close', 'show_keep'),
+    'x_label':            ('variable_below_levels', 'variable_equals_level',
+                           'levels', 'none'),
+    'y_label':            ('variable_with_units', 'variable_only', 'none'),
+    'correlation_method': ('pearson', 'spearman'),
+    'posthoc_method':     ('emm',),
+}
 
 # Rank contributed by each candidate interaction term, given the terms already
 # accepted. Returns one row per candidate: (nominal df, estimable df). Written in
