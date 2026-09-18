@@ -34,8 +34,12 @@ class KbstatOptions:
     # Model specification
     formula: str = ''
     y: object = ''            # str for a single dependent variable, or list[str] to iterate
-    y_units: object = ''      # unit label(s) for the y-axis, e.g. 'ms' or 'kg, N, m' for multi-y
-    x_units: object = ''      # unit label(s) for x factors, e.g. '1, mg' — '1' means no units
+    # Unit labels, matched to y / x BY POSITION, so an entry's place is what ties
+    # it to a variable. An empty entry means that variable has no unit ('1' does
+    # the same, and is what the MATLAB kbstat used); ', mg' labels the second
+    # factor only. A spec that is empty throughout means no units at all.
+    y_units: object = ''      # e.g. 'ms', or 'kg, N, m' for multi-y
+    x_units: object = ''      # e.g. ', mg' or '1, mg'
     correlation: object = ''  # variables for pairwise correlation analysis (list or comma-separated)
     correlation_method: str = 'pearson'  # 'pearson' | 'spearman' — for the raw and partial correlations
     correlation_control: object = ''  # variable(s) to partial out of every correlation, e.g. 'Age' (list or comma-separated); adjusts both the raw and partial tables and is not shown in the matrix

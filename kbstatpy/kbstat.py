@@ -374,6 +374,24 @@ class Kbstat:
             return [v.strip() for v in value.split(',') if v.strip()]
         return list(value)
 
+    @staticmethod
+    def _split_csv_positional(value):
+        """Split a comma-separated string, KEEPING empty entries.
+
+        For the unit options an entry's position is what ties it to a variable,
+        so discarding an empty one shifts every later unit onto the wrong
+        variable: 'mg, s' against three factors silently labels the first two
+        rather than saying the first has no unit. `'1'` exists as a placeholder
+        for exactly that reason; an empty entry now serves as well, which is what
+        the Python list form has always accepted.
+
+        A spec that is empty throughout means "no units", not one blank slot.
+        """
+        if isinstance(value, str):
+            parts = [v.strip() for v in value.split(',')]
+            return [] if not any(parts) else parts
+        return list(value)
+
     def _resolve_path(self, path):
         """Resolve a relative path against the current working directory.
 
@@ -587,9 +605,9 @@ class Kbstat:
             o.interaction = self._split_csv(_ia)
         # y_units / x_units: normalize to list, matched positionally to y / x variables
         if isinstance(o.y_units, str):
-            o.y_units = self._split_csv(o.y_units)
+            o.y_units = self._split_csv_positional(o.y_units)
         if isinstance(o.x_units, str):
-            o.x_units = self._split_csv(o.x_units)
+            o.x_units = self._split_csv_positional(o.x_units)
         if isinstance(o.correlation, str):
             o.correlation = self._split_csv(o.correlation)
         # x_order: parse 'var: l1, l2; var2: l1, l2' string into dict

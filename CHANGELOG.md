@@ -1,5 +1,11 @@
 # Changes
 
+## [1.22.2] - 2026-09-18
+
+### Bugs
+
+- `y_units` and `x_units` are matched to their variables by position, but an empty entry in the comma-separated form was discarded, which shifted every later unit onto the wrong variable. `x_units = ', mg'` labelled the first factor rather than the second, silently. An empty entry now holds its place, so the string form behaves as the list form always did, and `'1'` keeps working as the placeholder it was.
+
 ## [1.22.1] - 2026-09-18
 
 ### Changes

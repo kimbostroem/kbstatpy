@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Tests for `y_units` / `x_units`, which are matched to variables by position.
+
+The guarded failure mode: both were split with the same helper as `x` and
+`slope`, which discards empty entries. That is right for a list of names, where
+a stray comma should not invent a blank variable, and wrong here, where an
+entry's position is what ties it to a variable. `x_units = ', mg'` therefore
+became `['mg']` and labelled the FIRST factor with mg instead of the second, an
+axis mislabelled with no warning anywhere.
+
+`'1'` was the documented way round it -- a placeholder occupying a position
+without printing a unit -- and it still works. An empty entry now does too,
+which is what the Python list form has always accepted, so the string and list
+spellings finally agree.
+
+Needs R + glmmTMB (importing kbstatpy starts R).
+
+Run:  python3 tests/test_unit_labels.py
+"""
+import os
+import sys
+
+import matplotlib
+matplotlib.use('Agg')
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from kbstatpy.kbstat import Kbstat            # noqa: E402
+from kbstatpy.options import KbstatOptions    # noqa: E402
+
+FACTORS = ['group', 'limb', 'eyes']
+
+
+def units(spec, attr='x_units'):
+    o = KbstatOptions()
+    o.y, o.x, o.id = 'y', list(FACTORS), 'subj'
+    setattr(o, attr, spec)
+    k = Kbstat(o)
+    k._normalize_options()
+    return getattr(k.options, attr)
+
+
+def label(us, i):
+    """The rule the plotting code applies: '' and '1' both mean no unit."""
+    return (f'{FACTORS[i]} [{us[i]}]'
+            if len(us) > i and us[i] and us[i] != '1' else FACTORS[i])
+
+
+def test_empty_entry_holds_its_position():
+    assert units(', mg, s') == ['', 'mg', 's'], units(', mg, s')
+
+
+def test_empty_and_one_label_identically():
+    a = units(', mg, s')
+    b = units('1, mg, s')
+    assert [label(a, i) for i in range(3)] == [label(b, i) for i in range(3)], \
+        f'{a} and {b} must label the same'
+    assert [label(a, i) for i in range(3)] == \
+        ['group', 'limb [mg]', 'eyes [s]'], [label(a, i) for i in range(3)]
+
+
+def test_the_string_and_list_spellings_agree():
+    assert units(', mg, s') == units(['', 'mg', 's'])
+    assert units('1, mg, s') == units(['1', 'mg', 's'])
+
+
+def test_a_wholly_empty_spec_means_no_units():
+    for spec in ('', '  ', ' , , '):
+        assert units(spec) == [], f'{spec!r} -> {units(spec)!r}'
+
+
+def test_y_units_is_positional_too():
+    """Same helper, same failure: y_units is matched to the dependent variables
+    of a multi-y run in order."""
+    o = KbstatOptions()
+    o.y, o.x, o.id = ['a', 'b', 'c'], list(FACTORS), 'subj'
+    o.y_units = ', mg, s'
+    k = Kbstat(o)
+    k._normalize_options()
+    assert k.options.y_units == ['', 'mg', 's'], k.options.y_units
+
+
+def test_name_lists_still_drop_stray_entries():
+    """The positional rule must not leak into the options that name things,
+    where a trailing comma should not invent a blank variable."""
+    o = KbstatOptions()
+    o.y, o.id = 'y', 'subj'
+    o.x, o.slope, o.covariate = 'group, limb,', 'limb, ', 'age,,'
+    k = Kbstat(o)
+    k._normalize_options()
+    assert k.options.x == ['group', 'limb'], k.options.x
+    assert k.options.slope == ['limb'], k.options.slope
+    assert k.options.covariate == ['age'], k.options.covariate
+
+
+if __name__ == '__main__':
+    failures = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith('test_') and callable(fn):
+            try:
+                fn()
+                print(f'PASS  {name}')
+            except AssertionError as e:
+                failures += 1
+                print(f'FAIL  {name}\n      {e}')
+            except Exception as e:                      # noqa: BLE001
+                failures += 1
+                print(f'ERROR {name}\n      {type(e).__name__}: {e}')
+    print(f'\n{"all tests passed" if not failures else f"{failures} test(s) FAILED"}')
+    sys.exit(1 if failures else 0)

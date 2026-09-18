@@ -91,7 +91,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # ---------------------------------------------------------------------------
 # options.title   = 'Study A'               # title prefix, 'none' suppresses it entirely
 # options.y_units = 'Nm'                    # y-axis unit(s), comma-separated for multi-y
-# options.x_units = '1, mg'                 # unit label(s) per x factor, '1' means no unit
+# options.x_units = ', mg'                  # unit(s) per x factor, by position; empty = no unit
 # options.rename  = 'grp -> Group; grp: c1 -> Control'   # display names for variables and levels
 # options.x_order = 'dose: low, medium, high'            # level order on the axis and in the tables
 
