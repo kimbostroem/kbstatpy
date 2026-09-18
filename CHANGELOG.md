@@ -1,5 +1,13 @@
 # Changes
 
+## [1.22.1] - 2026-09-18
+
+### Changes
+
+- The README option table is readable again. Its `Default` column was as wide as the option names, because a column is sized by its longest unbreakable token and two defaults are long string literals, which left the descriptions a fifth of the page and the table scrolling sideways. Defaults are stated in the description instead and the column is gone. Descriptions are cut to a line or two, with the longer explanations moved to a new "Notes on particular options" section or to `STATISTICAL_NOTES.md`.
+
+- `dispersion`, `correlation_method` and `correlation_control` have rows in the option table, having been documented nowhere before.
+
 ## [1.22.0] - 2026-09-17
 
 ### Changes

@@ -83,17 +83,37 @@ def test_the_empty_default_normalises_to_an_empty_list():
             f'{name} came out {getattr(k.options, name)!r}, not []'
 
 
-def test_readme_default_column_matches_the_code():
-    """The README column that was wrong before; nothing else would catch it."""
+def test_every_option_has_a_readme_row():
+    """The table had quietly lost `dispersion`, `correlation_method` and
+    `correlation_control` -- all working options, documented nowhere. Nothing
+    noticed, because nothing was checking."""
+    readme = open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read()
+    documented = set(re.findall(r'^\| `(\w+)` \|', readme, re.M))
+    # Alternative spellings are documented as such, not given rows of their own;
+    # show_outliers is deprecated.
+    exempt = {'correlate', 'constraint', 'show_outliers'}
+    missing = sorted(f.name for f in dataclasses.fields(KbstatOptions)
+                     if f.name not in documented and f.name not in exempt)
+    assert not missing, f'options with no README row: {missing}'
+
+
+def test_stated_defaults_match_the_code():
+    """The Default column is gone -- it was as wide as the option names because
+    of two long literals, and squeezed the descriptions to a fifth of the page.
+    Defaults are stated in the description instead, which nothing would keep
+    honest without this."""
     readme = open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read()
     fields = {f.name: f for f in dataclasses.fields(KbstatOptions)}
-    bad = []
-    for name in LIST_VALUED:
-        m = re.search(r'^\| `%s` \| [^|]*\| `([^|`]*)` \|' % name, readme, re.M)
-        assert m, f'{name} has no row in the README option table'
-        if m.group(1) != repr(fields[name].default):
-            bad.append((name, m.group(1), repr(fields[name].default)))
-    assert not bad, f'README default disagrees with the code: {bad}'
+    wrong, checked = [], 0
+    for opt, desc in re.findall(r'^\| `(\w+)` \| [^|]*\| (.*?) \|$', readme, re.M):
+        m = re.match(r'Default `([^`]*)`', desc)
+        if not m or opt not in fields:
+            continue
+        checked += 1
+        if m.group(1) != repr(fields[opt].default):
+            wrong.append((opt, m.group(1), repr(fields[opt].default)))
+    assert checked >= 15, f'only {checked} defaults stated; the pattern may have changed'
+    assert not wrong, f'README states a default the code disagrees with: {wrong}'
 
 
 if __name__ == '__main__':
