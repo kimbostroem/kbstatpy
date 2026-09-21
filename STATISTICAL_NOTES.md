@@ -360,6 +360,14 @@ So the methods part company below about a thousand observations, which is where 
 
 These timings are from one machine and one model family; a fit with a heavier random-effect structure will sit higher on the curve. `kr_max_obs` exists so that the trade-off can be moved rather than argued about.
 
+#### Choosing between the positive-continuous families
+
+Gamma, inverse Gaussian and Tweedie all suit a positive, right-skewed outcome, and they differ in how fast the variance grows with the mean: Var ∝ μ² for gamma, μ³ for inverse Gaussian, and μ^p with *p* estimated for Tweedie. An outcome whose spread grows faster than the mean but slower than the mean squared — a range or an amplitude often behaves this way — sits between the fixed rungs, and both neighbours misfit it in opposite directions: Gaussian leaves the fan in residuals-versus-fitted, gamma over-corrects it. `'tweedie'` estimates *p* rather than assuming it, and `Summary.txt` reports the estimate, because a *p* landing next to a neighbour says the simpler family would have served.
+
+A variance-stabilising transform is the alternative, and often the cleaner one: for Var ∝ μ^p the transform is y^(1 − p/2), so `options.y_transform = 'y**0.4'` suits p ≈ 1.2. It flattens the residual plot exactly, at the cost of reporting on a scale harder to describe than a log. (`^` is accepted for exponentiation in `y_transform`, as in R.)
+
+Note also that `glmmTMB` defines no deviance residuals for Tweedie, so the structure diagnostic panels use Pearson residuals instead; `Summary.txt` says which were used.
+
 #### Generalised linear mixed models (GLMMs, any other distribution)
 
 The Kenward-Roger and Satterthwaite machinery is **only defined for LMMs**. It is derived for the Gaussian LMM, where an exact t-reference distribution for fixed-effect contrasts is available; GLMMs have no exact small-sample t-distribution for their contrasts. For GLMMs, `emmeans` therefore falls back to **asymptotic (Wald) inference**, which yields `df = Inf` and chi-square tests, regardless of `df_method` (requesting a small-sample method on a GLMM warns and uses asymptotic inference).

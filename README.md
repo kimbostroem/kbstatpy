@@ -193,7 +193,7 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 | `interaction` | list / str / int | Default `'auto'`, every interaction the design can support. `''` is additive, an integer caps the order, `'all'` is the full factorial, or name the terms. See [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
 | `covariate` | list / str | Numeric covariates: in the model, out of the plots and post-hoc |
 | `scale_covariates` | bool | Default `True`. Centre and scale the numeric covariates to z-scores before fitting. It changes no result — a covariate not in an interaction has its coefficient and its standard error divided by the same number, so every t, F and p is identical, and estimated marginal means are evaluated at the covariate means either way — but it conditions the optimisation, which matters where covariates span very different magnitudes. `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`, and `Summary.txt` names what was scaled. Categorical and constant covariates are left alone |
-| `y_transform` | str | Transform with `y` as placeholder, e.g. `'log(y)'`. EMMs and CIs are back-transformed |
+| `y_transform` | str | Transform with `y` as placeholder, e.g. `'log(y)'`, `'sqrt(y)'`, `'y**0.4'`. `^` is accepted for exponentiation. EMMs and CIs are back-transformed |
 | `correlation` | list / str | Numeric variables for pairwise correlation, see [Correlation analysis](#correlation-analysis). Also spelled `correlate` |
 | `correlation_method` | str | Default `'pearson'`. Or `'spearman'`, rank-based and robust to outliers. Applies to the raw and partial tables |
 | `correlation_control` | list / str | Variable(s) partialled out of every correlation. They are not shown in the matrix |
@@ -277,6 +277,7 @@ To make a hand-built matplotlib figure match kbstatpy's plots, call the public `
 | `'binomial'` | `binomial` | Binary / proportion outcomes |
 | `'poisson'` | `poisson` | Count data |
 | `'inverse_gaussian'` | `inverse.gaussian` | Positive, heavy right tail |
+| `'tweedie'` | `tweedie` | Positive continuous, variance between Poisson and gamma. The others fix the variance power at 0, 1, 2 and 3; tweedie estimates it, and `Summary.txt` reports the estimate |
 
 When `distribution = 'normal'` a linear mixed model (LMM) is fitted via `lmer`. All other distributions produce a GLMM via `glmmTMB`. (Earlier versions used `lme4::glmer`, but it returns mis-scaled standard errors for the continuous dispersion families — Gamma and inverse Gaussian — so `glmmTMB`, which estimates the dispersion explicitly, is used instead. See `STATISTICAL_NOTES.md`.)
 

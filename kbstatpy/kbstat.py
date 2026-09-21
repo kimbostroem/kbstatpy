@@ -3569,12 +3569,18 @@ class Kbstat:
                     return res, 'DHARMa quantile residuals', cap
         except Exception:
             pass
-        try:
-            r = np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float)
-            return r, 'deviance residuals', np.zeros(r.shape, dtype=bool)
-        except Exception:
-            r = np.asarray(ro.r('residuals')(r_obj, type='pearson'), dtype=float)
-            return r, 'Pearson residuals', np.zeros(r.shape, dtype=bool)
+        # Same caveat as the structure panels: a family without deviance
+        # residuals answers with NA rather than an error, so check the values.
+        for kind, label in (('deviance', 'deviance residuals'),
+                            ('pearson', 'Pearson residuals')):
+            try:
+                r = np.asarray(ro.r('residuals')(r_obj, type=kind), dtype=float)
+            except Exception:
+                continue
+            if np.isfinite(r).any():
+                return r, label, np.zeros(r.shape, dtype=bool)
+        r = np.asarray(self.model.residuals, dtype=float)
+        return r, 'model residuals', np.zeros(r.shape, dtype=bool)
 
     def plot_diagnostics(self):
         """Generate a grid of 6 diagnostic plots for the model."""
@@ -3596,10 +3602,22 @@ class Kbstat:
         # scatter panels) and are the right residual for checking structure,
         # autocorrelation, and homoscedasticity. The distribution panels (histogram,
         # Q-Q) keep the DHARMa quantile residuals for an honest normality check.
-        try:
-            struct_resid = np.asarray(ro.r('residuals')(r_obj, type='deviance'), dtype=float)
-            self._struct_resid_label = 'deviance residuals'
-        except Exception:
+        # Tried in order, because a family may simply not define the first.
+        # glmmTMB has no deviance residuals for tweedie and answers with a
+        # vector of NA and a message rather than an error, so the failure has to
+        # be read off the values: an except clause never fires, and the panels
+        # were left with nothing to draw.
+        struct_resid, self._struct_resid_label = None, None
+        for kind, label in (('deviance', 'deviance residuals'),
+                            ('pearson', 'Pearson residuals')):
+            try:
+                cand = np.asarray(ro.r('residuals')(r_obj, type=kind), dtype=float)
+            except Exception:
+                continue
+            if np.isfinite(cand).any():
+                struct_resid, self._struct_resid_label = cand, label
+                break
+        if struct_resid is None:
             struct_resid = np.asarray(self.model.residuals, dtype=float)
             self._struct_resid_label = self._resid_label
 
@@ -3913,6 +3931,12 @@ class Kbstat:
         expr_str = self.options.y_transform.strip()
         if not expr_str:
             return
+        # '^' means exponentiation in R, in sympy's default parser and in
+        # ordinary mathematical writing; in Python it is bitwise XOR. Left
+        # alone, 'y^0.4' reached numpy and failed with "ufunc 'bitwise_xor' not
+        # supported", which names neither the option nor the cause.
+        if '^' in expr_str:
+            expr_str = expr_str.replace('^', '**')
 
         import sympy as sp
 
@@ -4553,8 +4577,34 @@ class Kbstat:
             'poisson':          'poisson',
             'gamma':            'Gamma',
             'inverse_gaussian': 'inverse.gaussian',
+            # Tweedie fills the gap between Poisson and gamma: its variance is
+            # phi * mu^p with p estimated from the data, where the others fix p
+            # at 0, 1, 2 and 3. A positive continuous outcome whose spread grows
+            # faster than the mean but slower than the mean squared -- a range,
+            # an amplitude -- lands between the fixed rungs and is fitted badly
+            # by either neighbour. glmmTMB estimates p; it is reported in
+            # Summary.txt, since the family is only as good as that estimate.
+            'tweedie':          'tweedie',
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
+
+    def _tweedie_power(self):
+        """The Tweedie variance power p that glmmTMB estimated, or None.
+
+        Worth stating: the whole reason to choose tweedie over its neighbours is
+        that p is estimated rather than fixed at 1 or 2, so the number is the
+        substance of the choice. A p that lands next to a neighbour says the
+        simpler family would have done.
+        """
+        if str(self.options.distribution).lower() != 'tweedie':
+            return None
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is None:
+            return None
+        try:
+            return float(np.asarray(ro.r('glmmTMB::family_params')(r_obj))[0])
+        except Exception:
+            return None
 
     def _model_structure_label(self) -> str:
         """Whether the fixed effects are additive, full factorial, or in between.
@@ -4785,6 +4835,12 @@ class Kbstat:
             f'  Link function          : {link}',
             f'  Fit method             : {fit_method}',
             f'  Model structure        : {self._model_structure_label()}',
+        ]
+        _tw = self._tweedie_power()
+        if _tw is not None:
+            lines.append(f'  Tweedie power          : {_tw:.3f} '
+                         '(variance proportional to mean^p; 1 = Poisson, 2 = gamma)')
+        lines += [
         ]
         if self._scaled_covariates:
             _sc = ', '.join(self._disp(c) for c in self._scaled_covariates)
@@ -5549,7 +5605,7 @@ def _vif_verdict(vif):
 # `color_scheme`, `title`), which have no fixed set.
 _ENUM_OPTIONS = {
     'distribution':       ('normal', 'gaussian', 'binomial', 'poisson', 'gamma',
-                           'inverse_gaussian'),
+                           'inverse_gaussian', 'tweedie'),
     'plot_style':         ('violin', 'bar', 'auto'),
     'figure_display':     ('save_only', 'show_close', 'show_keep'),
     'x_label':            ('variable_below_levels', 'variable_equals_level',

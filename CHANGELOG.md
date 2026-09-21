@@ -1,5 +1,17 @@
 # Changes
 
+## [1.26.0] - 2026-09-22
+
+### Features
+
+- New distribution `'tweedie'`. The other families fix the variance power at 0, 1, 2 and 3; Tweedie estimates it, which suits a positive continuous outcome whose spread grows faster than the mean but slower than the mean squared, where gamma over-corrects and gaussian under-corrects. `Summary.txt` reports the estimated power, since a value landing next to a neighbour means the simpler family would have served.
+
+### Bugs
+
+- A family without deviance residuals left the diagnostic figure's structure panels empty and the run then failed with an `IndexError` from matplotlib, naming neither the family nor the cause. `glmmTMB` returns a vector of `NA` rather than an error for these, so the check now reads the values. Pearson residuals are used instead, and `Summary.txt` says which were used.
+
+- `y_transform` accepts `^` for exponentiation, as R and ordinary mathematical notation do. Python reads it as bitwise XOR, so `'y^0.4'` used to fail with a message about `ufunc 'bitwise_xor'`.
+
 ## [1.25.0] - 2026-09-21
 
 ### Features
