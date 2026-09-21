@@ -1,5 +1,21 @@
 # Changes
 
+## [1.24.0] - 2026-09-21
+
+### Bugs
+
+- VIF was computed inside the correlation analysis, so a model whose predictors were badly collinear reported nothing unless `correlation` happened to be set. **Collinearity is silent otherwise: the coefficients stay unbiased and the fit looks healthy while the standard errors of the affected terms are inflated several-fold, so earlier models are worth re-checking.** It is now computed for every fit with two or more numeric predictors, across `x` and `covariate` alike, and a severely collinear term raises a warning.
+
+### Features
+
+- `Summary.txt` and `VIF.xlsx` report the VIF of every numeric predictor, worst first, with the standard-error factor, the sample size and the number of independent units beside it. A VIF alone cannot say whether a term is precise enough, since the standard error depends on the collinearity and the sample size together; and the relevant count is not always the number of rows, because a predictor constant within each subject is estimated from the subjects.
+
+- The diagnostics figure names the flagged terms in its footer.
+
+### Changes
+
+- The diagnostics footer runs over as many lines as it needs. It was one line and ran off the page once a model had a few covariates.
+
 ## [1.23.2] - 2026-09-18
 
 ### Changes

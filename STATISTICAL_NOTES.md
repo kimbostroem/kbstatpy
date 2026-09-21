@@ -449,17 +449,29 @@ where R²_j is the coefficient of determination of a linear regression of predic
 
 **Why it matters:** highly correlated independent variables do not violate any formal assumption of linear regression, but they do inflate standard errors, widen confidence intervals, and destabilise coefficient estimates — making it hard to interpret individual predictor effects. VIF flags this before it becomes a problem.
 
-**When kbstatpy computes VIF:** automatically whenever `options.x` contains numeric (continuous) variables. VIF is computed for all numeric variables in `options.x` + `options.covariate` jointly. Categorical predictors are excluded from the VIF calculation because collinearity between a categorical and a continuous variable is better assessed via other means (e.g. ANOVA on the continuous variable by group).
+**When kbstatpy computes VIF:** for every fit with two or more numeric predictors among `options.x` and `options.covariate`, which are fixed effects alike. Categorical factors have no VIF, since a factor's contrasts have no single variance to inflate. Up to version 1.23.2 the calculation sat inside the correlation analysis and so ran only when `options.correlation` was set, which meant a model with severely collinear covariates could be reported without a word about it.
 
 **Thresholds used:**
 
-| VIF | Verdict |
-|---|---|
-| < 5 | OK |
-| 5 – 10 | concerning |
-| > 10 | severe |
+| VIF | Verdict | SE inflated by |
+|---|---|---|
+| < 5 | OK | < 2.2× |
+| 5 – 10 | concerning | 2.2 – 3.2× |
+| > 10 | severe | > 3.2× |
 
-Results are printed to the console and saved to `VIF.xlsx`. A visual summary is also embedded in the correlation scatter grid when `options.correlation` overlaps with the numeric predictors.
+These are the conventional rules of thumb and have no distributional basis; O'Brien (2007) is the standard caution against applying them mechanically. The second column is the more useful reading, since the VIF is on the variance scale while inference happens on the standard-error scale: at a VIF of 5 the confidence interval is already more than twice as wide as it would be without the collinearity.
+
+**Read it together with the sample size.** For an ordinary least-squares fit the standard error of a coefficient is exactly
+
+```
+SE(β̂_j) = (σ / s_j) · √( VIF_j / (n − 1) )
+```
+
+where `s_j` is the predictor's own standard deviation. Collinearity and sample size therefore enter the precision together, and the VIF alone cannot say whether a term is estimated well enough — that is why the reported table carries `n` beside it. Combining the two into a single index would not help: a large value could mean overlapping predictors, which calls for dropping one, or too little data, which calls for more of it, and the separate numbers distinguish the two.
+
+The relevant count is not always the number of rows. A predictor that is constant within each subject is estimated from the subjects however many rows the data have, so the table reports the number of **independent** units next to `n`, along with whether the predictor varies within or between the grouping factor. In a repeated-measures design the difference is routinely an order of magnitude, and it is the difference between a collinear term that is still well determined and one that is not.
+
+Every predictor is listed, worst first, in `Summary.txt` and in `VIF.xlsx`. The diagnostics figure has no room for a table and names only the flagged terms and the worst of them; a term in the severe band also raises a warning. A visual summary is embedded in the correlation scatter grid when `options.correlation` overlaps with the numeric predictors.
 
 ---
 

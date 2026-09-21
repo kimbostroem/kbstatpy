@@ -326,13 +326,15 @@ When three or more variables are correlated, partial correlations are also produ
 - **`PartialCorrelationTable.png/.pdf`** — colour-coded lower-triangle table for partial r
 - **`PartialCorrelation.xlsx`** — partial r, p, significance, and Cohen's r label
 
-If `options.x` contains numeric predictors, VIF is also computed automatically (see below).
+VIF is computed for every model with two or more numeric predictors, independently of this analysis (see below).
 
 ---
 
 ## Variance Inflation Factor (VIF)
 
-When `options.x` contains numeric variables, VIF is computed automatically for all numeric variables in `options.x` + `options.covariate` as a multicollinearity check:
+VIF is computed for every fit with two or more numeric predictors among `options.x` and `options.covariate`, which are fixed effects alike. It needs no `correlation` analysis and no numeric variable in `x`: up to version 1.23.2 it lived inside the correlation analysis and so went unreported unless that was separately requested, which is how a model with severely collinear covariates could come out looking healthy.
+
+A predictor nearly determined by the others cannot be estimated precisely. The coefficients stay unbiased and the fit is unaffected, but the standard error of such a term is inflated by about √VIF, so its own p-value should not be read as an effect. Terms that are not collinear keep their precision. A correlation matrix will not reveal this: a variable can be nearly determined by two others while correlating only moderately with each.
 
 ```
 VIF < 5    → OK
@@ -340,7 +342,25 @@ VIF 5–10   → concerning
 VIF > 10   → severe
 ```
 
-Results are printed to the console and saved to **`VIF.xlsx`**.
+These are the conventional rules of thumb, not tests, and they have no distributional basis. What matters is whether the resulting standard error is too wide for the question, so a high VIF on a nuisance covariate is far less troubling than one on the term under test.
+
+**Read the VIF together with the sample size.** For an ordinary least-squares fit the standard error is exactly
+
+```
+SE(β̂ⱼ) = (σ / sⱼ) · √( VIF / (n − 1) )
+```
+
+so collinearity and sample size enter it together: a large VIF matters less when there is plenty of data and more when there is not. The reported table therefore carries `n` beside the VIF, and next to it the number of **independent** units, which is the count that actually carries the information. A predictor that is constant within each subject is estimated from the subjects however many rows there are, and reporting the row count alone would overstate the evidence, easily by an order of magnitude:
+
+```
+  variable               VIF   SE x      n  indep.  verdict     varies
+  Weight                31.9   5.7x    578      25  severe      between Subject
+  BMI                   17.7   4.2x    578      25  severe      between Subject
+  Avg_walking_speed      9.8   3.1x    578     578  concerning  within Subject
+  Step_Width             1.1   1.1x    578     578  OK          within Subject
+```
+
+Every predictor is listed, in `Summary.txt` and in **`VIF.xlsx`** beside the model's other tables, worst first — a value below the flag is information too, and the table's absence would otherwise be ambiguous. The diagnostics figure, which has no room for a table, names only the flagged terms and the worst of them. A term at 10 or above also raises a warning.
 
 ---
 
@@ -410,7 +430,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `PartialCorrelation.pdf/.png` | Scatter grid of residual-based partial correlations (3+ variables only) |
 | `PartialCorrelationTable.pdf/.png` | Colour-coded lower-triangle table for partial correlations |
 | `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
-| `VIF.xlsx` | Variance Inflation Factors for numeric predictors (when applicable) |
+| `VIF.xlsx` | Variance Inflation Factors for the numeric predictors, with the sample size and the number of independent units beside each |
 | `LevelProfile.pdf/.png` | Profile plot for `profile_across`: response EMMs across the ordered factor, one line per level of the profiled factor, with 95 % CI error bars |
 | `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |

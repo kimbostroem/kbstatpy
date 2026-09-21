@@ -84,6 +84,7 @@ class ModelResult:
     anova: object = None          # ANOVA table (DataFrame)
     posthoc: object = None        # post-hoc pairwise table (DataFrame)
     statistics: object = None     # descriptive statistics table (DataFrame)
+    vif: object = None            # variance inflation factors of the numeric fixed effects
     summary: str = ''             # human-readable summary text
     data: object = None           # the data the model was fitted on
     fig_data: object = None       # data plot figure
@@ -155,6 +156,7 @@ class Kbstat:
         self._posthoc_family_warned: bool = False
         self._n_y: int = 1                  # dependent variables in the run (set by run())
         self.statistics_table: pd.DataFrame = None
+        self.vif_table: pd.DataFrame = None
         self.AIC    = None
         self.BIC    = None
         self.logLik = None
@@ -728,6 +730,7 @@ class Kbstat:
                 anova=worker.anova_table,
                 posthoc=(worker.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=worker.statistics_table,
+                vif=worker.vif_table,
                 model_comparison=getattr(worker, 'model_comparison_table', None),
                 summary=worker._summary_text() if worker.model is not None else '',
                 data=worker.data,
@@ -800,6 +803,7 @@ class Kbstat:
                 anova=self.anova_table,
                 posthoc=(self.posthoc_by_var or None),  # {var: table} per posthoc_compare, or None
                 statistics=self.statistics_table,
+                vif=self.vif_table,
                 model_comparison=getattr(self, 'model_comparison_table', None),
                 summary=self._summary_text(),
                 data=self.data,
@@ -817,6 +821,8 @@ class Kbstat:
         self._apply_rename()
         self._apply_categorical()
         self._apply_constraints()
+        self.vif_table = self._compute_vif()
+        self._vif_warning()
         if self.options.remove_outliers_prefit:
             self.remove_outliers_pre()
         self.fit()
@@ -2034,29 +2040,14 @@ class Kbstat:
             reg = LinearRegression().fit(work[predictors], work[target])
             return work[target].to_numpy(dtype=float) - reg.predict(work[predictors])
 
-        # --- VIF: for numeric predictors (x and covariate) ---
-        vif_table = None
-        vif_map = {}
-        all_predictors = self.options.x + self.options.covariate
-        x_numeric = [v for v in all_predictors
-                     if v in self.data.columns
-                     and pd.api.types.is_numeric_dtype(self.data[v])]
-        if len(x_numeric) > 1:
-            X = self.data[x_numeric].dropna().astype(float)
-            vif_rows = []
-            for v in x_numeric:
-                others = [c for c in x_numeric if c != v]
-                r2 = LinearRegression().fit(X[others], X[v]).score(X[others], X[v])
-                vif = 1 / (1 - r2) if r2 < 1.0 else float('inf')
-                vif_map[v] = vif
-                vif_rows.append({
-                    'variable': v,
-                    'VIF':      round(vif, 3),
-                    'verdict':  'OK' if vif < 5 else ('concerning' if vif < 10 else 'severe'),
-                })
-            vif_table = pd.DataFrame(vif_rows)
-            for row in vif_rows:
-                print(f"VIF  {row['variable']:<24}: {row['VIF']:.3f}  ({row['verdict']})")
+        # --- VIF: computed with the model (see _compute_vif), reused here for
+        # the scatter grid's diagonal so it is not calculated twice.
+        vif_table = self.vif_table if self.vif_table is not None else self._compute_vif()
+        vif_map = ({r.variable: r.VIF for r in vif_table.itertuples()}
+                   if vif_table is not None else {})
+        if vif_table is not None:
+            for r in vif_table.sort_values('VIF', ascending=False).itertuples():
+                print(f'VIF  {r.variable:<24}: {r.VIF:.3f}  ({r.verdict})')
 
         # --- Raw correlation table (adjusted for the control vars if given) ---
         rows = []
@@ -2437,6 +2428,12 @@ class Kbstat:
                 anova_df = res.anova.to_pandas() if hasattr(res.anova, 'to_pandas') else res.anova
                 self._disp_vals(anova_df, 'Term').to_excel(os.path.join(d, 'Anova.xlsx'), index=False)
                 print(f'Saved Anova.xlsx to {d}')
+            _vif = getattr(res, 'vif', None)
+            if _vif is not None and not _vif.empty:
+                self._disp_vals(_vif.sort_values('VIF', ascending=False),
+                                'variable').to_excel(
+                    os.path.join(d, 'VIF.xlsx'), index=False)
+                print(f'Saved VIF.xlsx to {d}')
             if res.posthoc is not None:
                 # posthoc is a {variable: table} dict (one per posthoc_compare
                 # variable); write each as Posthoc_<variable>.xlsx.
@@ -3805,10 +3802,13 @@ class Kbstat:
                           [f'{_group_label(i)}, fitted={fitted[i]:.3f}, '
                            f'sqrt|resid|={sqrt_abs[i]:.3f}' for i in range(n_diag)])
 
-        # Footer row: formula + fit statistics. The residual types used in the
-        # panels are documented in the README and STATISTICAL_NOTES (and in
-        # Summary.txt), so they are not repeated here to keep the footer compact.
-        parts = [f'Formula: {self._build_formula()}']
+        # Footer: the formula on its own line, everything else under it. One
+        # line could not hold both -- a formula with a few covariates already
+        # filled it, and anything appended ran off the figure. The residual
+        # types are in the README, STATISTICAL_NOTES and Summary.txt, so they
+        # are left out to keep this short.
+        formula_line = f'Formula: {self._build_formula()}'
+        parts = []
         # Note the RE structure only when it departs from the plain correlated
         # default (diagonal, auto-selected, or a flagged singular fit); the plain
         # case is already evident from the formula.
@@ -3817,15 +3817,26 @@ class Kbstat:
             parts.append(f'RE: {re_note}')
         if self.AIC is not None:
             parts += [f'AIC = {self.AIC:.3f}', f'BIC = {self.BIC:.3f}', f'logLik = {self.logLik:.3f}']
-        footer = '     |     '.join(parts)
-        fig.subplots_adjust(bottom=0.08)
-        fig.text(0.5, 0.02, footer, ha='center', va='bottom', fontsize=10,
-                 fontstyle='italic', color='0.3')
+        # Collinearity belongs on the page you check the model on, but it is not
+        # a residual diagnostic and does not deserve a panel: named here when it
+        # is bad enough to change how a term is read, silent otherwise.
+        _flag = self._vif_flagged()
+        if _flag is not None:
+            _w = _flag.iloc[0]
+            parts.append(f'VIF: {len(_flag)} term(s) >= {_VIF_FLAG:g}, worst '
+                         f'{self._disp(_w["variable"])} = {_w["VIF"]:.1f}')
+        lines_ = [formula_line] + ([' | '.join(parts)] if parts else [])
+        footer = '\n'.join(_wrap_footer(l, fig) for l in lines_)
+        n_lines = footer.count('\n') + 1
+        band = 0.045 + 0.022 * n_lines          # grows with the wrapped height
+        fig.subplots_adjust(bottom=band)
+        fig.text(0.5, 0.012, footer, ha='center', va='bottom', fontsize=10,
+                 fontstyle='italic', color='0.3', linespacing=1.4)
 
         # Reserve the bottom band for the footer; let the top auto-fit (as the
         # data plot does) so the suptitle sits close to the panels rather than
         # leaving a large fixed gap.
-        plt.tight_layout(rect=[0, 0.06, 1, 1.0])
+        plt.tight_layout(rect=[0, band, 1, 1.0])
         # Align y-labels within each column. (The previous fixed offset of -0.18
         # axes-units pushed the middle/right columns' labels into the panel to
         # their left; align_ylabels keeps each label just outside its own panel.)
@@ -4217,6 +4228,107 @@ class Kbstat:
                 .format(names, detail))
         self._interaction_cache = (keep, dropped)
         return self._interaction_cache
+
+    def _compute_vif(self):
+        """Variance inflation factors for the model's numeric fixed effects.
+
+        A property of the design matrix, not of the fit, so it needs no model --
+        but it is a diagnostic OF the model, which is why it is computed here
+        rather than inside correlate(). It used to live only there, reachable
+        only if options.correlation happened to be set, so a model whose
+        covariates were badly collinear reported nothing at all unless its owner
+        had asked for an unrelated analysis.
+
+        options.x and options.covariate are both fixed effects and are treated
+        alike; only the numeric ones have a VIF, since a factor's contrasts have
+        no single variance to inflate.
+
+        The VIF alone cannot say whether a term is estimated precisely enough,
+        because the standard error is (sigma / sd of the predictor) times
+        sqrt(VIF / (n - 1)) -- collinearity and sample size both enter it. So
+        the table carries n beside the VIF, and alongside it the number of
+        INDEPENDENT units: a predictor constant within each subject is estimated
+        from the subjects however many rows there are.
+        """
+        if self.data is None:
+            return None
+        preds = list(self.options.x or []) + list(self.options.covariate or [])
+        num = [v for v in dict.fromkeys(preds)
+               if v in self.data.columns
+               and pd.api.types.is_numeric_dtype(self.data[v])]
+        if len(num) < 2:
+            return None            # collinearity needs at least two of them
+        d = self.data
+        if 'is_outlier' in d.columns:
+            d = d[~d['is_outlier']]
+        X = d[num].dropna().astype(float)
+        if len(X) < len(num) + 2:
+            return None
+        from sklearn.linear_model import LinearRegression   # local: sklearn is slow to import
+        # The grouping factor decides how much independent information a
+        # predictor really carries. One that is constant within each subject is
+        # estimated from the subjects, not from the rows, however many rows
+        # there are -- so reporting the row count beside its VIF would overstate
+        # the evidence, here by more than an order of magnitude.
+        groups = None
+        for g in (self._id_vars() or []):
+            if g in d.columns:
+                groups = d[g]
+                break
+        group_name = self._id_vars()[0] if (self._id_vars() and groups is not None) else ''
+        rows = []
+        for v in num:
+            others = [c for c in num if c != v]
+            r2 = LinearRegression().fit(X[others], X[v]).score(X[others], X[v])
+            vif = 1 / (1 - r2) if r2 < 1.0 else float('inf')
+            if groups is not None:
+                within = d.loc[X.index].groupby(groups.loc[X.index],
+                                                observed=True)[v].nunique().max() > 1
+                n_indep = len(X) if within else int(groups.loc[X.index].nunique())
+                varies = f'within {group_name}' if within else f'between {group_name}'
+            else:
+                n_indep, varies = len(X), ''
+            rows.append({'variable': v, 'VIF': round(vif, 3),
+                         'verdict': _vif_verdict(vif),
+                         'SE_factor': round(vif ** 0.5, 2),
+                         'n': len(X), 'n_indep': n_indep, 'varies': varies})
+        return pd.DataFrame(rows)
+
+    def _vif_flagged(self):
+        """The rows worth reporting (VIF >= _VIF_FLAG), worst first, or
+        None when there are none. Every output goes through this so the table,
+        the footer and Summary.txt cannot disagree about what counts."""
+        t = self.vif_table
+        if t is None or t.empty:
+            return None
+        flagged = t[t['VIF'] >= _VIF_FLAG].sort_values('VIF', ascending=False)
+        return flagged if not flagged.empty else None
+
+    def _vif_warning(self):
+        """Warn once about severely collinear fixed effects.
+
+        Worth a warning rather than only a table: the coefficients stay
+        unbiased, so nothing looks wrong, while the standard errors of the
+        collinear terms are inflated by sqrt(VIF) and their p-values are not
+        worth reading. Pairwise correlations do not reveal this -- a variable
+        can be nearly determined by two others while correlating only
+        moderately with each.
+        """
+        t = self.vif_table
+        if t is None or t.empty:
+            return
+        bad = t[t['VIF'] >= _VIF_SEVERE]
+        if bad.empty:
+            return
+        worst = ', '.join(f"{r.variable} ({r.VIF:.1f})"
+                          for r in bad.sort_values('VIF', ascending=False).itertuples())
+        warnings.warn(
+            f"Severe collinearity among the numeric fixed effects: {worst}. "
+            "Their coefficients stay unbiased, but the standard errors are "
+            "inflated by about sqrt(VIF) and the individual p-values of these "
+            "terms should not be read as effects. The other terms are "
+            "unaffected unless they are collinear too. See VIF.xlsx.",
+            stacklevel=2)
 
     def _build_formula(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one."""
@@ -4833,6 +4945,57 @@ class Kbstat:
                     '',
                 ]
 
+        # --- Collinearity among the numeric fixed effects ---
+        # Only when there is something to say. A table of VIFs near 1 is noise;
+        # a term whose standard error is inflated several-fold is not, and
+        # nothing else in the output hints at it -- the coefficients stay
+        # unbiased, so the model looks healthy.
+        # Every predictor, worst first: a reader comparing terms wants the whole
+        # column, and a value below the flag is information too. Shown whenever
+        # it could be computed, so an absent section means "fewer than two
+        # numeric predictors" rather than an unstated all-clear.
+        _vt = self.vif_table
+        if _vt is not None and not _vt.empty:
+            lines += ['COLLINEARITY (VIF)', '------------------']
+            _show = _vt.sort_values('VIF', ascending=False).copy()
+            _w = max(9, *(len(self._disp(v)) for v in _show['variable']))
+            # Without a grouping factor every row is its own unit, so 'indep.'
+            # only repeats n and 'varies' has nothing to say: drop both rather
+            # than print an empty column.
+            _grouped = bool(_show['varies'].astype(str).str.strip().any())
+            _head = f'  {"variable":<{_w}} {"VIF":>8} {"SE x":>6} {"n":>6}'
+            lines += [_head + (f' {"indep.":>7}  {"verdict":<11} varies'
+                               if _grouped else f'  {"verdict"}')]
+            for _r in _show.itertuples():
+                _row = (f'  {self._disp(_r.variable):<{_w}} {_r.VIF:8.1f} '
+                        f'{_r.SE_factor:5.1f}x {_r.n:6d}')
+                lines += [_row + (f' {_r.n_indep:7d}  {_r.verdict:<11} {_r.varies}'
+                                  if _grouped else f'  {_r.verdict}')]
+            if self._vif_flagged() is not None:
+                lines += [
+                    '',
+                    '  A predictor nearly determined by the others cannot be estimated',
+                    '  precisely. The coefficients stay unbiased and the fit is unaffected,',
+                    '  but the standard error of a flagged term is inflated by the factor',
+                    '  in the SE column, so its own p-value should not be read as an',
+                    '  effect. Terms that are not collinear keep their precision.',
+                    '',
+                    '  Read the VIF together with n: the standard error depends on both,',
+                    '  so a large VIF matters less when there is plenty of data and more',
+                    '  when there is not. Where a grouping factor is present, "indep." is',
+                    '  the count that actually carries the information -- a predictor',
+                    '  constant within each subject is estimated from the subjects, not',
+                    '  from the rows.',
+                ]
+            lines += [
+                f'  Bands: < {_VIF_FLAG:g} OK, {_VIF_FLAG:g}-{_VIF_SEVERE:g} concerning, '
+                f'> {_VIF_SEVERE:g} severe. Conventional rules of thumb,',
+                '  not tests: what matters is whether the resulting standard error is',
+                '  too wide for the question, so a high VIF on a nuisance covariate is',
+                '  far less troubling than one on the term under test.',
+                '',
+            ]
+
         # --- Across-variable multiplicity ---
         # A second axis of multiplicity, invisible from inside a single model:
         # every p-value in this file is corrected (at most) within this model,
@@ -5218,6 +5381,78 @@ _Y_CORRECTION_MAP = {
 # way to apply them to the union of several cells. Hence posthoc_family='cross'
 # for those, which keeps them inside the cell where they are defined.
 _POSTHOC_FAMILIES = ('cell', 'pooled', 'cross')
+
+
+# The band boundaries, which are the conventional rules of thumb rather than
+# anything derived: >= 5 is worth flagging, >= 10 is severe. Summary.txt and
+# VIF.xlsx list every predictor regardless -- a reader comparing terms wants the
+# whole column, and a value below the flag is still information. The thresholds
+# govern the verdict labels, the one-line note in the crowded diagnostics
+# footer, and the warning.
+_VIF_FLAG = 5.0
+_VIF_SEVERE = 10.0
+
+
+def _footer_tokens(text):
+    """Split `text` at ' + ' and ' | ' that sit outside brackets.
+
+    Paren-aware because a random-effect term carries both: breaking `(1 |
+    Subject)` at its bar strands 'Subject)' on a line of its own, and `(1 +
+    Period | Subject)` would come apart twice.
+    """
+    toks, cur, depth = [], '', 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth = max(0, depth - 1)
+        if depth == 0 and text[i:i + 3] in (' + ', ' | '):
+            toks.append(cur + text[i:i + 2])     # keep the operator on this line
+            cur = ''
+            i += 3
+            continue
+        cur += ch
+        i += 1
+    if cur:
+        toks.append(cur)
+    return toks
+
+
+def _wrap_footer(text, fig, fontsize=10):
+    """Break `text` over as many lines as the figure width needs.
+
+    The footer used to be a single line that silently ran past the edge of the
+    page once a model had a few covariates. Measured against the real renderer
+    rather than guessed from a character count, since the width depends on the
+    font in force.
+    """
+    try:
+        renderer = fig.canvas.get_renderer()
+    except Exception:
+        return text
+    limit = fig.get_size_inches()[0] * fig.dpi * 0.94
+    out, cur = [], ''
+    for tok in _footer_tokens(text):
+        trial = f'{cur} {tok}'.strip() if cur else tok
+        probe = fig.text(0, 0, trial, fontsize=fontsize, fontstyle='italic')
+        too_wide = probe.get_window_extent(renderer=renderer).width > limit
+        probe.remove()
+        if cur and too_wide:
+            out.append(cur)
+            cur = tok
+        else:
+            cur = trial
+    out.append(cur)
+    return '\n'.join(out)
+
+
+def _vif_verdict(vif):
+    """Conventional VIF bands. Rules of thumb, not tests: a high VIF on a
+    nuisance covariate is far less troubling than one on the term under test."""
+    return ('OK' if vif < _VIF_FLAG
+            else 'concerning' if vif < _VIF_SEVERE else 'severe')
 
 # Enumerated string options and the values they take, lower-cased. Kept in one
 # table because the options used to disagree about both halves of the problem:
