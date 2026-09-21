@@ -192,6 +192,7 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 | `slope_correlated` | bool or str | Default `'auto'`. Covariance structure for the slopes: `True` full, `False` diagonal, `'auto'` full with a diagonal fallback when it comes back singular |
 | `interaction` | list / str / int | Default `'auto'`, every interaction the design can support. `''` is additive, an integer caps the order, `'all'` is the full factorial, or name the terms. See [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
 | `covariate` | list / str | Numeric covariates: in the model, out of the plots and post-hoc |
+| `scale_covariates` | bool | Default `True`. Centre and scale the numeric covariates to z-scores before fitting. It changes no result — a covariate not in an interaction has its coefficient and its standard error divided by the same number, so every t, F and p is identical, and estimated marginal means are evaluated at the covariate means either way — but it conditions the optimisation, which matters where covariates span very different magnitudes. `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`, and `Summary.txt` names what was scaled. Categorical and constant covariates are left alone |
 | `y_transform` | str | Transform with `y` as placeholder, e.g. `'log(y)'`. EMMs and CIs are back-transformed |
 | `correlation` | list / str | Numeric variables for pairwise correlation, see [Correlation analysis](#correlation-analysis). Also spelled `correlate` |
 | `correlation_method` | str | Default `'pearson'`. Or `'spearman'`, rank-based and robust to outliers. Applies to the raw and partial tables |
@@ -326,13 +327,13 @@ When three or more variables are correlated, partial correlations are also produ
 - **`PartialCorrelationTable.png/.pdf`** — colour-coded lower-triangle table for partial r
 - **`PartialCorrelation.xlsx`** — partial r, p, significance, and Cohen's r label
 
-VIF is computed for every model with two or more numeric predictors, independently of this analysis (see below).
+VIF is computed for every model with two or more numeric covariates, independently of this analysis (see below).
 
 ---
 
 ## Variance Inflation Factor (VIF)
 
-VIF is computed for every fit with two or more numeric predictors among `options.x` and `options.covariate`, which are fixed effects alike. It needs no `correlation` analysis and no numeric variable in `x`: up to version 1.23.2 it lived inside the correlation analysis and so went unreported unless that was separately requested, which is how a model with severely collinear covariates could come out looking healthy.
+VIF is computed for every fit with two or more numeric covariates. In practice that means `options.covariate`: `options.x` is cast to factors before fitting, so a numeric variable placed there is a grouping factor with one level per distinct value, not a continuous predictor with a variance to inflate. It needs no `correlation` analysis and no numeric variable in `x`: up to version 1.23.2 it lived inside the correlation analysis and so went unreported unless that was separately requested, which is how a model with severely collinear covariates could come out looking healthy.
 
 A predictor nearly determined by the others cannot be estimated precisely. The coefficients stay unbiased and the fit is unaffected, but the standard error of such a term is inflated by about √VIF, so its own p-value should not be read as an effect. Terms that are not collinear keep their precision. A correlation matrix will not reveal this: a variable can be nearly determined by two others while correlating only moderately with each.
 
@@ -420,7 +421,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², SMD, effect size label |
 | `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference, t/z, SMD, p (raw + corrected) |
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, EMM, 95% CI) |
-| `Data.csv` | Copy of the input data as loaded and filtered |
+| `Data.csv` | Copy of the input data as loaded and filtered. With `scale_covariates` on, each scaled covariate appears beside its original as `<name>_scaled` |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
 | `DataPlots.pdf/.png/.html` | Data plots with model 95 % CI bar, EMM marker, and significance brackets. Style depends on `plot_style`: violin + jitter scatter (default for continuous outcomes), or observed mean/proportion bars (default for binary outcomes). `show_emm_lines` extends each group's EMM across the panel as a reference line, and `show_group_size` labels each group with its observation count. The `.html` version is interactive: hover over any data point to see its observation index, group, and value; hover over an EMM dot to see the marginal mean. A single plot shows at most three factors (x-axis, column facets, row facets); with a 4th (or further) fixed-effect factor the plot is split into one file per level-combination of the extra factor(s), named `DataPlots_<level>` (e.g. `DataPlots_male`, `DataPlots_female`) |
 | `Diagnostics.pdf/.png/.html` | Six model diagnostic plots: histogram of residuals, Q-Q plot, residuals vs. fitted, lagged residuals, fitted vs. response, and either a random-effects Q-Q plot (for models with a random effect) or a Scale-Location plot (for plain linear models). The distribution panels (histogram, Q-Q) use DHARMa quantile residuals (normal-scaled; ~N(0,1) under a correct model for any family, so they are valid normality checks even for non-Gaussian GLMMs, with a deviance/Pearson fallback if DHARMa is unavailable); the structure panels (residuals vs. fitted, lagged, scale-location) use deviance residuals, which avoid the quantile residuals' boundary capping and suit structure/autocorrelation/homoscedasticity checks. The `.html` version is interactive with hover tooltips on all scatter panels. Inspect after every run — visual diagnostics are more reliable than formal tests (Shapiro–Wilk, Levene, Durbin–Watson) because formal tests have too little power at small n and flag trivial deviations at large n. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#diagnostic-plots) for panel-by-panel interpretation |

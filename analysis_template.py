@@ -38,6 +38,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # options.interaction = 'all'              # the full factorial; raises if not estimable
 # options.interaction = 2                  # every factor in x, up to two-way
 # options.covariate   = 'age'               # numeric covariates: in the model, out of the plots
+# options.scale_covariates = False         # DEFAULT is True: centre/scale them (no test changes)
 # options.slope       = 'condition'         # random slope(s) on options.id, not just an intercept
 # options.formula     = 'y ~ group * condition + (1 | subject)'   # overrides everything above
 

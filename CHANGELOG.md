@@ -1,5 +1,17 @@
 # Changes
 
+## [1.25.0] - 2026-09-21
+
+### Features
+
+- New option `scale_covariates`, on by default, centres and scales the numeric covariates to z-scores before fitting. It changes no result: a covariate that is not in an interaction has its coefficient and its standard error divided by the same number, so every F, t and p is what the unscaled model gives, and estimated marginal means are evaluated at the covariate means either way. What it changes is the conditioning of the optimisation, which shows only where an ill-scaled model would otherwise struggle to converge. `Summary.txt` names what was scaled and says what it does not mean.
+
+### Changes
+
+- `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`. **The file therefore gains columns for any model with numeric covariates**, which matters only to something reading it by column position rather than by name.
+
+- The documentation no longer says VIF covers the numeric variables in `x` as well as `covariate`. Variables in `x` are cast to factors before fitting, so a numeric one there is a grouping factor with a level per distinct value, and VIF has only ever covered the covariates.
+
 ## [1.24.0] - 2026-09-21
 
 ### Bugs

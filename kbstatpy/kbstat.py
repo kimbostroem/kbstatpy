@@ -157,6 +157,8 @@ class Kbstat:
         self._n_y: int = 1                  # dependent variables in the run (set by run())
         self.statistics_table: pd.DataFrame = None
         self.vif_table: pd.DataFrame = None
+        self._scaled_covariates: list = []
+        self._covariate_originals: dict = {}
         self.AIC    = None
         self.BIC    = None
         self.logLik = None
@@ -555,6 +557,7 @@ class Kbstat:
             raise ValueError(
                 "posthoc_family must be one of: cell, pooled, cross "
                 f"(got {pf!r})")
+        o.scale_covariates = _as_flag(o.scale_covariates, 'scale_covariates')
         _pc = str(o.posthoc_correction or 'none').strip().lower()
         if o.posthoc_family == 'pooled' and _pc not in _POSTHOC_ADJUST_MAP:
             warnings.warn(
@@ -733,7 +736,7 @@ class Kbstat:
                 vif=worker.vif_table,
                 model_comparison=getattr(worker, 'model_comparison_table', None),
                 summary=worker._summary_text() if worker.model is not None else '',
-                data=worker.data,
+                data=worker._data_for_export(),
                 fig_data=worker.fig_data,
                 fig_diagnostics=worker.fig_diagnostics,
                 profile_across=getattr(worker, 'profile_across_result', None),
@@ -806,7 +809,7 @@ class Kbstat:
                 vif=self.vif_table,
                 model_comparison=getattr(self, 'model_comparison_table', None),
                 summary=self._summary_text(),
-                data=self.data,
+                data=self._data_for_export(),
                 fig_data=self.fig_data,
                 fig_diagnostics=self.fig_diagnostics,
                 profile_across=getattr(self, 'profile_across_result', None),
@@ -821,6 +824,8 @@ class Kbstat:
         self._apply_rename()
         self._apply_categorical()
         self._apply_constraints()
+        # After the constraints, so the z-scores describe the analysed sample.
+        self._scale_covariates()
         self.vif_table = self._compute_vif()
         self._vif_warning()
         if self.options.remove_outliers_prefit:
@@ -4229,6 +4234,63 @@ class Kbstat:
         self._interaction_cache = (keep, dropped)
         return self._interaction_cache
 
+    def _scale_covariates(self):
+        """Centre and scale the numeric covariates to z-scores, in place.
+
+        Numerical hygiene rather than a change of model. A covariate spanning
+        hundreds while the response spans thousandths makes lmer warn that the
+        predictors are on very different scales, and the fit is worse
+        conditioned than it needs to be. Centring and scaling a predictor that
+        is not in an interaction divides its coefficient and its standard error
+        by the same number, so every t, F and p is untouched.
+
+        What does change is the units: a covariate estimate is now per standard
+        deviation rather than per m/s or per year, and the intercept is the
+        value at the mean of every covariate. Summary.txt says so, since a
+        coefficient silently changing units would be worse than the warning.
+
+        Only options.covariate is touched, because it is the only place a
+        numeric predictor survives: _apply_categorical casts every options.x
+        variable to a factor, and a random slope must be one of those.
+        """
+        self._scaled_covariates = []
+        self._covariate_originals = {}
+        if not self.options.scale_covariates or self.data is None:
+            return
+        for c in (self.options.covariate or []):
+            if c not in self.data.columns:
+                continue
+            if not pd.api.types.is_numeric_dtype(self.data[c]):
+                continue          # a categorical covariate, e.g. Sex
+            sd = float(self.data[c].std())
+            if not np.isfinite(sd) or sd == 0:
+                continue          # constant: nothing to scale, and no dividing by 0
+            self._covariate_originals[c] = self.data[c].copy()
+            self.data[c] = (self.data[c] - self.data[c].mean()) / sd
+            self._scaled_covariates.append(c)
+
+    def _data_for_export(self, data=None):
+        """The analysed data as it should be saved: the covariates in their own
+        units, with the scaled values that were actually fitted alongside as
+        `<name>_scaled`.
+
+        Saving only the z-scores would silently replace the measurements with
+        numbers in a different unit, and saving only the originals would hide
+        what the model saw. Both, named, is the only version that is neither
+        lossy nor misleading.
+        """
+        d = self.data if data is None else data
+        if d is None or not getattr(self, '_covariate_originals', None):
+            return d
+        out = d.copy()
+        for c, original in self._covariate_originals.items():
+            if c not in out.columns:
+                continue
+            idx = out.index.intersection(original.index)
+            out.insert(out.columns.get_loc(c) + 1, f'{c}_scaled', out[c])
+            out.loc[idx, c] = original.loc[idx]
+        return out
+
     def _compute_vif(self):
         """Variance inflation factors for the model's numeric fixed effects.
 
@@ -4724,6 +4786,11 @@ class Kbstat:
             f'  Fit method             : {fit_method}',
             f'  Model structure        : {self._model_structure_label()}',
         ]
+        if self._scaled_covariates:
+            _sc = ', '.join(self._disp(c) for c in self._scaled_covariates)
+            lines.append(f'  Scaled covariates      : {_sc}')
+        lines += [
+        ]
         if self.options.id:
             _groups = self._id_groups()
             _label = ('Random grouping factor ' if len(_groups) < 2
@@ -4944,6 +5011,22 @@ class Kbstat:
                     'are unaffected.',
                     '',
                 ]
+
+        # --- What scaling was applied, and what it does not mean ---
+        if self._scaled_covariates:
+            lines += [
+                'COVARIATE SCALING',
+                '-----------------',
+                '  The numeric covariates were centred and scaled to z-scores before',
+                '  fitting (options.scale_covariates). This conditions the optimisation',
+                '  and changes no result: a covariate that is not in an interaction has',
+                '  its coefficient and its standard error divided by the same number, so',
+                '  every F, t and p above is what the unscaled model gives. Estimated',
+                '  marginal means are unaffected, being evaluated at the covariate means',
+                '  either way. Data.csv keeps each covariate in its own units and adds',
+                '  the fitted values beside it as <name>_scaled.',
+                '',
+            ]
 
         # --- Collinearity among the numeric fixed effects ---
         # Only when there is something to say. A table of VIFs near 1 is noise;

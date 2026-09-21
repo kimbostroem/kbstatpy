@@ -177,6 +177,21 @@ class KbstatOptions:
 
     # Covariates: included in model and ANOVA, excluded from plots and post-hoc
     covariate: object = ''   # numeric covariates (list or comma-separated)
+    # Centre and scale the numeric covariates to z-scores before fitting.
+    # On by default, because it conditions the optimisation better and costs
+    # nothing: a covariate that is not in an interaction has its coefficient and
+    # its standard error divided by the same number, so every t, F and p is
+    # identical either way. It does not make the fit better in any statistical
+    # sense -- the likelihood is the same -- it makes it better behaved
+    # numerically, which shows only where an ill-scaled model would otherwise
+    # struggle to converge.
+    # Data.csv keeps the covariates in their own units and adds the fitted
+    # z-scores beside them as <name>_scaled, so nothing is lost and the
+    # transform is visible. Summary.txt names the scaled covariates.
+    # Categorical and constant covariates are left alone. Only covariates are
+    # affected: options.x is cast to factors, so a numeric variable there is a
+    # grouping factor, not a continuous predictor to rescale.
+    scale_covariates: bool = True
 
     # Plot settings
     # Data-plot title prefix. When set, the title becomes '<title> (<DV>)',
