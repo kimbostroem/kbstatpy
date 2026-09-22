@@ -1,5 +1,11 @@
 # Changes
 
+## [1.28.0] - 2026-09-22
+
+### Features
+
+- The Residuals vs Fitted diagnostic panel now reports a residual spread ratio: mean absolute residual in the top third of fitted values over the same in the bottom third. It puts a number on the fan the panel is there to show, so two fits can be compared without reading them off two figures. Also in `Summary.txt`. It is descriptive and carries no p-value, and because it is measured on the residuals that panel draws, it compares fits of the same family rather than one family against another: for a GLMM those residuals are already scaled by the assumed variance, so a ratio near 1 says the family has accounted for the heteroscedasticity, not that the raw data had none.
+
 ## [1.27.0] - 2026-09-22
 
 ### Features

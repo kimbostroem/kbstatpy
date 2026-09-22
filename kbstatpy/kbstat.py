@@ -3534,6 +3534,59 @@ class Kbstat:
         mem_cap = max(250, self._SIM_CELL_BUDGET // n_obs)
         return int(min(target, mem_cap))
 
+    # Fewer observations than this and the tertiles are too small to say
+    # anything: three points a side is noise, not a trend.
+    _SPREAD_RATIO_MIN_N = 30
+
+    def _spread_ratio(self, fitted, resid):
+        """How much wider the residuals are at high fitted values than at low.
+
+        Mean |residual| in the top third of fitted values over the same in the
+        bottom third. A constant-variance model sits near 1; the fan that gives
+        heteroscedasticity away on a residuals-vs-fitted plot is this number
+        rising above it.
+
+        Descriptive, not a test. There is no null distribution behind it and no
+        p-value: it puts a number on what the eye is already doing with the
+        panel, so two models can be compared without flipping between figures.
+        A formal check would be a Breusch-Pagan or White test, neither of which
+        transfers cleanly to a mixed model.
+
+        It is computed on whichever residuals the panel draws, which makes it
+        comparable between fits of the same family and NOT between families.
+        For a gaussian fit those are the response residuals, so the ratio is
+        the raw fan. For a GLMM they are deviance or Pearson residuals, already
+        divided by the standard deviation the model assumes, so the ratio is
+        the fan *left over* after the variance function has done its work --
+        which is what tells you whether the family is adequate, but is a
+        different quantity. A tweedie fit near 1 has accounted for its
+        heteroscedasticity; it does not mean the raw data were homoscedastic.
+
+        Returns None when there are too few observations, when the fitted
+        values barely vary (the tertiles would not separate), or when the lower
+        third has essentially no spread to divide by.
+        """
+        fitted = np.asarray(fitted, dtype=float)
+        resid = np.asarray(resid, dtype=float)
+        ok = np.isfinite(fitted) & np.isfinite(resid)
+        fitted, resid = fitted[ok], resid[ok]
+        if fitted.size < self._SPREAD_RATIO_MIN_N:
+            return None
+
+        lo_cut, hi_cut = np.quantile(fitted, [1.0 / 3.0, 2.0 / 3.0])
+        if not np.isfinite(lo_cut) or not np.isfinite(hi_cut) or hi_cut <= lo_cut:
+            return None
+
+        low = np.abs(resid[fitted <= lo_cut])
+        high = np.abs(resid[fitted >= hi_cut])
+        if low.size == 0 or high.size == 0:
+            return None
+        denom = float(np.mean(low))
+        if not np.isfinite(denom) or denom <= 0:
+            return None
+        ratio = float(np.mean(high)) / denom
+        return ratio if np.isfinite(ratio) else None
+
     def _diagnostic_residuals(self, r_obj):
         """Residuals for the diagnostic panels: (values, label, capped_mask).
 
@@ -3757,6 +3810,17 @@ class Kbstat:
         axes[2].set_title("Residuals vs Fitted")
         axes[2].set_xlabel("Fitted Values", labelpad=4)
         axes[2].set_ylabel("Deviance residuals", labelpad=4)
+        # Put a number on the fan the panel is there to show, so two fits can be
+        # compared without flipping between figures. Descriptive only -- see
+        # _spread_ratio -- so it is stated as a ratio and never starred.
+        self._spread_ratio_value = self._spread_ratio(self.model.fits, struct_resid)
+        if self._spread_ratio_value is not None:
+            axes[2].annotate(
+                f'spread ratio {self._spread_ratio_value:.2f}',
+                xy=(0.02, 0.97), xycoords='axes fraction',
+                ha='left', va='top', fontsize='x-small',
+                bbox=dict(boxstyle='round,pad=0.25', facecolor='white',
+                          edgecolor='0.7', alpha=0.85))
         self._tooltip(axes[2], axes[2].collections[-1],
                       [f'{_group_label(i)}, fitted={self.model.fits[i]:.3f}, resid={struct_resid[i]:.3f}'
                        for i in range(n_diag)])
@@ -5322,6 +5386,18 @@ class Kbstat:
             _sims = f' ({_ns} simulations)' if _ns else ''
             lines += ['DIAGNOSTICS', '-----------',
                       f'  Distribution panels (histogram, Q-Q): {_resid}{_sims}.']
+            _sr = getattr(self, '_spread_ratio_value', None)
+            if _sr is not None:
+                lines.append(
+                    f'  Residual spread ratio (top vs bottom third of fitted '
+                    f'values): {_sr:.2f}')
+                lines.append(
+                    '  1 is constant spread; well above it is the fan of '
+                    'heteroscedasticity. Measured on the residuals plotted '
+                    'above, so it')
+                lines.append(
+                    '  compares fits of the same family, not one family '
+                    'against another.')
             if _struct and _struct != _resid:
                 lines.append(f'  Structure panels (residuals-vs-fitted, lagged, scale-location): {_struct}.')
             if _resid.startswith('DHARMa'):

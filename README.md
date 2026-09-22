@@ -17,6 +17,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 - [Multi-y](#multi-y)
 - [Data transformation](#data-transformation)
 - [Correlation analysis](#correlation-analysis)
+- [Residual spread ratio](#residual-spread-ratio)
 - [Variance Inflation Factor (VIF)](#variance-inflation-factor-vif)
 - [Level-wise profile analysis](#level-wise-profile-analysis)
 - [Output files](#output-files)
@@ -371,6 +372,20 @@ When three or more variables are correlated, partial correlations are also produ
 - **`PartialCorrelation.xlsx`** — partial r, p, significance, and Cohen's r label
 
 VIF is computed for every model with two or more numeric covariates, independently of this analysis (see below).
+
+---
+
+## Residual spread ratio
+
+The **Residuals vs Fitted** panel carries a `spread ratio`: mean |residual| in the top third of fitted values divided by the same in the bottom third. It puts a number on the fan that the panel is there to show, so two fits can be compared without flipping between figures.
+
+Near 1 is constant spread. Rising well above it is heteroscedasticity, the residuals widening as the fitted values grow. It is reported in `Summary.txt` as well as on the panel.
+
+**It is descriptive, not a test.** There is no null distribution behind it, so it carries no p-value and is never starred. A formal check would be a Breusch-Pagan or White test, neither of which transfers cleanly to a mixed model.
+
+**It compares fits of the same family, not one family against another.** The ratio is computed on whichever residuals the panel draws. For a gaussian fit those are the response residuals, so it measures the raw fan. For a GLMM they are deviance or Pearson residuals, already divided by the standard deviation the model assumes, so it measures the fan *left over* once the variance function has done its work. A tweedie fit reporting a ratio near 1 has accounted for its heteroscedasticity; it does not mean the raw data were homoscedastic.
+
+It is omitted when there are too few observations for the tertiles to mean anything, when the fitted values barely vary, or when the bottom third has no spread to divide by.
 
 ---
 
