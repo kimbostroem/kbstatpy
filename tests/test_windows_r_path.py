@@ -22,6 +22,17 @@ in `__init__.py` would silently undo.
 these run without R -- and, more to the point, they keep running on a machine
 where the very bug under test stops the package from importing.
 
+The same file also silences rpy2's `R CMD config` probe. On Windows rpy2
+shells out to `R.exe CMD config --ldflags` at import; `R CMD` is a shell
+script needing `sh` from Rtools, and without it Windows prints
+
+    'sh' is not recognized as an internal or external command
+
+to the console. rpy2 catches the resulting CalledProcessError and carries on,
+so the only thing the message costs is the user's confidence, on every single
+import. `silence_r_cmd_config()` raises that error directly instead of
+provoking it, so rpy2 takes the identical fallback path in silence.
+
 Run:  python3 tests/test_windows_r_path.py
 """
 import ast
@@ -111,6 +122,98 @@ def test_path_is_prepended_once():
         path = r'C:\Windows' + sep + spelling
         assert _windows._prepend_path(path, bin_dir) == path, (
             f'duplicated an entry already present as {spelling!r}')
+
+
+class _FakeSituation:
+    """Stands in for rpy2.situation: the two attributes the fix touches."""
+
+    class subprocess:                                   # noqa: N801
+        class CalledProcessError(Exception):
+            def __init__(self, returncode, cmd, output=None):
+                super().__init__(f'{cmd} -> {returncode}')
+                self.returncode, self.cmd, self.output = returncode, cmd, output
+
+    @staticmethod
+    def get_r_flags(r_home, flags):
+        raise AssertionError('get_r_flags was called: a process was spawned')
+
+
+def _with_fake_rpy2(fn, *, os_name, sh_path):
+    """Run `fn` with os.name, shutil.which and rpy2.situation substituted."""
+    fake = _FakeSituation()
+    real_name, real_which = _windows.os.name, _windows.shutil.which
+    real_mod = sys.modules.get('rpy2.situation')
+    sys.modules['rpy2.situation'] = fake
+    sys.modules.setdefault('rpy2', type(sys)('rpy2'))
+    _windows.os.name = os_name
+    _windows.shutil.which = lambda cmd: sh_path if cmd == 'sh' else None
+    try:
+        return fn(fake)
+    finally:
+        _windows.os.name, _windows.shutil.which = real_name, real_which
+        if real_mod is None:
+            sys.modules.pop('rpy2.situation', None)
+        else:
+            sys.modules['rpy2.situation'] = real_mod
+
+
+def test_silencer_is_a_no_op_off_windows():
+    """macOS and Linux never take rpy2's `R CMD config` branch, so touching
+    rpy2 there would be meddling with a library for no reason."""
+    def check(fake):
+        assert _windows.silence_r_cmd_config() is False
+        assert fake.get_r_flags is _FakeSituation.get_r_flags, (
+            'rpy2 was patched on a platform that does not need it')
+    _with_fake_rpy2(check, os_name='posix', sh_path=None)
+
+
+def test_silencer_leaves_rpy2_alone_when_rtools_is_installed():
+    """With `sh` present the probe succeeds and its answer is authoritative --
+    better than the bin\\x64 guess the fallback makes."""
+    def check(fake):
+        assert _windows.silence_r_cmd_config() is False
+        assert fake.get_r_flags is _FakeSituation.get_r_flags, (
+            'discarded a working R CMD config')
+    _with_fake_rpy2(check, os_name='nt', sh_path=r'C:\rtools\usr\bin\sh.exe')
+
+
+def test_silencer_replaces_the_probe_when_sh_is_missing():
+    """The replacement must raise exactly what openrlib catches, or the
+    silencing turns a handled failure into an unhandled one."""
+    def check(fake):
+        assert _windows.silence_r_cmd_config() is True
+        assert fake.get_r_flags is not _FakeSituation.get_r_flags, (
+            'the probe was left in place')
+        try:
+            fake.get_r_flags('C:\\R', '--ldflags')
+        except _FakeSituation.subprocess.CalledProcessError:
+            pass                                        # what rpy2 expects
+        else:
+            raise AssertionError('replacement did not raise CalledProcessError')
+    _with_fake_rpy2(check, os_name='nt', sh_path=None)
+
+
+def test_silencer_runs_before_the_rpy2_import():
+    """Same trap as prepare_r_dll_path(): once rpy2.rinterface is imported,
+    openrlib has already run the probe and printed the message."""
+    with open(INIT_PATH, encoding='utf-8') as fh:
+        tree = ast.parse(fh.read())
+
+    call_line = next(
+        (node.lineno for node in ast.walk(tree)
+         if isinstance(node, ast.Call)
+         and getattr(node.func, 'id', None) == 'silence_r_cmd_config'),
+        None)
+    assert call_line is not None, 'silence_r_cmd_config() is not called in __init__.py'
+
+    kbstat_line = next(
+        (node.lineno for node in tree.body
+         if isinstance(node, ast.ImportFrom) and node.module == 'kbstat'),
+        None)
+    assert kbstat_line is not None, 'the .kbstat import is gone from __init__.py'
+    assert call_line < kbstat_line, (
+        f'silence_r_cmd_config() is called at line {call_line}, after the '
+        f'.kbstat import at line {kbstat_line} - by then rpy2 has run the probe')
 
 
 if __name__ == '__main__':

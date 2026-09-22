@@ -34,6 +34,7 @@ Everything here is a no-op on macOS and Linux.
 """
 import os
 import platform
+import shutil
 import sys
 
 # os.add_dll_directory() returns a handle that unregisters the directory when
@@ -142,3 +143,61 @@ def prepare_r_dll_path():
             pass
 
     return bin_dir
+
+
+def silence_r_cmd_config():
+    """Stop rpy2 spawning ``R CMD config``. Returns True if it was stopped.
+
+    On Windows, ``rpy2.rinterface_lib.openrlib`` runs at import::
+
+        rpy2.situation.get_r_flags(R_HOME, '--ldflags')
+
+    which shells out to ``R.exe CMD config --ldflags``. ``R CMD`` is a shell
+    script and needs ``sh`` from Rtools, which a user installing binary
+    packages has no reason to have. The call is made with
+    ``subprocess.check_output`` and no ``stderr`` argument, so the child
+    inherits the console and Windows prints
+
+        'sh' is not recognized as an internal or external command
+
+    before ``R CMD config`` exits non-zero. rpy2 catches the
+    ``CalledProcessError`` and falls back to guessing ``bin\\x64``, so nothing
+    breaks -- but the user is told, on every single import, about a failure
+    that has already been handled.
+
+    So the failure is raised directly instead of being provoked: rpy2 takes
+    exactly the fallback path it takes today, and no process is spawned to
+    complain first. The answer is not lost either way, since
+    :func:`prepare_r_dll_path` has already registered R's bin folder by the
+    time this runs.
+
+    Only when ``sh`` really is missing. With Rtools installed the call
+    succeeds and is authoritative, so it is left alone. It must run before
+    anything imports ``rpy2.rinterface``; importing ``rpy2.situation`` here is
+    safe, as it pulls in nothing else.
+
+    A no-op on macOS and Linux, where the branch does not exist.
+    """
+    if os.name != 'nt':
+        return False
+
+    if shutil.which('sh'):
+        return False
+
+    try:
+        import rpy2.situation as situation
+    except ImportError:
+        # rpy2 missing is the next import's problem, and its message is better.
+        return False
+
+    if not hasattr(situation, 'get_r_flags'):
+        # A future rpy2 that no longer works this way; leave it alone.
+        return False
+
+    def _no_shell_available(r_home, flags):
+        raise situation.subprocess.CalledProcessError(
+            returncode=1, cmd=('R', 'CMD', 'config', flags),
+            output="'sh' not found; suppressed by kbstatpy (see _windows.py)")
+
+    situation.get_r_flags = _no_shell_available
+    return True

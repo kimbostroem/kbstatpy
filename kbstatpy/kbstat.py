@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 
 from .options import KbstatOptions
 from ._glmmtmb import GlmmTMB
+from ._scriptdir import (chdir_to_script as _chdir_to_script,
+                         script_dir as _script_dir)
 
 # Spellings accepted wherever an option is a plain on/off flag. The string forms
 # are taken so a value that arrives as text -- from a config file, a command line,
@@ -136,6 +138,14 @@ class Output:
 
 class Kbstat:
     """Generalized linear mixed model analysis with post-hoc pairwise comparisons."""
+
+    # Exposed on the class as well as at package level, so a script that has
+    # already imported Kbstat -- which every script has -- needs no second
+    # import to place itself. Both forms are the same function: the caller is
+    # found by walking out of this package, so the extra frame these add is
+    # skipped like any other.
+    chdir_to_script = staticmethod(_chdir_to_script)
+    script_dir = staticmethod(_script_dir)
 
     def __init__(self, options: KbstatOptions):
         self.options = options
@@ -397,14 +407,23 @@ class Kbstat:
         return list(value)
 
     def _resolve_path(self, path):
-        """Resolve a relative path against the current working directory.
+        """Resolve a relative path against options.base_dir, else the cwd.
 
-        Standard Python behaviour: a relative in_file/out_dir is taken relative
-        to where the user is working, never the package or script location, so
-        output lands in the user's own (writable) directory.
+        Default (`base_dir = ''`) is standard Python behaviour: a relative
+        in_file/out_dir is taken relative to where the user is working, never
+        the package or script location, so output lands in the user's own
+        (writable) directory.
+
+        `base_dir` anchors those two paths somewhere else -- typically the
+        script's own folder, via `base_dir = 'script_dir'` -- without moving
+        the process, so the rest of the script keeps resolving against the
+        working directory as before. An absolute path ignores it either way.
         """
         if not path or os.path.isabs(path):
             return path
+        base = getattr(self.options, 'base_dir', '') or ''
+        if base:
+            return os.path.abspath(os.path.join(base, path))
         return os.path.abspath(path)
 
     def _disp(self, name):
@@ -949,6 +968,10 @@ class Kbstat:
                                  max_iterations=self.options.max_iterations,
                                  dispformula=dispformula)
         self.model.fit(summarize=False)
+
+        _tw_note = self._tweedie_boundary_note()
+        if _tw_note:
+            warnings.warn(f'Tweedie fit: {_tw_note}.', stacklevel=2)
 
         # Rows the fit actually used. `data_to_use` already excludes flagged
         # outliers; R additionally drops rows with missing values, so prefer the
@@ -3530,8 +3553,10 @@ class Kbstat:
         # Cleared up front so a multi-y run cannot carry a previous variable's
         # simulation count into a fallback that never simulated anything.
         self._resid_nsim = None
+        self._resid_skip_reason = self._dharma_skip_reason()
         try:
-            if int(ro.r('as.integer(requireNamespace("DHARMa", quietly=TRUE))')[0]) == 1:
+            if self._resid_skip_reason is None and \
+                    int(ro.r('as.integer(requireNamespace("DHARMa", quietly=TRUE))')[0]) == 1:
                 ro.r('suppressMessages(library(DHARMa))')
                 ro.globalenv['._kbstat_rmodel'] = r_obj
                 n_sim = self._diagnostic_sims()
@@ -4606,6 +4631,102 @@ class Kbstat:
         except Exception:
             return None
 
+    def _link_label(self) -> str:
+        """The link the fit actually used, not the option that asked for it.
+
+        options.link defaults to 'auto', which used to print as 'default' -- true
+        but useless, since the reader wants to know whether effects are additive
+        or multiplicative, and 'auto' resolves differently per family (identity
+        for gaussian, log for tweedie and the counts). Ask the fitted object.
+        """
+        asked = str(self.options.link)
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is not None:
+            try:
+                fitted = str(ro.r('function(m) family(m)$link')(r_obj)[0])
+            except Exception:
+                fitted = ''
+            if fitted:
+                return (fitted if asked in ('auto', '')
+                        else f'{fitted} (options.link={asked!r})')
+        return asked if asked not in ('auto', '') else 'default'
+
+    # A tweedie power this close to an endpoint is the optimiser pressed against
+    # the wall rather than an estimate: glmmTMB parametrises the power as
+    # 1 + plogis(theta), so 1 and 2 are only reachable as theta -> -+infinity.
+    _TWEEDIE_BOUNDARY_TOL = 0.01
+    # Expected Poisson count per simulated observation above which DHARMa's
+    # simulation is not worth attempting. 1e4 summed gamma draws per observation
+    # is already slow; the pathological cases run to 1e6 and beyond.
+    _DHARMA_MAX_POISSON_RATE = 1.0e4
+
+    def _tweedie_sim_rate(self):
+        """Expected Poisson count per simulated observation, or None.
+
+        A compound Poisson-gamma draw is N ~ Poisson(lambda) gamma variates
+        summed, with lambda = mu^(2-p) / (phi * (2-p)). As p -> 2 that
+        denominator goes to zero and lambda diverges, so simulating one dataset
+        costs unboundedly more than fitting the model did. This is what makes a
+        boundary tweedie fit hang in the diagnostics rather than in the fit:
+        observed at p = 1.99999499, where lambda reached 1.7e6 and DHARMa's
+        default simulation count would have needed ~2e11 gamma draws.
+        """
+        p = self._tweedie_power()
+        if p is None or not (1.0 < p < 2.0):
+            return None
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is None:
+            return None
+        try:
+            phi = float(np.asarray(ro.r('sigma')(r_obj))[0])
+            mu = float(np.nanmean(np.asarray(ro.r('fitted')(r_obj), dtype=float)))
+        except Exception:
+            return None
+        if not (np.isfinite(phi) and np.isfinite(mu)) or phi <= 0 or mu <= 0:
+            return None
+        return mu ** (2.0 - p) / (phi * (2.0 - p))
+
+    def _tweedie_boundary_note(self):
+        """Advice when the estimated power has pinned at an endpoint, else None.
+
+        Worth saying plainly, because the number alone looks like a result. A
+        power at the wall means the data wanted a variance function the family
+        cannot express, and the family that can is the one on the other side of
+        the endpoint -- gaussian below 1 (there is no Tweedie at all for
+        0 < p < 1), gamma at 2.
+        """
+        p = self._tweedie_power()
+        if p is None:
+            return None
+        tol = self._TWEEDIE_BOUNDARY_TOL
+        if p >= 2.0 - tol:
+            return (f'the estimated Tweedie power has pinned at its upper bound '
+                    f'(p = {p:.5f}, bound 2). glmmTMB admits only 1 < p < 2, so '
+                    f'this is the optimiser against the wall, not an estimate: '
+                    f"the data want p = 2. Use distribution = 'gamma'")
+        if p <= 1.0 + tol:
+            return (f'the estimated Tweedie power has pinned at its lower bound '
+                    f'(p = {p:.5f}, bound 1). glmmTMB admits only 1 < p < 2, and '
+                    f'no Tweedie distribution exists for 0 < p < 1, so the data '
+                    f"are reaching past the family: use distribution = 'normal' "
+                    f"(p = 0), or 'poisson' for counts (p = 1)")
+        return None
+
+    def _dharma_skip_reason(self):
+        """Why the DHARMa simulation must be skipped for this fit, or None.
+
+        DHARMa cannot be given a time budget: R's setTimeLimit never fires,
+        because the cost is inside the compiled rpois/rgamma loop and control
+        never returns to the interpreter to check it. Verified against a fit
+        that ran past a 30 s limit for more than ten minutes. So the guard has
+        to be predictive -- price the simulation first and decline it.
+        """
+        rate = self._tweedie_sim_rate()
+        if rate is not None and rate > self._DHARMA_MAX_POISSON_RATE:
+            return (f'simulating from this fit would draw ~{rate:.3g} gamma '
+                    f'variates per observation (Tweedie power near 2)')
+        return None
+
     def _model_structure_label(self) -> str:
         """Whether the fixed effects are additive, full factorial, or in between.
 
@@ -4824,7 +4945,7 @@ class Kbstat:
         # --- Model information ---
         n_obs = self._n_obs_label()
         family = self._family()
-        link = self.options.link if self.options.link not in ('auto', '') else 'default'
+        link = self._link_label()
         fit_method = self._fit_method_label()
         lines += [
             'MODEL INFORMATION',
@@ -4840,6 +4961,12 @@ class Kbstat:
         if _tw is not None:
             lines.append(f'  Tweedie power          : {_tw:.3f} '
                          '(variance proportional to mean^p; 1 = Poisson, 2 = gamma)')
+            _tw_note = self._tweedie_boundary_note()
+            if _tw_note:
+                import textwrap as _tw_wrap
+                lines += _tw_wrap.wrap(
+                    'WARNING: ' + _tw_note + '.', width=70,
+                    initial_indent='  ', subsequent_indent='      ')
         lines += [
         ]
         if self._scaled_covariates:
@@ -4910,9 +5037,16 @@ class Kbstat:
             lines.append('   everything else comes from the REML fit)')
         for name, val in fit_stat_vals.items():
             try:
-                lines.append(f'  {name:<24}: {float(val):.3f}')
+                num = float(val)
             except (TypeError, ValueError):
                 lines.append(f'  {name:<24}: {val}')
+                continue
+            # A family may not define every statistic -- glmmTMB returns NA for
+            # the tweedie deviance -- and 'deviance : nan' reads as a failed fit
+            # rather than as a quantity that does not exist. Leave it out.
+            if not np.isfinite(num):
+                continue
+            lines.append(f'  {name:<24}: {num:.3f}')
         lines.append('')
 
         # --- Fixed effects ---
@@ -5205,6 +5339,14 @@ class Kbstat:
                         '  Q-Q because they fell outside the range simulated for those two panels.',
                     ]
                 lines.append('')
+            elif getattr(self, '_resid_skip_reason', None):
+                import textwrap as _tw
+                lines += _tw.wrap(
+                    f'(DHARMa quantile residuals were skipped: '
+                    f'{self._resid_skip_reason}. These residuals can be mildly '
+                    f'skewed for non-Gaussian families even when the model is '
+                    f'correct.)', width=70,
+                    initial_indent='  ', subsequent_indent='  ')
             else:
                 lines += [
                     '  (DHARMa was unavailable; these residuals can be mildly skewed for',

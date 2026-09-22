@@ -1,5 +1,20 @@
 # Changes
 
+## [1.27.0] - 2026-09-22
+
+### Features
+
+- New option `base_dir`: the directory a relative `in_file` or `out_dir` is resolved against. `'script_dir'` (or `'auto'`) means the calling script's own folder, so a script reads and writes the same places however it was started. Default `''` keeps the previous behaviour, the working directory.
+- `Kbstat.chdir_to_script()` moves the working directory to the calling script's folder, and `Kbstat.script_dir()` returns that folder without moving. Both are also importable from the package.
+- A tweedie fit whose estimated variance power settles at the edge of the admissible interval now says so and names the family the data are asking for, rather than reporting the bound as an estimate.
+
+### Bugs
+
+- The summary reported the link function as `default` whenever `link` was left at `'auto'`, naming no link at all. It now reports the link actually fitted. This makes a long-standing behaviour visible for the first time: `distribution = 'gamma'` uses R's canonical **inverse** link, not a log link, so gamma coefficients are on the inverse scale. Nothing has changed in how models are fitted, but existing gamma results may have been read on the wrong scale.
+- A fit statistic the chosen family does not define was printed as `nan` among the fit statistics, where it read as a failed fit. Such statistics are now left out.
+- A tweedie fit whose power settled at the upper bound made the diagnostics take unbounded time, with no message. The cost of the residual simulation is now estimated first, and the simulation declined when it would be prohibitive; the summary says so and the panels fall back to Pearson residuals.
+- On Windows, importing kbstatpy printed a shell error about a missing `sh` on every import. It came from rpy2 probing `R CMD config`, which needs Rtools; rpy2 already handled the failure, so only the message was new.
+
 ## [1.26.0] - 2026-09-22
 
 ### Features

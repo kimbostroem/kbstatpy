@@ -167,6 +167,47 @@ All list-valued options (`x`, `covariate`, `slope`, `interaction`, `y_units`, `x
 
 To start from something fuller, copy [`analysis_template.py`](analysis_template.py) from the repository root: the five required options are filled in and the rest are commented out, each showing the value kbstatpy would use anyway and a one-line note on what it does.
 
+### Relative paths and where the script is run from
+
+`in_file` and `out_dir` are resolved against the working directory, which is set by whatever started the script and is not necessarily the folder the script is in. An IDE's run button, a terminal, a cron entry and a double-click can each pick a different one, so a plain relative path may silently read or write somewhere unintended.
+
+`chdir_to_script()` moves to the calling script's own folder, so relative paths mean what they look like:
+
+```python
+from kbstatpy import Kbstat, KbstatOptions
+
+Kbstat.chdir_to_script()
+
+options = KbstatOptions()
+options.in_file = 'Data/gait.csv'       # next to this script, wherever it is run from
+options.out_dir = 'Results/gait'
+```
+
+It replaces the usual `script_dir = os.path.dirname(os.path.abspath(__file__))` opening and returns the directory it moved to. `Kbstat.script_dir()` returns the same path **without** changing the working directory, for a script that would rather build its paths explicitly.
+
+Both are also importable on their own, as `chdir_to_script` and `script_dir`, which is the same function either way. The methods exist so that a script needs no import beyond the `Kbstat` it already has.
+
+**`base_dir` does the same job without moving the process.** `chdir_to_script()` anchors the whole script; `base_dir` anchors only `in_file` and `out_dir`, so anything else the script does relative to where it was launched keeps working:
+
+```python
+options.base_dir = 'script_dir'     # 'auto' is a synonym
+options.in_file  = 'Data/gait.csv'  # the script's Data, wherever it is run from
+options.out_dir  = 'Results/gait'
+```
+
+| `base_dir` | meaning |
+|---|---|
+| `''` | default, relative paths follow the working directory |
+| `'.'` | the same, said explicitly |
+| `'script_dir'` / `'auto'` | the calling script's own folder |
+| any path | that folder, absolute or itself relative to the working directory |
+
+The keyword is resolved when it is assigned, so `options.base_dir` afterwards holds the real path: print it and you see where the analysis will read and write. An absolute `in_file` or `out_dir` ignores it. Both keywords are ordinary words, so if a directory of that name exists, assigning the keyword warns and takes the keyword; write `'./auto'` or an absolute path to mean the directory. `base_dir = Kbstat.script_dir()` is the spelling with no keyword at all.
+
+Use `base_dir` when one script writes several analyses under different roots, or when the script does its own file work relative to the launch directory. Use `chdir_to_script()` when the whole script should simply be anchored.
+
+Both take the path from the call stack, so nothing has to be passed in. In a REPL, a notebook cell or `exec()` there is no script to locate: they return `None`, and `chdir_to_script()` warns and leaves the working directory alone rather than guessing.
+
 ---
 
 ## Options reference
@@ -178,7 +219,8 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 | Option | Type | Description |
 |---|---|---|
 | `in_file` | str | Path to the input data (`.csv` or `.xlsx`) |
-| `out_dir` | str | Output directory, resolved against the working directory. Empty (default) displays results without writing anything, which suits notebooks |
+| `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
+| `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
 | `demo_dir` | str | *(auto)* Absolute path to the bundled demo folder, for example inputs: `os.path.join(options.demo_dir, 'data/sleep.csv')` |
 | `formula` | str | Full Wilkinson formula. Overrides `y`, `x`, `id`, `slope` and `interaction` |
 | `y` | str or list | Dependent variable(s). Several run one analysis each, see [Multi-y](#multi-y) |

@@ -17,11 +17,19 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 
+# Anchor the paths below to this file's folder, so they mean the same thing
+# however the script was started: IDE run button, terminal, cron or
+# double-click. Delete the line to have them follow the working directory
+# instead ('' is the default), or set it to any other folder.
+#   Kbstat.chdir_to_script()   moves the whole process instead, if you would
+#                              rather every path in the script were anchored.
+options.base_dir = 'script_dir'
+
 # ---------------------------------------------------------------------------
 # Data in, results out                                              [required]
 # ---------------------------------------------------------------------------
-options.in_file = 'data/my_data.csv'        # .csv or .xlsx, one row per observation
-options.out_dir = 'results/my_analysis'     # created if missing, relative to the working directory
+options.in_file = 'data/my_data.csv'        # .csv or .xlsx, one row per observation, relative to base_dir
+options.out_dir = 'results/my_analysis'     # created if missing, relative to base_dir
 
 # options.constraints = 'age > 18 & group != "pilot"'   # row filter, applied before everything else
 

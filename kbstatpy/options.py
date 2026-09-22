@@ -1,4 +1,5 @@
 import os
+import warnings
 from dataclasses import dataclass, field
 
 # Absolute path to the bundled demo folder (a sibling of this package in the
@@ -21,6 +22,68 @@ class KbstatOptions:
     # Data input / output
     in_file: str = ''
     out_dir: str = ''
+
+    # Directory that a relative `in_file` / `out_dir` is resolved against.
+    # '' (default) leaves them relative to the working directory, which is set
+    # by whatever started the script: an IDE run button, a terminal, a cron
+    # entry and a double-click each pick a different one, so the same relative
+    # path can read or write somewhere unintended without saying so.
+    #   'script_dir'  the calling script's own folder ('auto' is a synonym,
+    #                 and Kbstat.script_dir() returns the same folder as a path)
+    #   <path>    that folder, absolute or itself relative to the working dir
+    # These are keywords, so a directory of the same name has to be spelled in
+    # a way that cannot be one: './auto', or an absolute path. Assigning a
+    # keyword while such a directory exists warns rather than choosing
+    # silently. Neither word is one people name folders: 'scripts' is the
+    # common name, and it is not a character away from either keyword.
+    # The keyword is resolved the moment it is assigned, so `options.base_dir`
+    # afterwards holds the real path rather than the word -- print it and you
+    # see where the analysis will read and write. Absolute in_file/out_dir are
+    # unaffected.
+    #
+    # Unlike Kbstat.chdir_to_script() this moves nothing: the process keeps its
+    # working directory, and only kbstatpy's own paths are anchored. Use the
+    # chdir when the whole script should be anchored, base_dir when just the
+    # analysis should, or when one script writes several analyses under
+    # different roots.
+    base_dir: str = ''
+
+    #: Values of `base_dir` that mean "the calling script's folder".
+    #: 'script_dir' says what it resolves to and matches the method of the same
+    #: name; 'auto' is the spelling the other keyword-taking options use.
+    #: Deliberately not 'script' or 'local': `scripts/` and `local/` are real
+    #: folder names, and the first differs from the keyword by one character.
+    _BASE_DIR_KEYWORDS = ('script_dir', 'auto')
+
+    def __setattr__(self, name, value):
+        """Resolve a `base_dir` keyword as it is assigned.
+
+        At assignment the caller is the script, which is what the keyword
+        names; resolving later, inside a run, would answer with whichever
+        module happened to call in. Resolving here also means the attribute
+        holds a path from then on, so printing it shows where the analysis
+        will read and write rather than the word that was typed.
+        """
+        if (name == 'base_dir' and isinstance(value, str)
+                and value.strip().lower() in self._BASE_DIR_KEYWORDS):
+            from ._scriptdir import script_dir
+            if os.path.isdir(value.strip()):
+                warnings.warn(
+                    f"options.base_dir={value!r} is a keyword meaning the "
+                    f"script's folder, and a directory of that name also "
+                    f"exists here. Taking the keyword; write "
+                    f"'./{value.strip()}' or an absolute path to mean the "
+                    f"directory.", stacklevel=2)
+            resolved = script_dir()
+            if resolved is None:
+                warnings.warn(
+                    f"options.base_dir={value!r} needs a script to locate, and "
+                    f"there is none here (interactive session, notebook, or "
+                    f"exec()); falling back to the working directory.",
+                    stacklevel=2)
+                resolved = os.getcwd()
+            value = resolved
+        object.__setattr__(self, name, value)
 
     # Absolute path to the bundled demo folder, for example inputs, e.g.
     #   os.path.join(options.demo_dir, 'data/sleep.csv')
