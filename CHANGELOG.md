@@ -1,5 +1,16 @@
 # Changes
 
+## [1.29.0] - 2026-09-22
+
+### Changes
+
+- **`distribution = 'gamma'` now uses a log link.** It previously inherited R's canonical link for `Gamma()`, the inverse. **This changes results for every existing gamma model**: coefficients, standard errors, p-values and estimated marginal means all move, and a script rerun on this version will not reproduce what an earlier one printed. Under the inverse link `beta` acts on 1/mu, so a positive coefficient meant a *smaller* mean and gamma coefficients read backwards; `mu = 1/(X beta)` also requires the linear predictor to stay positive, which `exp(X beta)` never does; and every other positive-outcome family here uses a log, so switching between `'gamma'` and `'tweedie'` changed the mean model rather than only the variance function, leaving the two uncomparable by AIC. `link = 'inverse'` restores the previous behaviour exactly.
+- **`distribution = 'inverse_gaussian'` now declares a log link.** Results do not change: glmmTMB accepts R's canonical `1/mu^2` and fits a log link regardless, while reporting `1/mu^2`, so these models were already on a log link and only the summary was wrong. This is not a display-only bug; the linear predictor really is log(mu), and the fit is identical to the log fit. Checked against glmmTMB 1.1.14, where `'inverse'` and `'identity'` are honoured. kbstatpy now reports the link actually fitted and warns if `1/mu^2` is asked for. `'inverse'` and `'identity'` are honoured by glmmTMB and are unaffected.
+
+### Features
+
+- `Summary.txt` now states which scale each post-hoc column is on whenever the link is not the identity: `emm_1`, `emm_2` and `diff` are on the response scale, while `t`, `df` and `p` come from the contrast on the link scale, so `t` is not `diff` divided by its standard error. Under a decreasing link such as the inverse it adds that `t` carries the opposite sign to `diff` throughout, which is correct rather than a fault, and leaves the p-values unaffected. The note follows the link actually fitted, so it no longer claims a sign reversal for an inverse Gaussian model that glmmTMB quietly fitted on a log link. No number changed; the columns always meant this.
+
 ## [1.28.0] - 2026-09-22
 
 ### Features

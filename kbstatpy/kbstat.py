@@ -884,7 +884,8 @@ class Kbstat:
         if 'is_outlier' in self.data.columns:
             data_to_use = self.data[~self.data['is_outlier']]
         family = self._family()
-        link = self.options.link if self.options.link not in ('auto', '') else 'default'
+        link = (self.options.link if self.options.link not in ('auto', '')
+                else self._default_link(family) or 'default')
         has_random = bool(self._parse_formula(formula)['id'])
         has_slopes = bool(self._parse_formula(formula)['slopes'])
         # Dispersion model (glmmTMB dispformula): normalise the option to a formula.
@@ -968,6 +969,16 @@ class Kbstat:
                                  max_iterations=self.options.max_iterations,
                                  dispformula=dispformula)
         self.model.fit(summarize=False)
+
+        _asked_link = str(self.options.link)
+        _subst = self._SUBSTITUTED_LINKS.get(family, {}).get(_asked_link)
+        if _subst:
+            warnings.warn(
+                f"glmmTMB does not implement the {_asked_link!r} link for "
+                f"{family}; it fits a {_subst!r} link instead while still "
+                f"reporting {_asked_link!r}. kbstatpy reports the link actually "
+                f"used. Ask for {_subst!r} to say so explicitly, or use another "
+                f"family if you need {_asked_link!r}.", stacklevel=2)
 
         _tw_note = self._tweedie_boundary_note()
         if _tw_note:
@@ -4695,24 +4706,108 @@ class Kbstat:
         except Exception:
             return None
 
+    #: Where kbstatpy's 'auto' departs from R's canonical link. Both entries
+    #: are the same argument. R's Gamma() defaults to the inverse and
+    #: inverse.gaussian() to 1/mu^2, canonical links that applied practice
+    #: abandoned: beta then acts on 1/mu or 1/mu^2, both DECREASING in the
+    #: mean, so a POSITIVE coefficient means a SMALLER mean and every
+    #: coefficient reads backwards; mu = 1/(X beta), or (X beta)^-1/2, needs
+    #: the linear predictor to stay positive, where exp(X beta) never can; and
+    #: every other positive-outcome family here uses a log, so switching
+    #: `distribution` between them silently changed the mean model rather than
+    #: only the variance function, which made the families uncomparable by AIC.
+    #:
+    #: 1/mu^2 is the worse of the two: a change in the reciprocal of the
+    #: squared mean has no reading in any applied field, and the squaring puts
+    #: the fit nearer the edge of its parameter space. Set link explicitly to
+    #: get either canonical link back.
+    _DEFAULT_LINKS = {'Gamma': 'log', 'inverse.gaussian': 'log'}
+
+    def _default_link(self, family: str) -> str:
+        """The link 'auto' resolves to, or '' to leave the choice to R.
+
+        'auto' means the link kbstatpy recommends, not the one R happens to
+        make canonical. For every family but gamma the two coincide.
+        """
+        return self._DEFAULT_LINKS.get(family, '')
+
+    #: Links glmmTMB accepts and then does not use, as {family: {asked: used}}.
+    #: glmmTMB has no 1/mu^2 and fits a log instead, without saying so, while
+    #: family(m)$link keeps echoing what was requested -- so the link cannot be
+    #: taken at face value. Verified by fitting both: identical coefficients
+    #: and log-likelihood under glmmTMB, where base R's glm() gives the two
+    #: different parameterisations it should. 'inverse' and 'identity' are
+    #: honoured; only this one is substituted. tests/test_gamma_link_and_scale
+    #: checks the substitution still happens, so this stops being silently
+    #: wrong if a later glmmTMB implements the link.
+    _SUBSTITUTED_LINKS = {'inverse.gaussian': {'1/mu^2': 'log'}}
+
+    def _fitted_link(self) -> str:
+        """The bare name of the link in force, or '' if it cannot be read.
+
+        Reports what was fitted, not what was asked for, which for one family
+        are different things -- see _SUBSTITUTED_LINKS.
+        """
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is None:
+            return ''
+        try:
+            reported = str(ro.r('function(m) family(m)$link')(r_obj)[0])
+        except Exception:
+            return ''
+        return self._SUBSTITUTED_LINKS.get(self._family(), {}).get(reported, reported)
+
+    #: Links under which a larger mean gives a SMALLER linear predictor, so the
+    #: contrast's sign is the opposite of the response-scale difference's.
+    _DECREASING_LINKS = ('inverse', '1/mu^2')
+
+    def _posthoc_scale_lines(self):
+        """Say which scale each column of the post-hoc table is on.
+
+        The row mixes two: `emm_1`, `emm_2` and `diff` are on the response
+        scale (`diff` is the difference of the back-transformed means), while
+        `t`, `df` and `p` come from the contrast emmeans tested on the link
+        scale. Under a non-identity link those are different quantities, so t
+        cannot be recovered from diff -- and under a decreasing link the two
+        do not even share a sign, which is how the mismatch was noticed
+        (diff = -0.938 beside t = +9.38 in one gamma fit).
+
+        Reporting an interpretable effect beside a test from a transformed
+        model is ordinary; leaving the reader to discover it is not. Nothing is
+        renamed and no number moves: flipping t would misreport emmeans, and
+        redefining diff as the link-scale estimate would replace the one figure
+        in the row anybody can quote with a log ratio.
+
+        Empty for an identity link, where the two scales coincide.
+        """
+        link = self._fitted_link()
+        if not link or link == 'identity':
+            return []
+        out = [
+            '  emm_1, emm_2 and diff are on the response scale; t, df and p come',
+            f'  from the contrast on the {link} scale, where the test is defined,',
+            '  so t is not diff divided by its standard error.',
+        ]
+        if link in self._DECREASING_LINKS:
+            out.append(
+                f'  A larger mean gives a smaller {link} predictor, so t carries the')
+            out.append('  opposite sign to diff throughout. The p-values are unaffected.')
+        return out
+
     def _link_label(self) -> str:
         """The link the fit actually used, not the option that asked for it.
 
         options.link defaults to 'auto', which used to print as 'default' -- true
         but useless, since the reader wants to know whether effects are additive
         or multiplicative, and 'auto' resolves differently per family (identity
-        for gaussian, log for tweedie and the counts). Ask the fitted object.
+        for gaussian, log for the counts, tweedie and now gamma). Ask the
+        fitted object.
         """
         asked = str(self.options.link)
-        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
-        if r_obj is not None:
-            try:
-                fitted = str(ro.r('function(m) family(m)$link')(r_obj)[0])
-            except Exception:
-                fitted = ''
-            if fitted:
-                return (fitted if asked in ('auto', '')
-                        else f'{fitted} (options.link={asked!r})')
+        fitted = self._fitted_link()
+        if fitted:
+            return (fitted if asked in ('auto', '')
+                    else f'{fitted} (options.link={asked!r})')
         return asked if asked not in ('auto', '') else 'default'
 
     # A tweedie power this close to an endpoint is the optimiser pressed against
@@ -4863,7 +4958,8 @@ class Kbstat:
             ro.globalenv['._kbstat_cmp_data'] = data_to_use
 
         family = self._family()
-        link = self.options.link if self.options.link not in ('auto', '') else ''
+        link = (self.options.link if self.options.link not in ('auto', '')
+                else self._default_link(family))
         fam_expr = f'{family}(link="{link}")' if link and link != 'default' else family
         has_random = bool(re_terms)
 
@@ -5227,7 +5323,9 @@ class Kbstat:
             _primary = (self._compare_vars() or [None])[0]
             lines += self._posthoc_family_lines(
                 self._posthoc_family_info.get(_primary))
-            lines += [f'  Denominator df method: {self._df_method_label()}', '']
+            lines += [f'  Denominator df method: {self._df_method_label()}']
+            lines += self._posthoc_scale_lines()
+            lines += ['']
             _ph_show, _n_blanked = _blank_repeated_contrasts(ph, self.options.x[0]
                                                             if self.options.x else '')
             lines += [_bounded_p_table(_ph_show).to_string(index=False), '']

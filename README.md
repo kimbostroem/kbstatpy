@@ -316,11 +316,15 @@ To make a hand-built matplotlib figure match kbstatpy's plots, call the public `
 | `distribution` | R family | Typical use |
 |---|---|---|
 | `'normal'` | `gaussian` | Continuous, symmetric outcomes → LMM |
-| `'gamma'` | `Gamma` | Positive, right-skewed outcomes (reaction times, distances) |
+| `'gamma'` | `Gamma` | Positive, right-skewed outcomes (reaction times, distances). Uses a **log** link, not R's canonical inverse (see below) |
 | `'binomial'` | `binomial` | Binary / proportion outcomes |
 | `'poisson'` | `poisson` | Count data |
-| `'inverse_gaussian'` | `inverse.gaussian` | Positive, heavy right tail |
+| `'inverse_gaussian'` | `inverse.gaussian` | Positive, heavy right tail. Uses a **log** link, not R's canonical `1/mu^2` (see below) |
 | `'tweedie'` | `tweedie` | Positive continuous, variance between Poisson and gamma. The others fix the variance power at 0, 1, 2 and 3; tweedie estimates it, and `Summary.txt` reports the estimate |
+
+**The link `'auto'` chooses is kbstatpy's recommendation, not R's canonical one.** They coincide for every family but gamma and inverse Gaussian. R's `Gamma()` defaults to the inverse link, which applied practice abandoned: `beta` then acts on 1/mu, so a *positive* coefficient means a *smaller* mean and every gamma coefficient reads backwards; `mu = 1/(X beta)` requires the linear predictor to stay positive, where `exp(X beta)` never can; and every other positive-outcome family here uses a log, so switching `distribution` between `'gamma'` and `'tweedie'` used to change the mean model rather than only the variance function, leaving the two uncomparable by AIC. Set `link = 'inverse'` to get the canonical link back. `inverse_gaussian` gets a log for the same reasons, its canonical `1/mu^2` being harder still to read.
+
+**A caveat specific to `inverse_gaussian`:** glmmTMB accepts `link = '1/mu^2'` and then fits a **log** link anyway, while `family(m)$link` keeps echoing `1/mu^2`. Verified on a model with a continuous covariate by reconstructing the linear predictor from the fitted values: with `'1/mu^2'` requested, η equals log(μ), and the fit is identical to the log fit in coefficients and log-likelihood. (A factor-only design cannot show this: it saturates the fixed-effect means, so every link gives the same fitted values.) This is not a display-only bug — the numbers themselves are the log fit's. Checked against glmmTMB 1.1.14. kbstatpy therefore reports the link actually used, and warns if you ask for `1/mu^2`. So the default change costs nothing for existing inverse Gaussian models: they were already being fitted on a log link, whatever the summary claimed. `'inverse'` and `'identity'` *are* honoured.
 
 When `distribution = 'normal'` a linear mixed model (LMM) is fitted via `lmer`. All other distributions produce a GLMM via `glmmTMB`. (Earlier versions used `lme4::glmer`, but it returns mis-scaled standard errors for the continuous dispersion families — Gamma and inverse Gaussian — so `glmmTMB`, which estimates the dispersion explicitly, is used instead. See `STATISTICAL_NOTES.md`.)
 
@@ -609,6 +613,7 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 - **Type III sums of squares** — when Type II would differ and why Type III is preferred
 - **Kenward-Roger / Satterthwaite df vs. df = Inf** — the `df_method` option, why GLMMs yield asymptotic tests, and how large fits are handled
 - **Post-hoc comparisons with emmeans** — marginal means and Holm correction, over a family scope you choose (`posthoc_family`)
+- **Which scale the post-hoc columns are on** — `emm_1`, `emm_2` and `diff` are on the response scale; `t`, `df` and `p` come from the contrast on the link scale, so under a non-identity link `t` is not `diff` over its standard error, and under a decreasing link the two carry opposite signs. `Summary.txt` states this whenever the link is not the identity
 - **VIF and multicollinearity** — what VIF measures and when it matters
 
 ---

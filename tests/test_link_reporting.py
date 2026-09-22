@@ -91,16 +91,18 @@ def test_auto_link_names_the_identity_link_of_a_gaussian_fit():
     assert got == 'identity', f"expected 'identity', got {got!r}"
 
 
-def test_auto_link_names_the_canonical_link_a_family_brings():
-    """'auto' must print the link R actually chose, surprising or not.
+def test_auto_link_names_the_link_kbstatpy_resolved_to():
+    """'auto' must print the resolved link, never the word 'default'.
 
-    R's canonical link for Gamma() is the inverse, not the log. That is the
-    whole point of reporting the resolved link: with 'default' printed instead,
-    a gamma model was fitted on an inverse link and nothing in the summary said
-    so, which changes how every coefficient must be read.
+    This test asserted 'inverse' until 1.29.0, because 'auto' then deferred to
+    R's canonical link for Gamma(). Reporting the resolved link is what made
+    that visible, and 'auto' now means the link kbstatpy recommends, so gamma
+    resolves to a log. The assertion is kept here rather than deleted: it is
+    the one that would catch 'auto' silently falling back to R's canonical
+    choice again. tests/test_gamma_link_and_scale.py owns the reasoning.
     """
     got = field(summary(distribution='gamma'), 'Link function')
-    assert got == 'inverse', f"expected 'inverse', got {got!r}"
+    assert got == 'log', f"expected 'log', got {got!r}"
 
 
 def test_auto_link_names_the_log_link_under_tweedie():
