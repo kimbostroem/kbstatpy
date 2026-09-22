@@ -145,6 +145,17 @@ jobs:
         # installer's environment.
         run: python -c "import kbstatpy; print(kbstatpy.__version__)"
 
+      - name: Record the R package versions
+        # Which families and links glmmTMB implements varies by version, so a
+        # failure that appears on one runner and not another is usually this.
+        # The R library is cached, so nothing else in the log says which
+        # version ran, and the difference has to be inferred from the errors.
+        shell: bash
+        run: |
+          Rscript -e 'for (p in c("glmmTMB","TMB","Matrix","lme4","emmeans","DHARMa"))
+            cat(sprintf("%-10s %s\n", p,
+                tryCatch(as.character(packageVersion(p)), error=function(e) "MISSING")))'
+
       - name: Install the test-only dependencies
         # The suite needs PyYAML, which is not a runtime dependency of kbstatpy
         # and so is not pulled in by either installer. CI never asked for it, so

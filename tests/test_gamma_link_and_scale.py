@@ -92,6 +92,30 @@ def fit_loud(**kw):
         return [str(w.message) for w in caught]
 
 
+def inverse_gaussian_available():
+    """Whether the installed glmmTMB implements the inverse Gaussian family.
+
+    It varies by version: some builds fit it, others answer TMB's
+    "Family not implemented!". glmmTMB's own .valid_family does not list it
+    even on a build that fits it, so the only reliable check is to try.
+    Probed once, because a fit is not free.
+    """
+    global _IG_OK
+    if _IG_OK is None:
+        try:
+            fit(distribution='inverse_gaussian')
+            _IG_OK = True
+        except Exception as exc:                        # noqa: BLE001
+            _IG_OK = 'not implement' not in str(exc)
+            if not _IG_OK:
+                print('  (skipping the inverse Gaussian tests: this glmmTMB '
+                      'does not implement the family)')
+    return _IG_OK
+
+
+_IG_OK = None
+
+
 def field(text, label):
     m = re.search(rf'^\s*{re.escape(label)}\s*:\s*(.+)$', text, re.M)
     assert m, f'no {label!r} line in the summary'
@@ -190,6 +214,8 @@ def test_inverse_gaussian_defaults_to_the_log_link():
     """Same argument as gamma: R's canonical 1/mu^2 is decreasing in the mean,
     so coefficients read backwards, and it is the harder of the two to read --
     a change in the reciprocal of the squared mean."""
+    if not inverse_gaussian_available():
+        return
     got = field(fit(distribution='inverse_gaussian')._summary_text(),
                 'Link function')
     assert got == 'log', f"expected 'log', got {got!r}"
@@ -213,6 +239,8 @@ def test_glmmtmb_substitutes_a_log_for_the_squared_canonical_link():
     this is a missing link rather than links being ignored; if a later version
     implements 1/mu^2, this fails and _SUBSTITUTED_LINKS must go.
     """
+    if not inverse_gaussian_available():
+        return
     import rpy2.robjects as ro
     ro.r("""
     suppressMessages(library(glmmTMB))
@@ -249,6 +277,8 @@ def test_glmmtmb_substitutes_a_log_for_the_squared_canonical_link():
 def test_the_reported_link_is_the_one_fitted_not_the_one_asked_for():
     """Reporting '1/mu^2' would name a link the fit never used, which is
     exactly the failure the link line exists to prevent."""
+    if not inverse_gaussian_available():
+        return
     k = fit(distribution='inverse_gaussian', link='1/mu^2')
     assert k._fitted_link() == 'log', k._fitted_link()
     assert field(k._summary_text(), 'Link function').startswith('log')
@@ -257,12 +287,16 @@ def test_the_reported_link_is_the_one_fitted_not_the_one_asked_for():
 def test_asking_for_the_substituted_link_warns():
     """Silently fitting something other than what was asked for is the worst
     of the options; the summary alone would be easy to miss."""
+    if not inverse_gaussian_available():
+        return
     msgs = fit_loud(distribution='inverse_gaussian', link='1/mu^2')
     assert any('does not implement' in m and 'log' in m for m in msgs), msgs
 
 
 def test_no_such_warning_when_the_link_is_honoured():
     """The warning must name a real substitution, not fire on every GLMM."""
+    if not inverse_gaussian_available():
+        return
     msgs = fit_loud(distribution='inverse_gaussian', link='inverse')
     assert not any('does not implement' in m for m in msgs), msgs
 
@@ -270,6 +304,8 @@ def test_no_such_warning_when_the_link_is_honoured():
 def test_no_sign_warning_when_the_substituted_link_is_increasing():
     """The fit is a log, so t and diff agree; announcing that they oppose
     would be worse than saying nothing."""
+    if not inverse_gaussian_available():
+        return
     block = posthoc_block(fit(distribution='inverse_gaussian', link='1/mu^2'))
     assert 'opposite sign to diff' not in block, block
     assert 'on the log scale' in block, block
@@ -277,6 +313,8 @@ def test_no_sign_warning_when_the_substituted_link_is_increasing():
 
 def test_a_link_glmmtmb_does_honour_is_left_alone():
     """Only 1/mu^2 is substituted; 'inverse' must still be fitted and named."""
+    if not inverse_gaussian_available():
+        return
     k = fit(distribution='inverse_gaussian', link='inverse')
     assert k._fitted_link() == 'inverse'
     assert 'opposite sign to diff' in posthoc_block(k)

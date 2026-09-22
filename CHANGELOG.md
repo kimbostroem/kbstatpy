@@ -1,76 +1,84 @@
 # Changes
 
+## [1.29.1] - 2026-09-22
+
+### Bugs
+
+- A family or link the installed glmmTMB does not implement now raises a message naming it and the glmmTMB version, instead of an opaque error from inside TMB. Which families glmmTMB implements varies by version.
+
+### Changes
+
+- Tests skip a family the local glmmTMB does not implement. CI records the installed R package versions.
+- A test now enforces the changelog style on the newest entry, so it cannot drift into essays again.
+
 ## [1.29.0] - 2026-09-22
 
 ### Changes
 
-- **`distribution = 'gamma'` now uses a log link.** It previously inherited R's canonical link for `Gamma()`, the inverse. **This changes results for every existing gamma model**: coefficients, standard errors, p-values and estimated marginal means all move, and a script rerun on this version will not reproduce what an earlier one printed. Under the inverse link `beta` acts on 1/mu, so a positive coefficient meant a *smaller* mean and gamma coefficients read backwards; `mu = 1/(X beta)` also requires the linear predictor to stay positive, which `exp(X beta)` never does; and every other positive-outcome family here uses a log, so switching between `'gamma'` and `'tweedie'` changed the mean model rather than only the variance function, leaving the two uncomparable by AIC. `link = 'inverse'` restores the previous behaviour exactly.
-- **`distribution = 'inverse_gaussian'` now declares a log link.** Results do not change: glmmTMB accepts R's canonical `1/mu^2` and fits a log link regardless, while reporting `1/mu^2`, so these models were already on a log link and only the summary was wrong. This is not a display-only bug; the linear predictor really is log(mu), and the fit is identical to the log fit. Checked against glmmTMB 1.1.14, where `'inverse'` and `'identity'` are honoured. kbstatpy now reports the link actually fitted and warns if `1/mu^2` is asked for. `'inverse'` and `'identity'` are honoured by glmmTMB and are unaffected.
+- **`distribution = 'gamma'` now uses a log link** instead of R's canonical inverse. **This moves every existing gamma result**: coefficients, standard errors, p-values and marginal means. Under the inverse link a positive coefficient meant a smaller mean, so gamma coefficients read backwards. `link = 'inverse'` restores the old behaviour.
+- `distribution = 'inverse_gaussian'` now declares a log link. No result changes: glmmTMB was already fitting one and reporting otherwise.
 
 ### Features
 
-- `Summary.txt` now states which scale each post-hoc column is on whenever the link is not the identity: `emm_1`, `emm_2` and `diff` are on the response scale, while `t`, `df` and `p` come from the contrast on the link scale, so `t` is not `diff` divided by its standard error. Under a decreasing link such as the inverse it adds that `t` carries the opposite sign to `diff` throughout, which is correct rather than a fault, and leaves the p-values unaffected. The note follows the link actually fitted, so it no longer claims a sign reversal for an inverse Gaussian model that glmmTMB quietly fitted on a log link. No number changed; the columns always meant this.
+- `Summary.txt` states which scale each post-hoc column is on when the link is not the identity. `emm_1`, `emm_2` and `diff` are on the response scale, `t` and `p` on the link scale, so `t` is not `diff` over its standard error. No number changed.
 
 ## [1.28.0] - 2026-09-22
 
 ### Features
 
-- The Residuals vs Fitted diagnostic panel now reports a residual spread ratio: mean absolute residual in the top third of fitted values over the same in the bottom third. It puts a number on the fan the panel is there to show, so two fits can be compared without reading them off two figures. Also in `Summary.txt`. It is descriptive and carries no p-value, and because it is measured on the residuals that panel draws, it compares fits of the same family rather than one family against another: for a GLMM those residuals are already scaled by the assumed variance, so a ratio near 1 says the family has accounted for the heteroscedasticity, not that the raw data had none.
+- The Residuals vs Fitted panel and `Summary.txt` report a residual spread ratio, the mean absolute residual in the top third of fitted values over the bottom third. Descriptive, with no p-value, and comparable only between fits of the same family.
 
 ## [1.27.0] - 2026-09-22
 
 ### Features
 
-- New option `base_dir`: the directory a relative `in_file` or `out_dir` is resolved against. `'script_dir'` (or `'auto'`) means the calling script's own folder, so a script reads and writes the same places however it was started. Default `''` keeps the previous behaviour, the working directory.
-- `Kbstat.chdir_to_script()` moves the working directory to the calling script's folder, and `Kbstat.script_dir()` returns that folder without moving. Both are also importable from the package.
-- A tweedie fit whose estimated variance power settles at the edge of the admissible interval now says so and names the family the data are asking for, rather than reporting the bound as an estimate.
+- New option `base_dir`, the directory a relative `in_file` or `out_dir` resolves against. `'script_dir'` (or `'auto'`) is the calling script's folder; the default `''` is unchanged.
+- `Kbstat.chdir_to_script()` and `Kbstat.script_dir()` locate the running script.
+- A tweedie fit whose variance power settles at the edge of its interval now says so and names the family to use instead.
 
 ### Bugs
 
-- The summary reported the link function as `default` whenever `link` was left at `'auto'`, naming no link at all. It now reports the link actually fitted. This makes a long-standing behaviour visible for the first time: `distribution = 'gamma'` uses R's canonical **inverse** link, not a log link, so gamma coefficients are on the inverse scale. Nothing has changed in how models are fitted, but existing gamma results may have been read on the wrong scale.
-- A fit statistic the chosen family does not define was printed as `nan` among the fit statistics, where it read as a failed fit. Such statistics are now left out.
-- A tweedie fit whose power settled at the upper bound made the diagnostics take unbounded time, with no message. The cost of the residual simulation is now estimated first, and the simulation declined when it would be prohibitive; the summary says so and the panels fall back to Pearson residuals.
-- On Windows, importing kbstatpy printed a shell error about a missing `sh` on every import. It came from rpy2 probing `R CMD config`, which needs Rtools; rpy2 already handled the failure, so only the message was new.
+- The summary reported the link as `default` whenever `link` was `'auto'`, and now names the link fitted. **This revealed that gamma used R's inverse link**, so those coefficients were on the inverse scale; fitting was unchanged, but results may have been read wrongly. Changed in 1.29.0.
+- A fit statistic the family does not define printed as `nan`. It is now omitted.
+- A tweedie fit at the upper bound of its power made the diagnostics take unbounded time. The residual simulation is now priced first and declined when prohibitive, with Pearson residuals instead.
+- On Windows, importing kbstatpy printed a shell error about a missing `sh`. Silenced.
 
 ## [1.26.0] - 2026-09-22
 
 ### Features
 
-- New distribution `'tweedie'`. The other families fix the variance power at 0, 1, 2 and 3; Tweedie estimates it, which suits a positive continuous outcome whose spread grows faster than the mean but slower than the mean squared, where gamma over-corrects and gaussian under-corrects. `Summary.txt` reports the estimated power, since a value landing next to a neighbour means the simpler family would have served.
+- New distribution `'tweedie'`, which estimates the variance power instead of fixing it. `Summary.txt` reports the estimate.
 
 ### Bugs
 
-- A family without deviance residuals left the diagnostic figure's structure panels empty and the run then failed with an `IndexError` from matplotlib, naming neither the family nor the cause. `glmmTMB` returns a vector of `NA` rather than an error for these, so the check now reads the values. Pearson residuals are used instead, and `Summary.txt` says which were used.
-
-- `y_transform` accepts `^` for exponentiation, as R and ordinary mathematical notation do. Python reads it as bitwise XOR, so `'y^0.4'` used to fail with a message about `ufunc 'bitwise_xor'`.
+- A family without deviance residuals left the diagnostic structure panels empty and then failed with an `IndexError`. Pearson residuals are used instead and named in `Summary.txt`.
+- `y_transform` accepts `^` for exponentiation, as R does.
 
 ## [1.25.0] - 2026-09-21
 
 ### Features
 
-- New option `scale_covariates`, on by default, centres and scales the numeric covariates to z-scores before fitting. It changes no result: a covariate that is not in an interaction has its coefficient and its standard error divided by the same number, so every F, t and p is what the unscaled model gives, and estimated marginal means are evaluated at the covariate means either way. What it changes is the conditioning of the optimisation, which shows only where an ill-scaled model would otherwise struggle to converge. `Summary.txt` names what was scaled and says what it does not mean.
+- New option `scale_covariates`, on by default, centres and scales the numeric covariates. It changes no result, only the conditioning of the fit.
 
 ### Changes
 
-- `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`. **The file therefore gains columns for any model with numeric covariates**, which matters only to something reading it by column position rather than by name.
-
-- The documentation no longer says VIF covers the numeric variables in `x` as well as `covariate`. Variables in `x` are cast to factors before fitting, so a numeric one there is a grouping factor with a level per distinct value, and VIF has only ever covered the covariates.
+- `Data.csv` adds a `<name>_scaled` column beside each numeric covariate. **The file gains columns**, which matters to anything reading it by position rather than by name.
+- The documentation no longer says VIF covers numeric variables in `x`. It has only ever covered the covariates.
 
 ## [1.24.0] - 2026-09-21
 
 ### Bugs
 
-- VIF was computed inside the correlation analysis, so a model whose predictors were badly collinear reported nothing unless `correlation` happened to be set. **Collinearity is silent otherwise: the coefficients stay unbiased and the fit looks healthy while the standard errors of the affected terms are inflated several-fold, so earlier models are worth re-checking.** It is now computed for every fit with two or more numeric predictors, across `x` and `covariate` alike, and a severely collinear term raises a warning.
+- VIF was computed only when `correlation` was set, so collinearity went unreported otherwise. **It is silent: the fit looks healthy while standard errors are inflated, so earlier models are worth re-checking.** It is now computed for every fit with two or more numeric predictors, and a severe case warns.
 
 ### Features
 
-- `Summary.txt` and `VIF.xlsx` report the VIF of every numeric predictor, worst first, with the standard-error factor, the sample size and the number of independent units beside it. A VIF alone cannot say whether a term is precise enough, since the standard error depends on the collinearity and the sample size together; and the relevant count is not always the number of rows, because a predictor constant within each subject is estimated from the subjects.
-
+- `Summary.txt` and `VIF.xlsx` report every numeric predictor's VIF, worst first, with its standard-error factor and sample size.
 - The diagnostics figure names the flagged terms in its footer.
 
 ### Changes
 
-- The diagnostics footer runs over as many lines as it needs. It was one line and ran off the page once a model had a few covariates.
+- The diagnostics footer wraps over as many lines as it needs.
 
 ## [1.23.2] - 2026-09-18
 

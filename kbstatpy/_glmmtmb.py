@@ -33,6 +33,15 @@ _R_DATA  = '.__kbstat_data__'
 _R_MODEL = '.__kbstat_model__'
 
 
+
+def _glmmtmb_version() -> str:
+    """The installed glmmTMB version, or '?' when it cannot be read."""
+    try:
+        return str(ro.r('as.character(packageVersion("glmmTMB"))')[0])
+    except Exception:
+        return '?'
+
+
 class GlmmTMB:
     """GLMM engine backed by glmmTMB (drop-in for the former glmer path)."""
 
@@ -72,15 +81,38 @@ class GlmmTMB:
         # limit with a benign "iteration limit reached" warning (see max_iterations).
         _maxit = int(self.max_iterations)
         disp_line = f'dispformula = {self.dispformula},\n            ' if self.dispformula else ''
-        ro.r(f'''
-        suppressMessages(library(glmmTMB))
-        {_R_MODEL} <- glmmTMB(
-            {self.formula},
-            data    = {_R_DATA},
-            family  = {family_expr},
-            {disp_line}control = glmmTMBControl(optCtrl = list(iter.max = {_maxit}, eval.max = {_maxit}))
-        )
-        ''')
+        try:
+            ro.r(f'''
+            suppressMessages(library(glmmTMB))
+            {_R_MODEL} <- glmmTMB(
+                {self.formula},
+                data    = {_R_DATA},
+                family  = {family_expr},
+                {disp_line}control = glmmTMBControl(optCtrl = list(iter.max = {_maxit}, eval.max = {_maxit}))
+            )
+            ''')
+        except Exception as exc:
+            # Which families and links glmmTMB implements varies by version, and
+            # the failure surfaces from deep inside TMB as
+            #   Error in getParameterOrder(...): Family not implemented!
+            # naming neither the family nor the version, and looking like a bug
+            # in this package rather than a missing feature in that one.
+            # inverse.gaussian is the case that prompted this: fitted by the
+            # glmmTMB on one machine and refused by the glmmTMB on another.
+            # glmmTMB's own .valid_family does not list it even where it works,
+            # so the support cannot be checked before the fit, only caught.
+            msg = str(exc)
+            if 'not implemented' in msg:
+                what = 'link' if 'Link not implemented' in msg else 'family'
+                raise RuntimeError(
+                    f"The installed glmmTMB ({_glmmtmb_version()}) does not "
+                    f"implement this {what}: family {self.family!r}"
+                    + (f", link {self.link!r}" if self.link not in
+                       ('', 'auto', 'default') else '')
+                    + f". Upgrade glmmTMB, or choose another "
+                    f"options.distribution. Original R error: {msg.strip()}"
+                ) from exc
+            raise
         self.r_model = ro.r(_R_MODEL)
 
         self._check_convergence()

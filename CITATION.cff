@@ -6,7 +6,7 @@ authors:
   - family-names: Bostroem
     given-names: Kim Joris
     orcid: https://orcid.org/0000-0001-5966-458X
-version: 1.29.0
+version: 1.29.1
 date-released: '2026-09-22'
 license: MIT
 repository-code: https://github.com/kimbostroem/kbstatpy

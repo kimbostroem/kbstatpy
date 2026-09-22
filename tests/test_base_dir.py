@@ -45,7 +45,15 @@ def _script(body, workdir, folder=None):
     path = os.path.join(home, 'analysis.py')
     with open(path, 'w', encoding='utf-8') as fh:
         fh.write('import sys\nsys.path.insert(0, ' + repr(ROOT) + ')\n' + body)
-    out = subprocess.run([sys.executable, path], cwd=workdir,
+    # The child runs from a different directory, so it cannot rely on the
+    # parent's import path being reproducible from the environment alone: a
+    # relative entry on sys.path resolves somewhere else, and on CI the child
+    # lost numpy that way while the parent had it. Hand it the parent's path.
+    env = dict(os.environ)
+    env['PYTHONPATH'] = os.pathsep.join(
+        [p for p in sys.path if p and os.path.isabs(p)]
+        + ([env['PYTHONPATH']] if env.get('PYTHONPATH') else []))
+    out = subprocess.run([sys.executable, path], cwd=workdir, env=env,
                          capture_output=True, text=True, timeout=600)
     assert out.returncode == 0, 'script failed:\n' + out.stderr
     return out.stdout.strip().splitlines()[-1], os.path.realpath(home)

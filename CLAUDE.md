@@ -27,7 +27,15 @@ Cutting a release is one unit — do not stop after the commit. In order:
    are the reason anyone reads a changelog for this library.
 
    Entries up to 1.8.1 are the model for the style; 1.9.0 onward drifted into
-   essays and were rewritten to match in 1.15.6.
+   essays and were rewritten to match in 1.15.6, and 1.24.0 through 1.29.1
+   drifted again and were rewritten in 1.29.1.
+
+   **This is enforced.** `tests/test_changelog_brevity.py` fails the release if
+   a bullet in the newest entry runs past 55 words, if there are more than 12
+   of them, or if the headings are not Features / Bugs / Changes. Only the
+   newest entry is checked, which is the one being written. If a bullet will
+   not fit, the part that does not fit is the mechanism, and it belongs in the
+   commit message.
 
 3. **Update `CITATION.cff`** — `version` and `date-released`. Nothing imports this
    file, so only `tests/test_citation_metadata.py` catches a stale one.
