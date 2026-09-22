@@ -150,11 +150,14 @@ jobs:
         # failure that appears on one runner and not another is usually this.
         # The R library is cached, so nothing else in the log says which
         # version ran, and the difference has to be inferred from the errors.
-        shell: bash
-        run: |
-          Rscript -e 'for (p in c("glmmTMB","TMB","Matrix","lme4","emmeans","DHARMa"))
-            cat(sprintf("%-10s %s\n", p,
-                tryCatch(as.character(packageVersion(p)), error=function(e) "MISSING")))'
+        #
+        # continue-on-error because this step reports, it does not test:
+        # it must never be the thing that fails a build. It was, on Windows,
+        # where Rscript is not on the PATH that `shell: bash` gets.
+        # Asked through Python, which is on the PATH everywhere here by
+        # definition, so the step does not depend on which shell it runs in.
+        continue-on-error: true
+        run: python -c "import rpy2.robjects as ro; print(ro.r('paste(sapply(c(\"glmmTMB\",\"TMB\",\"Matrix\",\"lme4\",\"emmeans\",\"DHARMa\"), function(p) paste(p, tryCatch(as.character(packageVersion(p)), error=function(e) \"MISSING\"))), collapse=\"\\n\")')[0])"
 
       - name: Install the test-only dependencies
         # The suite needs PyYAML, which is not a runtime dependency of kbstatpy

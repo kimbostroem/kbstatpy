@@ -1,5 +1,12 @@
 # Changes
 
+## [1.29.2] - 2026-09-22
+
+### Changes
+
+- CI fixes only; the library is unchanged. The version-reporting step can no longer fail a build.
+- Tests that spawn a subprocess give it a clean dynamic-loader path, which R would otherwise point at its own lib directory.
+
 ## [1.29.1] - 2026-09-22
 
 ### Bugs

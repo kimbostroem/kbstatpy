@@ -69,6 +69,17 @@ def _run_script(body, workdir):
     env['PYTHONPATH'] = os.pathsep.join(
         [p for p in sys.path if p and os.path.isabs(p)]
         + ([env['PYTHONPATH']] if env.get('PYTHONPATH') else []))
+    # And drop what R put there. Importing kbstatpy starts R, which rewrites
+    # the dynamic loader's search path to its own lib directory. Inherited by
+    # a child, that makes the child resolve libpython out of R's directory
+    # rather than its own, and its stdlib extensions then fail to load:
+    #   _ctypes...so: undefined symbol: _PyErr_SetLocaleString
+    # The parent is fine only because it started before R changed anything, so
+    # the child is given the same clean start. It re-imports kbstatpy and R
+    # sets these again for itself; nothing is lost.
+    for var in ('LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
+                'DYLD_FALLBACK_LIBRARY_PATH'):
+        env.pop(var, None)
     out = subprocess.run([sys.executable, path], cwd=workdir, env=env,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, f'script failed:\n{out.stderr}'
@@ -162,6 +173,17 @@ def _run_with_package(body, workdir):
     env['PYTHONPATH'] = os.pathsep.join(
         [p for p in sys.path if p and os.path.isabs(p)]
         + ([env['PYTHONPATH']] if env.get('PYTHONPATH') else []))
+    # And drop what R put there. Importing kbstatpy starts R, which rewrites
+    # the dynamic loader's search path to its own lib directory. Inherited by
+    # a child, that makes the child resolve libpython out of R's directory
+    # rather than its own, and its stdlib extensions then fail to load:
+    #   _ctypes...so: undefined symbol: _PyErr_SetLocaleString
+    # The parent is fine only because it started before R changed anything, so
+    # the child is given the same clean start. It re-imports kbstatpy and R
+    # sets these again for itself; nothing is lost.
+    for var in ('LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
+                'DYLD_FALLBACK_LIBRARY_PATH'):
+        env.pop(var, None)
     out = subprocess.run([sys.executable, path], cwd=workdir, env=env,
                          capture_output=True, text=True, timeout=600)
     assert out.returncode == 0, 'script failed:\n' + out.stderr
