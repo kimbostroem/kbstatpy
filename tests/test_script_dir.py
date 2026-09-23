@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for chdir_to_script() / script_dir() in kbstatpy/_scriptdir.py.
+"""Tests for chdir() and script_dir() in kbstatpy/_scriptdir.py.
 
 What they replace: every evaluation script opened with
 
@@ -16,7 +16,7 @@ Two failure modes are guarded beyond the happy path.
 The script's path is taken from the call stack, so the search must stop at the
 first frame outside the package. Continuing up until some frame has a
 `__file__` would find the interpreter's own frames, which do: in a notebook
-that answers with ipykernel's install directory, and chdir_to_script() would
+that answers with ipykernel's install directory, and chdir() would
 then move to site-packages.
 
 And a context with no script at all -- a REPL, a notebook cell, exec() of a
@@ -90,7 +90,7 @@ def test_chdir_lands_in_the_scripts_own_folder():
     """The point of the whole thing: cwd becomes the script's folder."""
     with tempfile.TemporaryDirectory() as elsewhere:
         got, home = _run_script(
-            'sd.chdir_to_script()\nimport os\nprint(os.path.realpath(os.getcwd()))',
+            'sd.chdir()\nimport os\nprint(os.path.realpath(os.getcwd()))',
             elsewhere)
         assert got == home, f'cwd is {got!r}, expected {home!r}'
 
@@ -99,7 +99,7 @@ def test_chdir_returns_the_directory_it_moved_to():
     """So a script can keep the path if it also wants it as a value."""
     with tempfile.TemporaryDirectory() as elsewhere:
         got, home = _run_script(
-            'import os\nprint(os.path.realpath(sd.chdir_to_script()))', elsewhere)
+            'import os\nprint(os.path.realpath(sd.chdir()))', elsewhere)
         assert got == home, f'returned {got!r}, expected {home!r}'
 
 
@@ -107,7 +107,7 @@ def test_a_relative_path_then_means_what_it_looks_like():
     """The reason to move at all: 'Data/x.csv' should be the script's Data."""
     with tempfile.TemporaryDirectory() as elsewhere:
         got, home = _run_script(
-            'sd.chdir_to_script()\n'
+            'sd.chdir()\n'
             'import os\n'
             'print(os.path.realpath(os.path.abspath(os.path.join("Data", "x.csv"))))',
             elsewhere)
@@ -152,16 +152,16 @@ def test_a_fileless_chdir_warns_and_does_not_move():
     scope = {'sd': _sd}
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
-        exec(compile('d = sd.chdir_to_script()', '<string>', 'exec'), scope)
+        exec(compile('d = sd.chdir()', '<string>', 'exec'), scope)
     assert scope['d'] is None, scope['d']
     assert os.getcwd() == before, 'changed the working directory anyway'
     assert any('unchanged' in str(w.message) for w in caught), \
         [str(w.message) for w in caught]
 
 
-def _run_with_package(body, workdir):
+def _run_with_package(body, workdir, folder=None):
     """Run a script that imports the installed package, not the bare module."""
-    home = tempfile.mkdtemp()
+    home = folder or tempfile.mkdtemp()
     path = os.path.join(home, 'analysis.py')
     with open(path, 'w', encoding='utf-8') as fh:
         fh.write('import sys\nsys.path.insert(0, ' + repr(ROOT) + ')\n' + body)
@@ -190,12 +190,12 @@ def _run_with_package(body, workdir):
     return out.stdout.strip().splitlines()[-1], os.path.realpath(home)
 
 
-BODY_CLASS_FORM = 'import os\nfrom kbstatpy import Kbstat\nprint(os.path.realpath(Kbstat.chdir_to_script()))\n'
-BODY_SAME_OBJECT = 'from kbstatpy import Kbstat, script_dir, chdir_to_script\nprint(Kbstat.script_dir is script_dir and Kbstat.chdir_to_script is chdir_to_script)\n'
+BODY_CLASS_FORM = 'import os\nfrom kbstatpy import Kbstat\nprint(os.path.realpath(Kbstat.chdir()))\n'
+BODY_SAME_OBJECT = 'from kbstatpy import Kbstat, script_dir, chdir\nprint(Kbstat.script_dir is script_dir and Kbstat.chdir is chdir)\n'
 
 
 def test_the_class_form_finds_the_script_not_the_package():
-    """Kbstat.chdir_to_script() must answer with the caller's folder.
+    """Kbstat.chdir() must answer with the caller's folder.
 
     The staticmethod is defined in kbstat.py, inside the package, so an
     implementation that took currentframe().f_back, or that matched on the
@@ -212,6 +212,48 @@ def test_the_class_form_is_the_same_function():
     """Two spellings of one thing, so they cannot drift apart."""
     with tempfile.TemporaryDirectory() as elsewhere:
         got, _ = _run_with_package(BODY_SAME_OBJECT, elsewhere)
+        assert got == 'True', got
+
+
+BODY_TARGETS = (
+    "import os\n"
+    "from kbstatpy import Kbstat\n"
+    "here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))\n"
+    "ok = all(os.path.realpath(Kbstat.chdir(t)) == here\n"
+    "         for t in (None, 'script_dir', 'auto', 'SCRIPT_DIR'))\n"
+    "print(ok)\n").replace("Kbstat.chdir(None)", "Kbstat.chdir()")
+
+BODY_RELATIVE = (
+    "import os\n"
+    "from kbstatpy import Kbstat\n"
+    "here = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))\n"
+    "Kbstat.chdir()\n"
+    "a = os.path.realpath(Kbstat.chdir('Data'))\n"
+    "b = os.path.realpath(Kbstat.chdir('..'))\n"
+    "print(a == os.path.join(here, 'Data') and b == here)\n")
+
+
+def test_every_spelling_of_the_keyword_reaches_the_script():
+    """Default, both keywords, and case-insensitively, as base_dir takes them."""
+    with tempfile.TemporaryDirectory() as elsewhere:
+        got, _ = _run_with_package(BODY_TARGETS.replace(
+            "Kbstat.chdir(t)", "(Kbstat.chdir() if t is None else Kbstat.chdir(t))"),
+            elsewhere)
+        assert got == 'True', got
+
+
+def test_a_plain_path_is_resolved_against_the_working_directory():
+    """chdir keeps os.chdir's meaning for a plain path.
+
+    Making it script-relative would give one relative path two meanings
+    depending on which function received it, and leave no way to say
+    "relative to where I am". The idiom is to move to the script first, after
+    which a relative path is script-relative because that is where we are.
+    """
+    home = tempfile.mkdtemp()
+    os.makedirs(os.path.join(home, 'Data'), exist_ok=True)
+    with tempfile.TemporaryDirectory() as elsewhere:
+        got, _ = _run_with_package(BODY_RELATIVE, elsewhere, folder=home)
         assert got == 'True', got
 
 

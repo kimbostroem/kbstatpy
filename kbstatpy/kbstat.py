@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 from .options import KbstatOptions
 from ._glmmtmb import GlmmTMB
-from ._scriptdir import (chdir_to_script as _chdir_to_script,
+from ._scriptdir import (chdir as _chdir,
                          script_dir as _script_dir)
 
 # Spellings accepted wherever an option is a plain on/off flag. The string forms
@@ -144,7 +144,7 @@ class Kbstat:
     # import to place itself. Both forms are the same function: the caller is
     # found by walking out of this package, so the extra frame these add is
     # skipped like any other.
-    chdir_to_script = staticmethod(_chdir_to_script)
+    chdir = staticmethod(_chdir)
     script_dir = staticmethod(_script_dir)
 
     def __init__(self, options: KbstatOptions):
@@ -531,6 +531,28 @@ class Kbstat:
         self._resolve_synonyms()
         o.in_file = self._resolve_path(o.in_file)
         o.out_dir = self._resolve_path(o.out_dir)
+
+        # A formula already names its dependent variable, so options.y need not
+        # repeat it. Without this, a formula-only run found no y, iterated over
+        # an empty list of dependent variables, and therefore fitted nothing,
+        # wrote nothing and warned about nothing -- the analysis simply did not
+        # happen, silently. Setting options.y as well still wins, and
+        # _validate_options_vs_formula reports it if the two disagree.
+        if o.formula:
+            _fy = self._formula_y_name(o.formula)
+            if _fy and not self._is_y_placeholder(_fy):
+                # The formula names a real column, so it pins the outcome and
+                # any list in options.y would otherwise fit this one model once
+                # per entry, under the wrong labels.
+                if o.y and self._split_csv(o.y) != [_fy]:
+                    warnings.warn(
+                        f"options.formula fits '{_fy}', so options.y="
+                        f"{o.y!r} is ignored. Write the left-hand side as "
+                        f"'{self._Y_PLACEHOLDER} ~ ...' to fit each of them.",
+                        stacklevel=2)
+                o.y = _fy
+            elif not o.y:
+                o.y = _fy or ''
         # correlation_control joined this late: it was added with its splitting
         # done inline in correlate(), never here, so it was the one list-valued
         # option that kept whatever spelling it was given. The inline handling
@@ -837,10 +859,38 @@ class Kbstat:
             ))
         return out
 
+    def _check_y_exists(self):
+        """Fail with a message that names the problem, not R's.
+
+        Without this the run reaches R and dies on "Objekt 'y' nicht gefunden",
+        which names the column but not the reason. The likely reason is the
+        placeholder: a formula written `y ~ ...` expects options.y to say which
+        outcome to put there, and with options.y unset the placeholder is taken
+        literally as a column name.
+        """
+        if self.data is None:
+            return
+        y = self.options.y
+        if not isinstance(y, str) or not y or y in self.data.columns:
+            return
+        hint = ''
+        if (self.options.formula
+                and self._is_y_placeholder(
+                    self._formula_y_name(self.options.formula))
+                and self._is_y_placeholder(y)):
+            hint = (f" The formula's left-hand side is the placeholder "
+                    f"'{self._Y_PLACEHOLDER}', which needs options.y to say which "
+                    f"outcome goes there; with options.y unset it was taken as a "
+                    f"column name.")
+        raise ValueError(
+            f"dependent variable {y!r} is not a column in the data.{hint} "
+            f"Columns: {', '.join(map(str, self.data.columns))}")
+
     def _compute_single(self):
         """Compute (but do not save) the pipeline for a single dependent variable."""
         self._load_data()
         self._apply_rename()
+        self._check_y_exists()
         self._apply_categorical()
         self._apply_constraints()
         # After the constraints, so the z-scores describe the analysed sample.
@@ -4102,10 +4152,10 @@ class Kbstat:
         parsed = self._parse_formula(formula)
         problems = []
 
-        if self.options.y and self.options.y != parsed['y']:
-            problems.append(
-                f"  options.y='{self.options.y}' but formula has dependent variable '{parsed['y']}'"
-            )
+        # options.y is not checked against the formula's left-hand side: when
+        # both are given, y wins and is substituted in (see _build_formula), so
+        # a difference is the feature rather than a conflict. The formula passed
+        # here has already had the substitution applied.
         if self.options.id and parsed['id'] not in self._id_vars():
             problems.append(
                 f"  options.id='{self.options.id}' but formula has grouping variable '{parsed['id']}'"
@@ -4517,9 +4567,21 @@ class Kbstat:
             stacklevel=2)
 
     def _build_formula(self) -> str:
-        """Compose a Wilkinson formula from options, or return the explicit one."""
+        """Compose a Wilkinson formula from options, or return the explicit one.
+
+        With an explicit formula, its left-hand side is a placeholder whenever
+        `options.y` is also set: the formula describes the right-hand side, and
+        `y` says which outcome to apply it to. That is what makes multi-y work
+        with a formula -- run() sets options.y to one variable per iteration, so
+        `y = 'y1, y2'` with `formula = 'y ~ x1 + (1 | subject)'` fits
+        `y1 ~ x1 + (1 | subject)` and then `y2 ~ ...`. Before, the two were
+        mutually exclusive and the run raised on the mismatch.
+
+        An expression on the left keeps its shape: `log(y) ~ x` becomes
+        `log(y1) ~ x`, since only the variable inside it is substituted.
+        """
         if self.options.formula:
-            return self.options.formula
+            return self._formula_with_y(self.options.formula, self.options.y)
         y = self.options.y
         ia = self.options.interaction
         # 'auto' / 'all' / an integer order resolve to an explicit list of terms,
@@ -4578,6 +4640,60 @@ class Kbstat:
             re_terms = [re_term] + [f'(1 | {g})' for g in groups[1:]]
             return f'{y} ~ {rhs} + ' + ' + '.join(re_terms)
         return f'{y} ~ {rhs}'
+
+    #: The left-hand side that means "put the dependent variable here" rather
+    #: than naming one. Anything else on the left is taken literally, which is
+    #: what lets a formula pin a single outcome while options.y still lists
+    #: several -- handy for looking at one of them without editing options.y.
+    _Y_PLACEHOLDER = 'y'
+
+    @staticmethod
+    def _is_y_placeholder(name) -> bool:
+        """Whether `name` is the dependent-variable placeholder.
+
+        Case-insensitive, so `Y ~ ...` reads the same as `y ~ ...`. The cost is
+        that a column genuinely called 'Y' cannot be named on the left of an
+        explicit formula; name it through options.y instead.
+        """
+        return isinstance(name, str) and name.strip().lower() == Kbstat._Y_PLACEHOLDER
+
+    @staticmethod
+    def _formula_y_name(formula: str):
+        """The single variable on the left of `formula`, or None.
+
+        None when the left holds no identifier or more than one, so `y1 + y2 ~ x`
+        is left alone rather than guessed at. Function names do not count: in
+        `log(y) ~ x` the variable is y, not log.
+        """
+        lhs, sep, _ = formula.partition('~')
+        if not sep:
+            return None
+        names = [m.group(0) for m in re.finditer(r'[A-Za-z_.][A-Za-z0-9_.]*', lhs)
+                 if not lhs[m.end():].lstrip().startswith('(')]
+        return names[0] if len(names) == 1 else None
+
+    @staticmethod
+    def _formula_with_y(formula: str, y) -> str:
+        """`formula` with its dependent variable replaced by `y`.
+
+        Returns it unchanged when `y` is empty, is not a single name, or the
+        left-hand side does not hold exactly one identifier to substitute --
+        cases where guessing what to replace would be worse than leaving it.
+        """
+        if not y or not isinstance(y, str) or ',' in y:
+            return formula
+        y = y.strip()
+        lhs, sep, rhs = formula.partition('~')
+        if not sep or not y:
+            return formula
+        name = Kbstat._formula_y_name(formula)
+        # Only the placeholder is substituted. A formula that names a real
+        # column means that column, so it can pin one outcome while options.y
+        # still lists several.
+        if not Kbstat._is_y_placeholder(name) or name == y:
+            return formula
+        lhs = re.sub(rf'\b{re.escape(name)}\b', y, lhs)
+        return f'{lhs.strip()} {sep} {rhs.strip()}'
 
     def _parse_formula(self, formula: str) -> dict:
         """Extract y, x, id, and random slopes from a Wilkinson formula string.

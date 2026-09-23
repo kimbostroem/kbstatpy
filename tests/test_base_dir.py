@@ -7,7 +7,7 @@ a terminal, a cron entry and a double-click each pick a different one, so the
 same relative path can read or write somewhere unintended and say nothing.
 
 `base_dir = 'auto'` anchors them to the calling script's folder without moving
-the process, which is the difference from Kbstat.chdir_to_script(): a script
+the process, which is the difference from Kbstat.chdir(): a script
 that also does file work relative to where it was launched keeps that working.
 
 Three failures are guarded.
@@ -122,7 +122,7 @@ def test_a_relative_in_file_is_anchored_to_it():
 
 
 def test_it_does_not_move_the_process():
-    """The whole difference from chdir_to_script(): nothing global changes."""
+    """The whole difference from chdir(): nothing global changes."""
     with tempfile.TemporaryDirectory() as elsewhere:
         got, _ = _script(BODY_NO_CHDIR, elsewhere)
         assert got == 'True', 'the working directory moved'

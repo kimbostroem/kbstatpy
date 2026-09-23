@@ -17,12 +17,8 @@ from kbstatpy import Kbstat, KbstatOptions
 
 options = KbstatOptions()
 
-# Anchor the paths below to this file's folder, so they mean the same thing
-# however the script was started: IDE run button, terminal, cron or
-# double-click. Delete the line to have them follow the working directory
-# instead ('' is the default), or set it to any other folder.
-#   Kbstat.chdir_to_script()   moves the whole process instead, if you would
-#                              rather every path in the script were anchored.
+# Anchor in_file and out_dir to this file's folder, so they mean the same thing
+# however the script was started. '' (the default) follows the working directory.
 options.base_dir = 'script_dir'
 
 # ---------------------------------------------------------------------------
@@ -45,28 +41,32 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # options.interaction = 'group, condition' # just these interact
 # options.interaction = 'all'              # the full factorial; raises if not estimable
 # options.interaction = 2                  # every factor in x, up to two-way
+#
+# 'auto' and 'all' differ only where a term is not estimable because cells
+# are empty: 'auto' drops it and says so in Summary.txt, 'all' raises.
+
 # options.covariate   = 'age'               # numeric covariates: in the model, out of the plots
 # options.scale_covariates = False         # DEFAULT is True: centre/scale them (no test changes)
 # options.slope       = 'condition'         # random slope(s) on options.id, not just an intercept
-# options.formula     = 'y ~ group * condition + (1 | subject)'   # overrides everything above
 
-# 'auto' and 'all' fit the same thing when the design is complete. They differ
-# only where a term is not estimable because cells are empty: 'auto' leaves it
-# out and says so in Summary.txt, 'all' raises. That is judged on which cells
-# were observed, never on the response, so it is not model selection.
+# Several grouping factors, comma-separated, are CROSSED. Use a slash to nest.
+# An unsupported block term fits as a zero variance and a singular fit.
+# options.id = 'subject, session'           # crossed: (1 | subject) + (1 | session)
+# options.id = 'subject/repetition'         # nested:  (1 | subject) + (1 | subject:repetition)
 
-# Several grouping factors, comma-separated, are CROSSED (one intercept each).
-# For a replicate index whose labels recur inside every subject, nest it instead
-# with a slash, and check it earns its place: an unsupported block term fits as a
-# zero variance and a singular fit, and one grouping factor is then the better model.
-# options.id = 'subject, session'           # crossed:  (1 | subject) + (1 | session)
-# options.id = 'subject/repetition'         # nested:   (1 | subject) + (1 | subject:repetition)
+# A formula is a complete alternative to the fields above, not an addition to
+# them: y, x and id can all be left out. Write 'y' (or 'Y') on the left as a
+# placeholder and options.y fills it in, one model per entry; write a real
+# column name and that one is fitted, which is handy for looking at a single
+# outcome without editing options.y.
+# options.formula     = 'y ~ group * condition + (1 | subject)'      # each options.y
+# options.formula     = 'score ~ group * condition + (1 | subject)'  # just this one
 
 # ---------------------------------------------------------------------------
 # Distribution, only when the outcome is not roughly normal
 # ---------------------------------------------------------------------------
 # options.distribution = 'normal'           # normal | gamma | binomial | poisson | inverse_gaussian
-# options.link         = 'auto'             # canonical link, or 'log', 'logit', ...
+# options.link         = 'auto'             # DEFAULT: identity for normal, logit for binomial, log for the rest
 # options.y_transform  = 'log(y)'           # transform instead of a GLMM; EMMs are back-transformed
 # options.dispersion   = 'group'            # per-group dispersion for the glmmTMB families
 

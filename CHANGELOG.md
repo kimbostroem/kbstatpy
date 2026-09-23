@@ -1,5 +1,17 @@
 # Changes
 
+## [1.30.0] - 2026-09-23
+
+### Changes
+
+- **`Kbstat.chdir_to_script()` is now `Kbstat.chdir()`**, which takes the same vocabulary as `base_dir`: `'script_dir'` (the default, `'auto'` synonymous), or any path. The old name is gone; it existed for one release. A plain path resolves against the working directory, as `os.chdir` does, not against the script.
+
+### Bugs
+
+- `options.formula` on its own now fits the model it describes. Before, an unset `options.y` meant nothing was fitted at all: no model, no tables, no files, and no warning.
+- `options.formula` works with several outcomes. Write `y` (or `Y`) on the left and `options.y` fills it in, one model per entry; a real column name there fits that one, which is the quick way to look at a single outcome. The two used to be mutually exclusive and raised.
+- The template said `link = 'auto'` gives the canonical link. Since 1.29.0 it gives the link kbstatpy recommends, which for gamma and inverse Gaussian is deliberately not the canonical one.
+
 ## [1.29.2] - 2026-09-22
 
 ### Changes

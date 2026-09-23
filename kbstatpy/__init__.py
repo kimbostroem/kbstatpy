@@ -10,10 +10,10 @@ prepare_r_dll_path()
 # import. The failure is already handled by rpy2; only the noise is new.
 silence_r_cmd_config()
 
-from ._scriptdir import chdir_to_script, script_dir  # noqa: E402
+from ._scriptdir import chdir, script_dir  # noqa: E402
 from .options import KbstatOptions   # noqa: E402
 from .kbstat import Kbstat           # noqa: E402
 
-__version__ = "1.29.2"
-__all__ = ["Kbstat", "KbstatOptions", "chdir_to_script", "script_dir",
+__version__ = "1.30.0"
+__all__ = ["Kbstat", "KbstatOptions", "chdir", "script_dir",
            "__version__"]

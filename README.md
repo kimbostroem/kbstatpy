@@ -172,23 +172,7 @@ To start from something fuller, copy [`analysis_template.py`](analysis_template.
 
 `in_file` and `out_dir` are resolved against the working directory, which is set by whatever started the script and is not necessarily the folder the script is in. An IDE's run button, a terminal, a cron entry and a double-click can each pick a different one, so a plain relative path may silently read or write somewhere unintended.
 
-`chdir_to_script()` moves to the calling script's own folder, so relative paths mean what they look like:
-
-```python
-from kbstatpy import Kbstat, KbstatOptions
-
-Kbstat.chdir_to_script()
-
-options = KbstatOptions()
-options.in_file = 'Data/gait.csv'       # next to this script, wherever it is run from
-options.out_dir = 'Results/gait'
-```
-
-It replaces the usual `script_dir = os.path.dirname(os.path.abspath(__file__))` opening and returns the directory it moved to. `Kbstat.script_dir()` returns the same path **without** changing the working directory, for a script that would rather build its paths explicitly.
-
-Both are also importable on their own, as `chdir_to_script` and `script_dir`, which is the same function either way. The methods exist so that a script needs no import beyond the `Kbstat` it already has.
-
-**`base_dir` does the same job without moving the process.** `chdir_to_script()` anchors the whole script; `base_dir` anchors only `in_file` and `out_dir`, so anything else the script does relative to where it was launched keeps working:
+**`base_dir` anchors them to the script**, without moving the process, so anything else the script does relative to where it was launched keeps working:
 
 ```python
 options.base_dir = 'script_dir'     # 'auto' is a synonym
@@ -203,13 +187,50 @@ options.out_dir  = 'Results/gait'
 | `'script_dir'` / `'auto'` | the calling script's own folder |
 | any path | that folder, absolute or itself relative to the working directory |
 
-The keyword is resolved when it is assigned, so `options.base_dir` afterwards holds the real path: print it and you see where the analysis will read and write. An absolute `in_file` or `out_dir` ignores it. Both keywords are ordinary words, so if a directory of that name exists, assigning the keyword warns and takes the keyword; write `'./auto'` or an absolute path to mean the directory. `base_dir = Kbstat.script_dir()` is the spelling with no keyword at all.
+The keyword is resolved when it is assigned, so `options.base_dir` afterwards holds the real path: print it and you see where the analysis will read and write. An absolute `in_file` or `out_dir` ignores it. Both keywords are ordinary words, so if a directory of that name exists, assigning the keyword warns and takes the keyword; write `'./auto'` or an absolute path to mean the directory.
 
-Use `base_dir` when one script writes several analyses under different roots, or when the script does its own file work relative to the launch directory. Use `chdir_to_script()` when the whole script should simply be anchored.
+**`Kbstat.chdir()` anchors the whole script instead**, by moving the working directory to the calling script's folder. Use it when every path in the script should be script-relative, not only kbstatpy's two:
 
-Both take the path from the call stack, so nothing has to be passed in. In a REPL, a notebook cell or `exec()` there is no script to locate: they return `None`, and `chdir_to_script()` warns and leaves the working directory alone rather than guessing.
+```python
+from kbstatpy import Kbstat
 
----
+Kbstat.chdir()            # now in the script's folder
+Kbstat.chdir('../Data')   # script-relative, because that is where we are
+```
+
+It replaces the usual `script_dir = os.path.dirname(os.path.abspath(__file__))` opening and returns the directory it moved to. It takes the same vocabulary as `base_dir`: `'script_dir'` (the default, `'auto'` synonymous), or any path. **A plain path resolves the way `os.chdir` resolves it, against the working directory, not against the script** — redefining that would give one relative path two meanings depending on which function received it. So a lone `chdir('../Data')` still depends on where the script was started; move to the script first, as above.
+
+`Kbstat.script_dir()` returns the same folder **without** changing anything, for a script that would rather build its paths explicitly. `base_dir = Kbstat.script_dir()` is the spelling with no keyword at all.
+
+Both take the path from the call stack, so nothing has to be passed in and `__file__` never appears in the script. In a REPL, a notebook cell or `exec()` there is no script to locate: they return `None`, and `chdir()` warns and leaves the working directory alone rather than guessing. Both are also importable on their own, as `chdir` and `script_dir`; the methods exist so a script needs no import beyond the `Kbstat` it already has.
+
+
+### Formulas and several outcomes
+
+`formula` replaces the fields it covers, so `y`, `x`, `id` and `interaction` can be left unset:
+
+```python
+options.formula = 'score ~ group * condition + (1 | subject)'
+```
+
+**The left-hand side and `options.y` are the same slot.** Write `y` there and it is a placeholder that `options.y` fills in, so one right-hand side serves several outcomes:
+
+```python
+options.y       = 'y1, y2'
+options.formula = 'y ~ x1 + (1 | subject)'   # fits y1 ~ x1 + (1 | subject), then y2 ~ ...
+```
+
+`Y` reads the same as `y`. An expression keeps its shape, so `log(y) ~ x1` becomes `log(y1) ~ x1`.
+
+**Write a real column name instead and that one outcome is fitted**, whatever `options.y` lists. That is the quick way to look at a single model without editing `options.y`, and kbstatpy says so rather than dropping the list silently:
+
+```python
+options.y       = 'y1, y2'
+options.formula = 'y1 ~ x1 + (1 | subject)'   # fits y1 only, and warns that y is ignored
+```
+
+With neither given, the dependent variable is taken from the formula. The cost of the convention is that a column genuinely called `y` or `Y` cannot be named on the left; set `options.y` to it instead.
+
 
 ## Options reference
 
@@ -223,7 +244,7 @@ Both take the path from the call stack, so nothing has to be passed in. In a REP
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
 | `demo_dir` | str | *(auto)* Absolute path to the bundled demo folder, for example inputs: `os.path.join(options.demo_dir, 'data/sleep.csv')` |
-| `formula` | str | Full Wilkinson formula. Overrides `y`, `x`, `id`, `slope` and `interaction` |
+| `formula` | str | Explicit Wilkinson formula. A complete alternative to `y`, `x`, `id` and `interaction` rather than an addition. `y` (or `Y`) on the left is a placeholder that `options.y` fills in, one model per entry; a real column name there fits that one outcome (see below) |
 | `y` | str or list | Dependent variable(s). Several run one analysis each, see [Multi-y](#multi-y) |
 | `y_units` | str or list | Default `''` (no units). Unit label(s) for the y-axis, e.g. `'ms'`, or `'kg, N, m'` for multi-y, matched to `y` by position. An empty entry, or `'1'`, means that variable has no unit |
 | `x` | list / str | Fixed-effect factor column names |
@@ -242,7 +263,7 @@ Both take the path from the call stack, so nothing has to be passed in. In a REP
 | `correlation_control` | list / str | Variable(s) partialled out of every correlation. They are not shown in the matrix |
 | `constraints` | str | Row filter applied before analysis, e.g. `'Year > 1950 & group != "control"'`. Also spelled `constraint` |
 | `distribution` | str | Default `'normal'`. Response distribution, see [Supported distributions](#supported-distributions) |
-| `link` | str | Default `'auto'`. Link function, e.g. `'log'`, `'logit'` |
+| `link` | str | Link function. `'auto'` (default) is identity for normal, logit for binomial, log for the rest. That is kbstatpy's choice, not R's canonical link, for gamma and inverse Gaussian (see [Supported distributions](#supported-distributions)) |
 | `dispersion` | str | Dispersion model for the glmmTMB families. A factor name gives that factor its own dispersion |
 | `fit_method` | str | Default `'MPL'`. Label for the estimator named in `Summary.txt`; nothing is passed to the fitting engine |
 | `max_iterations` | int | Default `10000`. Optimizer cap for glmmTMB fits. Raise it if a large model reports an iteration limit at the optimum |

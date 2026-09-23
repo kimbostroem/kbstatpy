@@ -41,7 +41,7 @@ class KbstatOptions:
     # see where the analysis will read and write. Absolute in_file/out_dir are
     # unaffected.
     #
-    # Unlike Kbstat.chdir_to_script() this moves nothing: the process keeps its
+    # Unlike Kbstat.chdir() this moves nothing: the process keeps its
     # working directory, and only kbstatpy's own paths are anchored. Use the
     # chdir when the whole script should be anchored, base_dir when just the
     # analysis should, or when one script writes several analyses under
@@ -175,6 +175,11 @@ class KbstatOptions:
 
     # GLM settings
     distribution: str = 'normal'
+    # 'auto' is the link kbstatpy recommends, not R's canonical one: identity
+    # for normal, logit for binomial, log for the rest. The two differ only for
+    # gamma and inverse Gaussian, where R's canonical links (inverse and
+    # 1/mu^2) decrease in the mean, so every coefficient reads backwards.
+    # Kbstat._DEFAULT_LINKS holds the departures; name a link to override.
     link: str = 'auto'
     # Dispersion model for the glmmTMB families (Gamma, inverse Gaussian, etc.):
     # the right-hand side of glmmTMB's dispformula. '' (default) = constant
