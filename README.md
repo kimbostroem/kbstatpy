@@ -229,6 +229,8 @@ options.y       = 'y1, y2'
 options.formula = 'y1 ~ x1 + (1 | subject)'   # fits y1 only, and warns that y is ignored
 ```
 
+Random terms are written as in lme4, including nested (`(1 | subject/session)`) and several terms (`(1 | subject) + (1 | subject:session)`).
+
 With neither given, the dependent variable is taken from the formula. The cost of the convention is that a column genuinely called `y` or `Y` cannot be named on the left; set `options.y` to it instead.
 
 

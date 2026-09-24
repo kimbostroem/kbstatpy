@@ -162,6 +162,53 @@ def test_summary_names_every_grouping_factor():
     assert 'crossed' in txt
 
 
+def fit_formula(df, formula):
+    """Run the full pipeline from an explicit formula alone, as a user would."""
+    out = '/tmp/kbstatpy_id_grouping_formula'
+    os.makedirs(out, exist_ok=True)
+    csv = os.path.join(out, 'toy.csv')
+    df.to_csv(csv, index=False)
+    o = KbstatOptions()
+    o.in_file, o.formula = csv, formula
+    o.out_dir, o.figure_display = out, 'save_only'
+    k = Kbstat(o)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        k.run()
+    return k
+
+
+def test_a_nested_term_in_an_explicit_formula_fits():
+    """`(1 | subject/repetition)` in options.formula used to be rejected as
+    inconsistent with the grouping variable it had itself back-filled."""
+    k = fit_formula(toy(), 'y ~ cond + (1 | subject/repetition)')
+    assert k.model is not None, 'nested formula did not fit'
+    assert k._id_groups() == ['subject/repetition'], k._id_groups()
+    assert k._id_vars() == ['subject', 'repetition'], k._id_vars()
+
+
+def test_several_random_terms_in_a_formula_are_all_kept():
+    """Only the last random term used to be recorded as the grouping variable."""
+    k = build(toy(), 'subject', fit_model=False)
+    parsed = k._parse_formula('y ~ cond + (1 + cond | subject) + (1 | subject:repetition)')
+    assert parsed['id'] == 'subject, subject:repetition', parsed['id']
+    assert parsed['slopes'] == ['cond'], parsed['slopes']
+    k = fit_formula(toy(), 'y ~ cond + (1 | subject) + (1 | subject:repetition)')
+    assert k.model is not None, 'two-term formula did not fit'
+    assert k._id_vars() == ['subject', 'repetition'], k._id_vars()
+
+
+def test_a_conflicting_id_is_still_rejected():
+    k = build(toy(), 'subject', fit_model=False)
+    k.options.formula = 'y ~ cond + (1 | subject/repetition)'
+    try:
+        k._validate_options_vs_formula(k.options.formula)
+    except ValueError as e:
+        assert 'grouping variable' in str(e), e
+    else:
+        raise AssertionError("options.id='subject' vs a nested formula term must be rejected")
+
+
 if __name__ == '__main__':
     failures = 0
     for name, fn in sorted(globals().items()):

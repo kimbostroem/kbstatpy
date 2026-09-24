@@ -1,5 +1,12 @@
 # Changes
 
+## [1.30.1] - 2026-09-24
+
+### Bugs
+
+- A nested random term in `options.formula`, such as `(1 | subject/session)`, is accepted. It used to be rejected as inconsistent with the options.
+- With several random terms in `options.formula`, all grouping factors are recognised, not only the last one. The fit always used the full formula, but the other factors skipped the missing-value drop and the cast to categorical, so a numeric grouping column could reach R as a covariate.
+
 ## [1.30.0] - 2026-09-23
 
 ### Changes

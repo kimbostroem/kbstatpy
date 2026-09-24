@@ -4156,7 +4156,10 @@ class Kbstat:
         # both are given, y wins and is substituted in (see _build_formula), so
         # a difference is the feature rather than a conflict. The formula passed
         # here has already had the substitution applied.
-        if self.options.id and parsed['id'] not in self._id_vars():
+        # Compare grouping TERMS, not columns: 'subject/session' is one term over two
+        # columns, and a formula with several random terms lists them comma-joined.
+        formula_groups = [g.strip() for g in parsed['id'].split(',') if g.strip()]
+        if self.options.id and set(formula_groups) != set(self._id_groups()):
             problems.append(
                 f"  options.id='{self.options.id}' but formula has grouping variable '{parsed['id']}'"
             )
@@ -4701,8 +4704,12 @@ class Kbstat:
         Handles formulas of the form:
             y ~ A * B + (1 | id)
             y ~ A + B + (A + B | id)
+            y ~ A + (1 | subject/session)             (nested: one grouping term)
+            y ~ A + (1 | subject) + (1 | site)        (several random terms)
             y ~ A * B              (no random effect)
-        Returns a dict with keys: y, x (list), id, slopes (list).
+        Returns a dict with keys: y, x (list), id, slopes (list). With several random
+        terms, id lists every grouping term comma-joined, the same convention as
+        options.id, and slopes collects the slope variables of all terms.
         """
         import re
 
@@ -4714,18 +4721,20 @@ class Kbstat:
 
         # Extract all random-effect groups: (... | grouping)
         random_terms = re.findall(r'\(([^)]+)\)', rhs)
-        id_var = ''
+        groups = []
         slopes = []
         for term in random_terms:
             if '|' in term:
                 # Normalise lme4's diagonal '||' to a single bar for splitting.
                 left, right = term.replace('||', '|').split('|', 1)
-                id_var = right.strip()
+                if right.strip() not in groups:
+                    groups.append(right.strip())
                 # Slopes are everything before | except the intercept controls
                 # (1 keeps it, 0 drops it — neither is a slope variable).
-                slope_parts = [s.strip() for s in left.split('+')
-                               if s.strip() not in ('0', '1', '')]
-                slopes = slope_parts
+                for s in left.split('+'):
+                    if s.strip() not in ('0', '1', '') and s.strip() not in slopes:
+                        slopes.append(s.strip())
+        id_var = ', '.join(groups)
 
         # Remove random-effect groups from rhs to isolate fixed effects. The
         # optional \w* also strips a covariance-structure prefix like diag(...).

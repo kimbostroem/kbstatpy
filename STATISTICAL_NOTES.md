@@ -592,6 +592,8 @@ options.id = 'subject/repetition'  # y ~ x + (1 | subject/repetition)
 options.id = 'subject:repetition'  # that pair alone, no subject-level intercept
 ```
 
+The same spellings work inside an explicit `options.formula`, as `(1 | subject/repetition)` or as the expanded `(1 | subject) + (1 | subject:repetition)`.
+
 kbstatpy inspects the data and warns when a factor read as crossed has the shape of a nested one — every level of the outer factor containing the same set of inner levels — naming the nested spelling in the warning. It also warns when a crossed grouping factor has fewer than three levels: a variance component estimated from two groups is not estimable in any useful sense, and such a factor almost always belongs in the fixed effects instead.
 
 **Nesting is not automatically the answer.** Whether the blocks need a term of their own is an empirical question, and the fit answers it: an unsupported block term comes back as a variance component of exactly zero and a `boundary (singular) fit` warning from lme4, and adding it costs 2 AIC for no gain in likelihood. Where that happens, the single grouping factor is the better model and the inner factor belongs nowhere in the formula. Note also what the block term is *not*: a systematic shift between the repeats, such as learning or fatigue, is a fixed effect and belongs in `options.x`. Random intercepts are mean-zero by construction and cannot represent a consistent drift; `(1 | subject:repetition)` captures only run-to-run variability with no common direction.
