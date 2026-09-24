@@ -53,6 +53,8 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # An unsupported block term fits as a zero variance and a singular fit.
 # options.id = 'subject, session'           # crossed: (1 | subject) + (1 | session)
 # options.id = 'subject/repetition'         # nested:  (1 | subject) + (1 | subject:repetition)
+# options.id = 'subject/session'            # several trials per session, session in x: needed
+#                                           # against pseudo-replication (see STATISTICAL_NOTES)
 
 # A formula is a complete alternative to the fields above, not an addition to
 # them: y, x and id can all be left out. Write 'y' (or 'Y') on the left as a

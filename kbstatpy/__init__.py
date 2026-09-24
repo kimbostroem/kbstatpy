@@ -14,6 +14,6 @@ from ._scriptdir import chdir, script_dir  # noqa: E402
 from .options import KbstatOptions   # noqa: E402
 from .kbstat import Kbstat           # noqa: E402
 
-__version__ = "1.30.1"
+__version__ = "1.30.2"
 __all__ = ["Kbstat", "KbstatOptions", "chdir", "script_dir",
            "__version__"]

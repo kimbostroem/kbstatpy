@@ -35,6 +35,7 @@
   - [Long vs. wide data format](#long-vs-wide-data-format)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
     - [Crossed and nested grouping factors](#crossed-and-nested-grouping-factors)
+    - [Several trials per condition: pseudo-replication](#several-trials-per-condition-pseudo-replication)
   - [Data filtering: `constraints`](#data-filtering-constraints)
   - [Variable display labels: `rename`](#variable-display-labels-rename)
   - [Data plots: violin or bar plot](#data-plots-violin-or-bar-plot)
@@ -596,9 +597,37 @@ The same spellings work inside an explicit `options.formula`, as `(1 | subject/r
 
 kbstatpy inspects the data and warns when a factor read as crossed has the shape of a nested one — every level of the outer factor containing the same set of inner levels — naming the nested spelling in the warning. It also warns when a crossed grouping factor has fewer than three levels: a variance component estimated from two groups is not estimable in any useful sense, and such a factor almost always belongs in the fixed effects instead.
 
-**Nesting is not automatically the answer.** Whether the blocks need a term of their own is an empirical question, and the fit answers it: an unsupported block term comes back as a variance component of exactly zero and a `boundary (singular) fit` warning from lme4, and adding it costs 2 AIC for no gain in likelihood. Where that happens, the single grouping factor is the better model and the inner factor belongs nowhere in the formula. Note also what the block term is *not*: a systematic shift between the repeats, such as learning or fatigue, is a fixed effect and belongs in `options.x`. Random intercepts are mean-zero by construction and cannot represent a consistent drift; `(1 | subject:repetition)` captures only run-to-run variability with no common direction.
+**Nesting is not automatically the answer** for a replicate index that is not itself a fixed effect. Whether the blocks need a term of their own is an empirical question, and the fit answers it: an unsupported block term comes back as a variance component of exactly zero and a `boundary (singular) fit` warning from lme4, and adding it costs 2 AIC for no gain in likelihood. Where that happens, the single grouping factor is the better model and the inner factor belongs nowhere in the formula. Note also what the block term is *not*: a systematic shift between the repeats, such as learning or fatigue, is a fixed effect and belongs in `options.x`. Random intercepts are mean-zero by construction and cannot represent a consistent drift; `(1 | subject:repetition)` captures only run-to-run variability with no common direction.
 
 Random slopes (`options.slope`) attach to the first grouping factor only. Repeating them on every factor multiplies the variance components and is rarely what a second grouping factor is there for; where it is wanted, `options.formula` writes it out explicitly.
+
+#### Several trials per condition: pseudo-replication
+
+The one case where the nested term is **required**, not an empirical choice: each subject is measured in several conditions (sessions, time points, before and after a treatment), with several trials in each condition, and the condition is the fixed effect of interest.
+
+`(1 | subject)` alone treats the trials as independent repetitions of the condition. The fixed effect is then tested against the trial-to-trial scatter instead of against how much the condition effect varies between subjects, the denominator degrees of freedom grow with the number of trials rather than the number of subjects, and the p-values come out too small. This is pseudo-replication. Give every subject-condition cell its own intercept:
+
+```python
+options.x  = 'session'
+options.id = 'subject/session'   # y ~ session + (1 | subject/session)
+                                 #   = (1 | subject) + (1 | subject:session)
+```
+
+The condition appears twice, as the fixed effect and inside the grouping term, and that is intended: the fixed effect estimates the mean shift between conditions, the `subject:session` intercepts the subject-specific deviations from it, and those deviations are the error the shift is tested against. With a two-level condition the Kenward-Roger degrees of freedom then come out close to the number of subjects minus one, as in a paired t-test on the subject means. With several trials per cell this is the mixed-model counterpart of the classical `Error(subject/session)` stratum of a repeated-measures ANOVA (see [Demo 4](#repeated-measures-anova-demo-4)).
+
+**Nesting or a random slope?** `slope = 'session'`, i.e. `(1 + session | subject)`, does the same inferential job. Both give each subject its own condition effect, the nested model as a separate offset per subject-session cell, the slope model as a per-subject slope over the condition, and both then test the fixed effect against how much these individual effects scatter between subjects. They differ in the covariance they allow among a subject's condition means:
+
+| | `id = 'subject/session'` | `slope = 'session'` |
+|---|---|---|
+| Covariance of the condition means | compound symmetry: equal variance in every condition, one common covariance | unstructured: each condition its own variance, each pair its own covariance |
+| Variance parameters, *k* conditions | 2 | *k(k+1)/2* (3 for two conditions, 6 for three) |
+| Relation | the constrained special case | the general model |
+
+In practice the nested term is the safer default: it stays at two parameters however many conditions there are, and it works in mixed designs where some subjects are measured in one condition only (a single-level slope cannot be estimated for them). The slope is worth its extra parameters when there are enough subjects and the conditions plausibly differ in spread, for example patients who are more heterogeneous after a treatment than before. With few subjects its correlation parameter is poorly determined and the fit tends to be singular; see [`slope_correlated`](#random-slopes-in-glmms) for how kbstatpy handles that. With two conditions and similar spread the two give practically the same test.
+
+For illustration, from a study with 16 patients and 2 to 4 trials in each of two sessions: `(1 | subject)` gave about 50 denominator df and p = 6e-5 for the session effect; `(1 | subject/session)` gave 15 df and p = 0.02.
+
+Unlike the replicate-block term in the previous section, keep this term even when its variance is estimated as zero: the model then reduces to the subject intercept by itself, but only after the data have had the chance to show otherwise. The same applies to designs mixing groups measured once and groups measured repeatedly (controls once, patients before and after): `id = 'subject/session'` gives each patient-session its own intercept, and for subjects with a single session the term coincides with the subject intercept.
 
 ### Data filtering: `constraints`
 

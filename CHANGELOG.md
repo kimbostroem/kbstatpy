@@ -1,5 +1,12 @@
 # Changes
 
+## [1.30.2] - 2026-09-24
+
+### Changes
+
+- Documentation only. New section on several trials per subject and condition: `id = 'subject/session'` is required there, otherwise the condition effect is tested against the trial-to-trial scatter and its p-values are too small (pseudo-replication). The `id` entry in the options reference and the analysis template point to it.
+- The same section compares the nested term with a random slope over the condition (`slope = 'session'`), which does the same job with an unstructured covariance, and says when to prefer which.
+
 ## [1.30.1] - 2026-09-24
 
 ### Bugs
