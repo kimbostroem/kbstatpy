@@ -1,5 +1,11 @@
 # Changes
 
+## [1.30.3] - 2026-09-25
+
+### Bugs
+
+- `x_order` is applied when the model is given as `options.formula`. It used to be ignored there, so factor levels, data plots and their colours came out in data order, for example Post before Pre. Estimates and tests were not affected.
+
 ## [1.30.2] - 2026-09-24
 
 ### Changes

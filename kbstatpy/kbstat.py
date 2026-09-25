@@ -561,6 +561,12 @@ class Kbstat:
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
+        # A formula names the factors and grouping variables too. Fill them in
+        # here, not first in fit(): the categorical cast runs before fit(), and
+        # with options.x still empty it skipped the formula's factors, so
+        # x_order was never applied and levels came out in data order.
+        if o.formula:
+            self._backfill_options_from_formula(o.formula)
         # Enumerated options: one lower-casing and one validation for all of them.
         # An empty value is left alone, since several read it as "use the
         # default"; anything else must be a value the option actually takes,

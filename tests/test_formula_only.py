@@ -211,6 +211,21 @@ def test_a_missing_dependent_variable_names_the_reason():
         raise AssertionError('no error for a dependent variable that does not exist')
 
 
+def test_x_order_is_applied_with_a_formula():
+    """The factors of an explicit formula were cast to categorical only after the
+    level order had been applied, so x_order had no effect and the levels (and the
+    data-plot order) came out in data order. Now it matches the field-based route."""
+    order = {'group': ['b', 'a'], 'condition': ['y', 'x']}
+    k = fit(formula=FORMULA, x_order=order)
+    for var, levels in order.items():
+        assert hasattr(k.data[var], 'cat'), f'{var} was not cast to categorical'
+        assert list(k.data[var].cat.categories) == levels, list(k.data[var].cat.categories)
+    ref = fit(y='score', x='group, condition', id='subject', x_order=order)
+    assert list(frame(k.posthoc_table).iloc[:, :3].itertuples(index=False)) == \
+        list(frame(ref.posthoc_table).iloc[:, :3].itertuples(index=False)), \
+        'post-hoc layout differs from the field-based route'
+
+
 if __name__ == '__main__':
     failures = 0
     for name, fn in sorted(globals().items()):
