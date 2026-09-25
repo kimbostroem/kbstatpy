@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import warnings
@@ -80,8 +81,9 @@ _EMM_LINE_DEFAULT = ':'
 
 @dataclass
 class ModelResult:
-    """Results of fitting one dependent variable."""
+    """Results of fitting one dependent variable (for one level of options.split)."""
     y: str = ''
+    split: str = ''               # level of options.split this result belongs to, or ''
     formula: str = ''
     anova: object = None          # ANOVA table (DataFrame)
     posthoc: object = None        # post-hoc pairwise table (DataFrame)
@@ -100,7 +102,8 @@ class ModelResult:
         # Concise: the default dataclass repr dumps the full summary text,
         # the DataFrames, and the Figure objects — unreadable when echoed in
         # a notebook. The tables/figures remain accessible as attributes.
-        return f"ModelResult(y={self.y!r}, formula={self.formula!r})"
+        sp = f', split={self.split!r}' if self.split else ''
+        return f"ModelResult(y={self.y!r}{sp}, formula={self.formula!r})"
 
 
 @dataclass
@@ -127,6 +130,7 @@ class Output:
     results: list = field(default_factory=list)   # list[ModelResult]
     correlation: object = None                     # CorrelationResult or None
     multiple_comparisons: object = None            # across-y correction table or None
+    split_corrections: dict = field(default_factory=dict)  # {y: across-split correction table}
 
     def __repr__(self):
         ys = ', '.join(repr(r.y) for r in self.results)
@@ -594,6 +598,18 @@ class Kbstat:
             raise ValueError(
                 "y_correction must be one of: none, bonferroni, holm, FDR, "
                 f"FDR_correlated (got {yc!r})")
+        sc = o.split_correction
+        o.split_correction = (sc or 'none').strip().lower()
+        if o.split_correction in ('', 'none'):
+            o.split_correction = 'none'
+        elif o.split_correction not in _Y_CORRECTION_MAP:
+            raise ValueError(
+                "split_correction must be one of: none, bonferroni, holm, FDR, "
+                f"FDR_correlated (got {sc!r})")
+        o.split = str(o.split or '').strip()
+        if o.split_correction != 'none' and not o.split:
+            raise ValueError("split_correction needs options.split: it corrects "
+                             "across the levels of that column")
         # posthoc_family: scope of the family posthoc_correction is applied over.
         # Resolved here rather than at the point of use because _pairwise_for
         # runs inside a broad try/except -- a ValueError raised there would not
@@ -761,6 +777,9 @@ class Kbstat:
         multi = len(y_list) > 1
 
         for i, y_var in enumerate(y_list):
+            if self.options.split:
+                self._run_split(y_var, units_list[i] if i < len(units_list) else '')
+                continue
             if multi:
                 opts = copy.deepcopy(self.options)
                 opts.y = y_var
@@ -791,9 +810,9 @@ class Kbstat:
                 fig_profile_contrast=getattr(worker, 'fig_profile_contrast', None),
             ))
 
-        # Across-y multiple-comparison correction (one family per model term).
-        # Only meaningful with more than one dependent variable.
-        if self.options.y_correction != 'none' and len(self.output.results) > 1:
+        # Across-y multiple-comparison correction (one family per model term, and
+        # per split level when options.split is set).
+        if self.options.y_correction != 'none' and len({r.y for r in self.output.results}) > 1:
             self.output.multiple_comparisons = _multiple_comparisons_table(
                 self.output.results, self.options.y_correction)
             print(f"Applied y_correction='{self.options.y_correction}' across "
@@ -807,6 +826,73 @@ class Kbstat:
             self.output.correlation = self.correlate()
 
         return self.output
+
+    def _split_levels(self):
+        """Levels of options.split in x_order[split] order if given, else in the
+        order of first appearance in the data (constraints applied)."""
+        probe = Kbstat(copy.deepcopy(self.options))
+        probe._load_data()
+        probe._apply_constraints()
+        col = self.options.split
+        if col not in probe.data.columns:
+            raise ValueError(f"options.split = {col!r} is not a column of the data")
+        present = [str(v) for v in pd.unique(probe.data[col].dropna().astype(str))]
+        xo = self.options.x_order
+        order = [str(v) for v in xo.get(col, [])] if isinstance(xo, dict) else []
+        return [v for v in order if v in present] + [v for v in present if v not in order]
+
+    def _run_split(self, y_var, y_units):
+        """Fit y_var once per level of options.split, correct every post-hoc contrast
+        across the levels (options.split_correction), then draw the data plots so
+        their brackets use the corrected values, and collect the results."""
+        levels = self._split_levels()
+        workers = []
+        for lvl in levels:
+            opts = copy.deepcopy(self.options)
+            opts.y, opts.y_units = y_var, y_units
+            worker = Kbstat(opts)
+            worker._display_names = self._display_names.copy()
+            worker._split_level = lvl
+            worker._defer_data_plot = True
+            worker._n_y = 1
+            print(f'--- {y_var}: {self.options.split} = {lvl} ---')
+            worker._compute_single()
+            workers.append(worker)
+        method = self.options.split_correction
+        if method != 'none' and len(workers) > 1:
+            table = _split_correction_table(workers, self.options.split, method)
+            if table is not None:
+                self.output.split_corrections[y_var] = table
+                print(f"Applied split_correction='{method}' across {len(workers)} levels of "
+                      f"'{self.options.split}' -> SplitCorrection table")
+        for lvl, worker in zip(levels, workers):
+            worker.plot_data()
+            worker.print_summary()
+            summary = worker._summary_text() if worker.model is not None else ''
+            if summary:
+                summary += (f"\n\nSplit: {self.options.split} = {lvl} "
+                            f"(one of {len(levels)} levels, each fitted separately).")
+                if method != 'none' and len(workers) > 1:
+                    summary += (f" Post-hoc p-values corrected across the levels with "
+                                f"split_correction = '{method}' (column pSplit); the "
+                                f"significance column and the plot brackets use pSplit. "
+                                f"See ../SplitCorrection.xlsx.")
+            self.output.results.append(ModelResult(
+                y=worker.options.y, split=lvl,
+                formula=worker._build_formula(),
+                anova=worker.anova_table,
+                posthoc=(worker.posthoc_by_var or None),
+                statistics=worker.statistics_table,
+                vif=worker.vif_table,
+                model_comparison=getattr(worker, 'model_comparison_table', None),
+                summary=summary,
+                data=worker._data_for_export(),
+                fig_data=worker.fig_data,
+                fig_diagnostics=worker.fig_diagnostics,
+                profile_across=getattr(worker, 'profile_across_result', None),
+                fig_profile_across=getattr(worker, 'fig_profile_across', None),
+                fig_profile_contrast=getattr(worker, 'fig_profile_contrast', None),
+            ))
 
     def run_save(self):
         """Convenience: :meth:`run` then :meth:`save`.
@@ -916,7 +1002,10 @@ class Kbstat:
         if self.options.profile_across:
             self.profile_across()
         self.plot_diagnostics()
-        self.plot_data()
+        # With options.split the data plots wait until the across-split correction
+        # is known, so their brackets show pSplit (run() draws them then).
+        if not getattr(self, '_defer_data_plot', False):
+            self.plot_data()
 
     def fit(self):
         """Load data and fit the LMM or GLMM depending on distribution."""
@@ -2518,6 +2607,8 @@ class Kbstat:
         # made downstream result-collecting code special-case the two layouts.)
         for res in output.results:
             d = os.path.join(out_dir, self._safe_name(res.y))
+            if getattr(res, 'split', ''):
+                d = os.path.join(d, self._safe_name(res.split))
             os.makedirs(d, exist_ok=True)
             if res.anova is not None:
                 anova_df = res.anova.to_pandas() if hasattr(res.anova, 'to_pandas') else res.anova
@@ -2581,6 +2672,12 @@ class Kbstat:
                 self._write_fig(res.fig_profile_contrast, d, 'LevelProfileContrast',
                                 html=False, tight=True)
 
+        for y_var, tbl in (getattr(output, 'split_corrections', None) or {}).items():
+            d = os.path.join(out_dir, self._safe_name(y_var))
+            os.makedirs(d, exist_ok=True)
+            tbl.to_excel(os.path.join(d, 'SplitCorrection.xlsx'), index=False)
+            print(f'Saved SplitCorrection.xlsx to {d}')
+
         if output.multiple_comparisons is not None:
             mc_path = os.path.join(out_dir, 'MultipleComparisons.xlsx')
             output.multiple_comparisons.to_excel(mc_path, index=False)
@@ -2614,7 +2711,7 @@ class Kbstat:
         ph_df = posthoc.to_pandas() if hasattr(posthoc, 'to_pandas') else posthoc
         ph_df = self._disp_cols(ph_df)
         for col in ph_df.columns:
-            if col in ('p', 'pCorr'):
+            if col in ('p', 'pCorr', 'pSplit'):
                 ph_df[col] = ph_df[col].round(4)
             elif ph_df[col].dtype == float:
                 ph_df[col] = ph_df[col].round(3)
@@ -4137,6 +4234,15 @@ class Kbstat:
             self.data.columns = self.data.columns.str.lstrip('﻿')
         else:
             self.data = pd.read_excel(path)
+
+        # options.split: this worker analyses one level's rows only. Filtered here,
+        # before the raw copy for plotting, so model and plots see the same rows.
+        split_level = getattr(self, '_split_level', None)
+        if split_level is not None:
+            col = self.options.split
+            if col not in self.data.columns:
+                raise ValueError(f"options.split = {col!r} is not a column of the data")
+            self.data = self.data[self.data[col].astype(str) == split_level].reset_index(drop=True)
 
         # Apply y_transform: keep raw data for plotting, transform y for fitting
         self._build_transform()
@@ -5812,7 +5918,7 @@ def _blank_repeated_contrasts(df, factor_col):
     """
     out = df.copy()
     pair_cols = [c for c in (f'{factor_col}_1', f'{factor_col}_2') if c in out.columns]
-    value_cols = [c for c in ('diff', 't', 'df', 'p', 'pCorr', 'SMD', 'etaSqp',
+    value_cols = [c for c in ('diff', 't', 'df', 'p', 'pCorr', 'pSplit', 'SMD', 'etaSqp',
                               'effectSize', 'significance') if c in out.columns]
     test_cols = [c for c in ('t', 'df', 'p') if c in out.columns]
     if not pair_cols or not value_cols or not test_cols or len(out) < 2:
@@ -5855,7 +5961,7 @@ def _bounded_p_table(df):
     the reported text is affected -- the tables and workbooks keep the double.
     """
     out = df.copy()
-    for col in ('p', 'pCorr'):
+    for col in ('p', 'pCorr', 'pSplit'):
         if col not in out.columns:
             continue
         vals = pd.to_numeric(out[col], errors='coerce')
@@ -6127,17 +6233,80 @@ def _multiple_comparisons_table(results, method):
             continue
         adf = anova.to_pandas() if hasattr(anova, 'to_pandas') else anova
         for _, row in adf.iterrows():
-            recs.append({'variable': res.y, 'Term': str(row['Term']),
-                         'p': float(row['p'])})
+            recs.append({'variable': res.y, 'split': getattr(res, 'split', ''),
+                         'Term': str(row['Term']), 'p': float(row['p'])})
     df = pd.DataFrame(recs)
     if df.empty:
         return None
     df['p_corrected'] = np.nan
-    for _, idx in df.groupby('Term').groups.items():
+    for _, idx in df.groupby(['Term', 'split']).groups.items():
         df.loc[idx, 'p_corrected'] = _adjust_pvalues(df.loc[idx, 'p'].values, method)
     df['significance'] = df['p_corrected'].apply(_sig_stars)
     df['method'] = method
-    return df.sort_values(['Term', 'p']).reset_index(drop=True)
+    if not (df['split'] != '').any():
+        df = df.drop(columns='split')
+        return df.sort_values(['Term', 'p']).reset_index(drop=True)
+    return df.sort_values(['split', 'Term', 'p']).reset_index(drop=True)
+
+
+def _split_correction_table(workers, split_col, method):
+    """Correct every post-hoc contrast, and every ANOVA term, across the levels of
+    options.split. One family per contrast: same compared levels and same
+    conditioning cell in each worker (one worker per split level). pCorr (after the
+    within-model correction) is adjusted; the result is written back to each
+    worker's post-hoc table as pSplit (with the significance column recomputed)
+    and into its plot contrasts, so the data plots draw pSplit. Returns the long
+    table for SplitCorrection.xlsx, or None."""
+    recs = []
+    for w in workers:
+        for var, ph in (w.posthoc_by_var or {}).items():
+            if ph is None or len(ph) == 0 or f'{var}_1' not in ph.columns:
+                continue
+            key_cols = list(ph.columns[:list(ph.columns).index(f'{var}_1')]) + [f'{var}_1', f'{var}_2']
+            for i, row in ph.iterrows():
+                recs.append({'kind': 'posthoc', 'factor': var, split_col: w._split_level,
+                             'key': tuple(str(row[c]) for c in key_cols), '_w': w, '_i': i,
+                             **{c: row[c] for c in key_cols},
+                             'p': float(row['p']), 'pCorr': float(row['pCorr'])})
+        at = w.anova_table
+        if at is not None:
+            adf = at.to_pandas() if hasattr(at, 'to_pandas') else at
+            for _, row in adf.iterrows():
+                recs.append({'kind': 'anova', 'factor': str(row['Term']), split_col: w._split_level,
+                             'key': (str(row['Term']),), '_w': None, '_i': None,
+                             'Term': str(row['Term']), 'p': float(row['p']),
+                             'pCorr': float(row['p'])})
+    if not recs:
+        return None
+    df = pd.DataFrame(recs)
+    df['pSplit'] = np.nan
+    for _, idx in df.groupby(['kind', 'factor', 'key']).groups.items():
+        df.loc[idx, 'pSplit'] = _adjust_pvalues(df.loc[idx, 'pCorr'].values, method)
+    # Write pSplit back into each worker's post-hoc tables and plot contrasts.
+    for w in workers:
+        for var, ph in (w.posthoc_by_var or {}).items():
+            mine = df[(df['kind'] == 'posthoc') & (df['factor'] == var) & (df['_w'] == w)]
+            if mine.empty:
+                continue
+            ph['pSplit'] = np.nan
+            ph.loc[mine['_i'].values, 'pSplit'] = mine['pSplit'].values
+            ph['significance'] = ph['pSplit'].apply(_sig_stars)
+            ct = (w.contrasts_by_var or {}).get(var)
+            if ct is not None and len(ct):
+                by = list(ph.columns[:list(ph.columns).index(f'{var}_1')])
+                # The table leads with a marginal block ('any' in every conditioning
+                # column) that the plot contrasts do not have; the remaining rows
+                # are the plot contrasts in the same order.
+                cond = ph[~ph[by].eq('any').any(axis=1)] if by else ph
+                if len(cond) == len(ct):
+                    ct = ct.copy()
+                    ct['p.value'] = cond['pSplit'].values
+                    w.contrasts_by_var[var] = ct
+    out = df.drop(columns=['_w', '_i', 'key'])
+    out['significance'] = out['pSplit'].apply(_sig_stars)
+    out['method'] = method
+    lead = ['kind', 'factor', split_col]
+    return out[lead + [c for c in out.columns if c not in lead]]
 
 
 def _d_label(d):

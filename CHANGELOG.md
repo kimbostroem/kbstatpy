@@ -1,5 +1,12 @@
 # Changes
 
+## [1.31.0] - 2026-09-25
+
+### Features
+
+- `split` fits the same model separately for each level of a column, e.g. one model per task, and writes each to `<out_dir>/<y>/<level>/`.
+- `split_correction` corrects each post-hoc contrast and each ANOVA term across the levels of `split` (Bonferroni, Holm, FDR, FDR_correlated). The adjusted `pSplit` drives the significance column and the plot brackets, and all values are collected in `SplitCorrection.xlsx`.
+
 ## [1.30.3] - 2026-09-25
 
 ### Bugs

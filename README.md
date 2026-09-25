@@ -236,9 +236,9 @@ With neither given, the dependent variable is taken from the formula. The cost o
 
 ## Options reference
 
-**Values are case-insensitive, and a wrong one raises.** The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
+**Values are case-insensitive, and a wrong one raises.** The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `split_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
 
-**Switching an option off.** Which of `''` and `'none'` turns something off depends on what the option names, and the two are not interchangeable. Options that name *things* — variables, factors, expressions (`x`, `covariate`, `slope`, `interaction`, `correlation`, `correlation_control`, `profile_across`, `dispersion`, `constraints`) — are switched off by leaving them **empty**; `'none'` there is read as a name, so `correlation = 'none'` looks for a column called `none` and fails. Options that name a *mode or method* (`posthoc_correction`, `y_correction`, `data_outliers`, `x_label`, `y_label`) take **`'none'`** as one of their listed choices, and `''` falls back to the default rather than to "off". On/off flags (`show_group_size`, `show_emm_lines`, `remove_outliers_*`) also accept `'none'` for off, alongside `False`. Two deliberate exceptions: `posthoc_compare` accepts either spelling, and for `title` the two differ — `''` shows the plain variable name, `'none'` removes the title entirely.
+**Switching an option off.** Which of `''` and `'none'` turns something off depends on what the option names, and the two are not interchangeable. Options that name *things* — variables, factors, expressions (`x`, `covariate`, `slope`, `interaction`, `correlation`, `correlation_control`, `profile_across`, `dispersion`, `constraints`, `split`) — are switched off by leaving them **empty**; `'none'` there is read as a name, so `correlation = 'none'` looks for a column called `none` and fails. Options that name a *mode or method* (`posthoc_correction`, `y_correction`, `split_correction`, `data_outliers`, `x_label`, `y_label`) take **`'none'`** as one of their listed choices, and `''` falls back to the default rather than to "off". On/off flags (`show_group_size`, `show_emm_lines`, `remove_outliers_*`) also accept `'none'` for off, alongside `False`. Two deliberate exceptions: `posthoc_compare` accepts either spelling, and for `title` the two differ — `''` shows the plain variable name, `'none'` removes the title entirely.
 
 | Option | Type | Description |
 |---|---|---|
@@ -280,6 +280,8 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `posthoc_compare` | str | Default `'auto'` (the first x-variable). Which factor(s) get pairwise comparisons, comma-separated; `''` or `'none'` turns them off. Comparisons are per cell, see [Comparing any factor](STATISTICAL_NOTES.md#comparing-any-factor-per-cell-demo-15) |
 | `profile_across` | str | Name one ordered factor to profile the factors interacting with it across its levels, see [Level-wise profile analysis](#level-wise-profile-analysis) |
 | `y_correction` | str | Default `'none'`. Correction across the dependent variables of a multi-y run: `'bonferroni'`, `'holm'`, `'FDR'`, `'FDR_correlated'`. See [Family-wise correction](STATISTICAL_NOTES.md#family-wise-correction-across-dependent-variables-demo-13) |
+| `split` | str | Default `''` (off). Fit the same model separately for each level of this column, e.g. one model per task; results go to `<out_dir>/<y>/<level>/`. Level order follows `x_order[split]` if given. See [One model per level](#one-model-per-level-split) |
+| `split_correction` | str | Default `'none'`. Correct each post-hoc contrast, and each ANOVA term, across the levels of `split`: `'bonferroni'`, `'holm'`, `'FDR'`, `'FDR_correlated'`. Applied to `pCorr`; gives the column `pSplit`, which then drives `significance` and the plot brackets. See [Correction across split levels](STATISTICAL_NOTES.md#correction-across-split-levels) |
 | `plot_style` | str | Default `'auto'` (bar for binary outcomes, violin otherwise). Or `'violin'`, `'bar'` |
 | `show_group_size` | bool | Default `False`. Annotate each group with its observation count |
 | `show_emm_lines` | bool or str | Default `False`. Draw a reference line at each group's marginal mean. `True` is dotted; a line style may be given instead |
@@ -364,7 +366,22 @@ options.y_units = 'cm'   # single entry expands to all variables
 
 Results are saved into per-variable subdirectories under `out_dir`. A shared correlation analysis (if `options.correlation` is set) runs once after all models have been fitted.
 
-To correct for multiple comparisons across these dependent variables, set `options.y_correction` (`'bonferroni'`, `'holm'`, `'FDR'`, or `'FDR_correlated'`). Each model term is treated as its own family — e.g. the `Role` p-values across all DVs are adjusted together, the `Age` p-values separately, and so on — and the raw and adjusted p-values are written to `MultipleComparisons.xlsx` in `out_dir`. Note this corrects only within a single run: if your family of tests spans several separate runs (e.g. one per task or condition), apply the correction at that outer level instead.
+To correct for multiple comparisons across these dependent variables, set `options.y_correction` (`'bonferroni'`, `'holm'`, `'FDR'`, or `'FDR_correlated'`). Each model term is treated as its own family — e.g. the `Role` p-values across all DVs are adjusted together, the `Age` p-values separately, and so on — and the raw and adjusted p-values are written to `MultipleComparisons.xlsx` in `out_dir`. This corrects across dependent variables. When the family is instead the same test repeated on separate subsets of the data (e.g. one model per task), use `split` with `split_correction`, below.
+
+### One model per level: `split`
+
+When each level of a column is its own set of observations, for example the trials of different tasks, and the same model should be fitted to each, set `options.split` to that column. kbstatpy then runs the whole analysis once per level, on that level's rows only, and writes each to `<out_dir>/<y>/<level>/`:
+
+```python
+options.y      = 'rom'
+options.x      = 'session'
+options.id     = 'subject/session'
+options.split  = 'task'           # one model per task
+options.split_correction   = 'FDR'   # each contrast corrected across the tasks
+options.posthoc_correction = 'none'  # correct across the tasks only
+```
+
+With `split_correction` set, the same post-hoc contrast in every level (same compared levels, same conditioning cell) forms one family and is adjusted together, and so is every ANOVA term. The adjusted value is the column `pSplit` of each `Posthoc_<factor>.xlsx`; the `significance` column and the brackets of the data plots follow it, so a contrast that is significant in one task alone but not after the correction gets no bracket. All values are also collected in `<out_dir>/<y>/SplitCorrection.xlsx`. The correction is applied to `pCorr`, i.e. after the within-model `posthoc_correction`; with `posthoc_correction = 'none'` it corrects across the levels only. See [Correction across split levels](STATISTICAL_NOTES.md#correction-across-split-levels).
 
 ---
 
@@ -520,8 +537,9 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `LevelProfile.pdf/.png` | Profile plot for `profile_across`: response EMMs across the ordered factor, one line per level of the profiled factor, with 95 % CI error bars |
 | `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
+| `SplitCorrection.xlsx` | Across-level correction (when `split_correction` is set): per dependent variable, every post-hoc contrast and ANOVA term in every level of `split`, with `p`, `pCorr` and `pSplit`. Written to `<out_dir>/<y>/` |
 
-`Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike. Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
+`Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike; with `split`, into one further subdirectory per level (`<out_dir>/<y>/<level>/`). Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
 
 ---
 

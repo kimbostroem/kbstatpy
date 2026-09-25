@@ -18,6 +18,7 @@
 - [Analytical extensions](#analytical-extensions)
   - [Multiple dependent variables (Demo 12)](#multiple-dependent-variables-demo-12)
   - [Family-wise correction across dependent variables (Demo 13)](#family-wise-correction-across-dependent-variables-demo-13)
+  - [Correction across split levels](#correction-across-split-levels)
   - [Multicollinearity diagnostics — VIF (Demo 14)](#multicollinearity-diagnostics-vif-demo-14)
   - [Comparing any factor, per cell (Demo 15)](#comparing-any-factor-per-cell-demo-15)
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
@@ -220,7 +221,15 @@ One caveat: testing k outcomes multiplies the family-wise type I error rate. kbs
 
 When several dependent variables are tested in one run, the per-variable omnibus p-values form a family and the family-wise type I error rate grows with the number of outcomes. `options.y_correction` adjusts them together — one family per model term (the `Role` p-values across all outcomes, the `Age` p-values separately, and so on) — and writes the raw and adjusted values to `MultipleComparisons.xlsx`. Choices are `bonferroni` and `holm` (control the family-wise error rate), and `FDR` / `FDR_correlated` (Benjamini–Hochberg / Benjamini–Yekutieli, control the false discovery rate; the latter is valid under arbitrary dependence, appropriate when the outcomes are correlated).
 
-This corrects within a single run. When the family of tests spans several separate runs (e.g. one model per condition or task), those p-values are not visible to a single call and the correction must be applied at that outer level instead.
+This corrects across dependent variables. When the family is the same test repeated on separate subsets of the data, such as one model per task, use `split` with `split_correction` (next section).
+
+### Correction across split levels
+
+Some designs call for the same model on several disjoint subsets of the data: one per task, when each task is its own set of trials with its own scale and scatter. A pooled model with the task as a factor would force one variance structure on all of them, so the tasks are better fitted separately. The same contrast is then tested once per task, and those tests form a family: with three tasks, a contrast that is null in all of them still reaches p < 0.05 in at least one with a probability near 14 %.
+
+`options.split` fits the model once per level of a column, and `options.split_correction` adjusts every post-hoc contrast across the levels. The family is defined by the contrast, not by the level: the Post vs Pre contrast of every task is one family, the Pre vs Control contrast another, so the secondary contrasts do not dilute the primary one. Each ANOVA term is corrected across the levels the same way. Benjamini-Hochberg (`'FDR'`) controls the expected share of false discoveries among the significant tasks and suits a small set of related tasks; `'bonferroni'` or `'holm'` control the chance of any false positive and are stricter; `'FDR_correlated'` (Benjamini-Yekutieli) stays valid under arbitrary dependence between the tasks, at the cost of power.
+
+The correction acts on `pCorr`, the p-value after the within-model `posthoc_correction`. Setting `posthoc_correction = 'none'` makes `split_correction` the only correction, across the levels; leaving both on corrects first within each model and then across the levels, which is conservative. The result, `pSplit`, is what the significance column and the plot brackets show.
 
 ### Multicollinearity diagnostics — VIF (Demo 14)
 

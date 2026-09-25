@@ -460,6 +460,24 @@ class KbstatOptions:
     # LevelProfile.xlsx and a profile plot. '' (default) = off.
     profile_across: str = ''
 
+    # Fit the same model separately for each level of one column, e.g. one model per
+    # task when each task is its own set of trials. The analysis runs once per level
+    # on that level's rows only; results are written to <out_dir>/<y>/<level>/.
+    # '' (default) = off. Level order follows x_order[split] if given, else the
+    # order of first appearance.
+    split: str = ''
+    # Correction of each post-hoc contrast ACROSS the levels of `split`: the same
+    # contrast (same compared levels, same conditioning cell) in every split level
+    # forms one family, adjusted together. Applied to pCorr, i.e. after the
+    # within-model posthoc_correction; set posthoc_correction = 'none' to correct
+    # across the split levels only. The result is the column pSplit of the
+    # post-hoc tables, which then also drives the significance column and the
+    # brackets of the data plots. Written per dependent variable to
+    # <out_dir>/<y>/SplitCorrection.xlsx, together with the ANOVA terms corrected
+    # the same way. 'none' (default) | 'bonferroni' | 'holm' | 'FDR'
+    # | 'FDR_correlated'. Case-insensitive.
+    split_correction: str = 'none'
+
     # Multiple-comparison correction applied ACROSS the dependent variables of a
     # multi-y run (one family per model term). Distinct from posthoc_correction,
     # which corrects pairwise comparisons within a single model. Results are

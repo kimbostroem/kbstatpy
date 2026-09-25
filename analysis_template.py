@@ -85,6 +85,8 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # options.posthoc_correction = 'holm'       # holm | bonferroni | fdr | tukey | none
 # options.posthoc_family     = 'cell'       # what the correction spans: cell | pooled | cross
 # options.y_correction       = 'none'       # correction ACROSS several dependent variables
+# options.split              = 'task'       # one model per level of this column (e.g. per task)
+# options.split_correction   = 'FDR'        # each contrast corrected ACROSS the split levels
 
 # A two-level factor gives one comparison per cell, and correcting one value does
 # nothing, so pCorr equals p. Set posthoc_family='pooled' if the cells should be
