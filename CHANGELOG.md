@@ -1,5 +1,11 @@
 # Changes
 
+## [1.31.2] - 2026-09-25
+
+### Bugs
+
+- A y unit of `'1'` no longer appears as `[1]` on the data-plot axis. As documented, and as the x axes already did, it now means no unit.
+
 ## [1.31.1] - 2026-09-25
 
 ### Bugs
