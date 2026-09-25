@@ -979,7 +979,21 @@ class Kbstat:
             f"Columns: {', '.join(map(str, self.data.columns))}")
 
     def _compute_single(self):
-        """Compute (but do not save) the pipeline for a single dependent variable."""
+        """Compute (but do not save) the pipeline for a single dependent variable.
+
+        The emmeans options the analysis sets for itself (lmer.df, and the
+        pbkrtest/lmerTest observation limits, which it sets to this model's size)
+        are restored afterwards, so the R session is left as it was found. Left
+        in place, a limit sized to a small model made a later emmeans call on
+        more rows fall back silently from Kenward-Roger to asymptotic df.
+        """
+        saved = ro.r('getOption("emmeans")')
+        try:
+            self._compute_single_inner()
+        finally:
+            ro.r('function(x) invisible(options(emmeans = x))')(saved)
+
+    def _compute_single_inner(self):
         self._load_data()
         self._apply_rename()
         self._check_y_exists()

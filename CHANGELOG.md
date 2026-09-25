@@ -1,5 +1,11 @@
 # Changes
 
+## [1.31.1] - 2026-09-25
+
+### Bugs
+
+- The R session's emmeans options are restored after each analysis. kbstatpy set the Kenward-Roger and Satterthwaite observation limits to its own model's size and left them there, so a later emmeans call on more rows, outside kbstatpy, fell back silently to asymptotic df. kbstatpy's own results were not affected.
+
 ## [1.31.0] - 2026-09-25
 
 ### Features
