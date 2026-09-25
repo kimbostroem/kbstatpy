@@ -93,6 +93,36 @@ def test_name_lists_still_drop_stray_entries():
     assert k.options.covariate == ['age'], k.options.covariate
 
 
+def _plotted_ylabels(y_units):
+    """The y labels kbstat actually draws in its data plot."""
+    import warnings
+    import numpy as np
+    import pandas as pd
+    out = '/tmp/kbstatpy_unit_labels'
+    os.makedirs(out, exist_ok=True)
+    rng = np.random.default_rng(3)
+    df = pd.DataFrame({'y': rng.normal(size=40), 'group': ['A', 'B'] * 20,
+                       'subj': [f's{i // 2}' for i in range(40)]})
+    df.to_csv(os.path.join(out, 'toy.csv'), index=False)
+    o = KbstatOptions()
+    o.in_file, o.out_dir, o.figure_display = os.path.join(out, 'toy.csv'), out, 'save_only'
+    o.y, o.x, o.id, o.y_units = 'y', 'group', 'subj', y_units
+    k = Kbstat(o)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        k.run_save()
+    fig = k.output.results[0].fig_data
+    fig = fig if not isinstance(fig, dict) else next(iter(fig.values()))
+    return [ax.get_ylabel() for ax in fig.axes if ax.get_ylabel()]
+
+
+def test_the_plotted_y_label_shows_no_unit_for_one():
+    """'1' means no unit on the y axis as well, not a literal '[1]'."""
+    labels = _plotted_ylabels('1')
+    assert labels and not any('[' in t for t in labels), labels
+    assert any('[mm]' in t for t in _plotted_ylabels('mm')), 'a real unit must still show'
+
+
 if __name__ == '__main__':
     failures = 0
     for name, fn in sorted(globals().items()):

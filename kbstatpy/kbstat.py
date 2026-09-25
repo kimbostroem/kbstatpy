@@ -3053,7 +3053,7 @@ class Kbstat:
         yu = self.options.y_units
         if isinstance(yu, (list, tuple)):
             yu = yu[0] if len(yu) == 1 else ''
-        y_units = yu if isinstance(yu, str) else ''
+        y_units = yu if isinstance(yu, str) and yu.strip() != '1' else ''   # '1': no unit
         # options.y_label controls the y-axis label:
         #   'variable_with_units' (default) variable name plus '[units]'
         #   'variable_only'                 variable name, no units
