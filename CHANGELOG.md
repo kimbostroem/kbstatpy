@@ -1,5 +1,11 @@
 # Changes
 
+## [1.31.3] - 2026-09-30
+
+### Changes
+
+- The Colab playground notebook has a new section, *Run your own analysis*: how to upload your own data to the Colab runtime and run it with the analysis template.
+
 ## [1.31.2] - 2026-09-25
 
 ### Bugs

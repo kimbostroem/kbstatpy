@@ -620,6 +620,8 @@ New here? The guided playground walks through one demo and points to the rest:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
 
+**Your own data on Colab.** The playground's *Run your own analysis* section walks through it: upload the file in Colab's Files pane, paste [`analysis_template.py`](analysis_template.py) into a code cell, set `in_file` to the uploaded file's name and delete the `base_dir` line. Uploads and results vanish with the runtime; mount Google Drive to keep them.
+
 Or open any individual demo directly — each installs itself and renders its
 results inline:
 
