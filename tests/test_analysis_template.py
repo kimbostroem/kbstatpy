@@ -12,6 +12,11 @@ commented-out line exists too. The last is the one that matters, since the
 template is mostly commented lines and those are exactly what a user
 uncomments.
 
+The notebook version, analysis_template.ipynb, is built from the script by
+demos/make_template_notebook.py; the last test fails when someone edits one
+and forgets to rebuild the other, which would leave Colab users with an
+older option list than the script.
+
 Needs R only because KbstatOptions is imported from the package.
 
 Run:  python3 tests/test_analysis_template.py
@@ -70,6 +75,17 @@ def test_the_names_it_calls_on_kbstat_exist():
     called = set(re.findall(r'Kbstat\.([A-Za-z_][A-Za-z0-9_]*)\s*\(', source()))
     missing = sorted(n for n in called if not hasattr(kbstatpy.Kbstat, n))
     assert not missing, f'template calls Kbstat methods that do not exist: {missing}'
+
+
+def test_the_notebook_is_built_from_the_current_template():
+    """Nothing else ties the two files together, and the notebook is what
+    Colab users open, so a stale one would go unnoticed."""
+    sys.path.insert(0, os.path.join(ROOT, 'demos'))
+    import make_template_notebook as make
+    committed = open(make.NOTEBOOK, encoding='utf-8').read()
+    assert committed == make.build(), (
+        'analysis_template.ipynb is out of date; run '
+        'python3 demos/make_template_notebook.py')
 
 
 if __name__ == '__main__':

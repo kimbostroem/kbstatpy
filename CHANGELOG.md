@@ -1,5 +1,11 @@
 # Changes
 
+## [1.32.0] - 2026-09-30
+
+### Features
+
+- Template notebook `analysis_template.ipynb` for your own data, with an Open-in-Colab link: setup, upload the data file and see its columns, fill in the options, run, download the results as a zip. The Colab playground and the README link to it.
+
 ## [1.31.3] - 2026-09-30
 
 ### Changes
