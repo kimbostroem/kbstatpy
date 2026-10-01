@@ -244,6 +244,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 |---|---|---|
 | `in_file` | str | Path to the input data (`.csv` or `.xlsx`) |
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
+| `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
 | `demo_dir` | str | *(auto)* Absolute path to the bundled demo folder, for example inputs: `os.path.join(options.demo_dir, 'data/sleep.csv')` |
 | `formula` | str | Explicit Wilkinson formula. A complete alternative to `y`, `x`, `id` and `interaction` rather than an addition. `y` (or `Y`) on the left is a placeholder that `options.y` fills in, one model per entry; a real column name there fits that one outcome (see below) |
@@ -334,7 +335,7 @@ To make a hand-built matplotlib figure match kbstatpy's plots, call the public `
 
 #### On/off options
 
-`remove_outliers_prefit`, `remove_outliers_postfit`, `show_group_size`, `show_emm_lines` and `model_comparison` accept `True`/`False` and also the strings `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'` (= off), so scripts ported from MATLAB work unchanged. An unrecognised value raises rather than being read as truthy.
+`remove_outliers_prefit`, `remove_outliers_postfit`, `show_group_size`, `show_emm_lines`, `model_comparison` and `save_script` accept `True`/`False` and also the strings `'true'`/`'false'`, `'on'`/`'off'`, `'yes'`/`'no'` and `'none'` (= off), so scripts ported from MATLAB work unchanged. An unrecognised value raises rather than being read as truthy.
 
 ### Supported distributions
 
@@ -527,6 +528,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
 | `DataPlots.pdf/.png/.html` | Data plots with model 95 % CI bar, EMM marker, and significance brackets. Style depends on `plot_style`: violin + jitter scatter (default for continuous outcomes), or observed mean/proportion bars (default for binary outcomes). `show_emm_lines` extends each group's EMM across the panel as a reference line, and `show_group_size` labels each group with its observation count. The `.html` version is interactive: hover over any data point to see its observation index, group, and value; hover over an EMM dot to see the marginal mean. A single plot shows at most three factors (x-axis, column facets, row facets); with a 4th (or further) fixed-effect factor the plot is split into one file per level-combination of the extra factor(s), named `DataPlots_<level>` (e.g. `DataPlots_male`, `DataPlots_female`) |
 | `Diagnostics.pdf/.png/.html` | Six model diagnostic plots: histogram of residuals, Q-Q plot, residuals vs. fitted, lagged residuals, fitted vs. response, and either a random-effects Q-Q plot (for models with a random effect) or a Scale-Location plot (for plain linear models). The distribution panels (histogram, Q-Q) use DHARMa quantile residuals (normal-scaled; ~N(0,1) under a correct model for any family, so they are valid normality checks even for non-Gaussian GLMMs, with a deviance/Pearson fallback if DHARMa is unavailable); the structure panels (residuals vs. fitted, lagged, scale-location) use deviance residuals, which avoid the quantile residuals' boundary capping and suit structure/autocorrelation/homoscedasticity checks. The `.html` version is interactive with hover tooltips on all scatter panels. Inspect after every run — visual diagnostics are more reliable than formal tests (Shapiro–Wilk, Levene, Durbin–Watson) because formal tests have too little power at small n and flag trivial deviations at large n. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#diagnostic-plots) for panel-by-panel interpretation |
+| `<script>.py` / `analysis.py` | The code that created the options (`save_script`), in `out_dir` itself: the script under its own name, or the notebook cell as `analysis.py` with the run call appended, so the folder can be rerun |
 | `Correlation.pdf/.png` | Scatter plot grid for `options.correlation` variables |
 | `CorrelationTable.pdf/.png` | Colour-coded lower-triangle correlation table; `n.s.` on non-significant pairs |
 | `Correlation.xlsx` | Pairwise Pearson r, p, significance, and Cohen's r label |
@@ -620,7 +622,7 @@ New here? The guided playground walks through one demo and points to the rest:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
 
-**Your own data on Colab.** The template notebook is [`analysis_template.py`](analysis_template.py) as a notebook: setup, upload your file and see its columns, fill in the options, run, download the results as a zip. The zip also holds `analysis.py`, the options as a script that reruns the analysis. Uploads and results vanish with the runtime; mount Google Drive to keep them.
+**Your own data on Colab.** The template notebook is [`analysis_template.py`](analysis_template.py) as a notebook: setup, upload your file and see its columns, fill in the options, run, download the results as a zip. The zip also holds `analysis.py`, the options cell as a script that reruns the analysis (`save_script`). Uploads and results vanish with the runtime; mount Google Drive to keep them.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/analysis_template.ipynb)
 

@@ -26,6 +26,7 @@ options.base_dir = 'script_dir'
 # ---------------------------------------------------------------------------
 options.in_file = 'data/my_data.csv'        # .csv or .xlsx, one row per observation, relative to base_dir
 options.out_dir = 'results/my_analysis'     # created if missing, relative to base_dir
+# options.save_script = True                # DEFAULT: this code goes into out_dir with the results
 
 # options.constraints = 'age > 18 & group != "pilot"'   # row filter, applied before everything else
 

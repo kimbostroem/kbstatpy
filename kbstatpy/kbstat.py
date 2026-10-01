@@ -655,7 +655,7 @@ class Kbstat:
         # spelling of on or off. Its consumers compare with `is not False` and
         # `== 'auto'`, both of which need exactly True / False / 'auto' here.
         for _flag in ('remove_outliers_prefit', 'remove_outliers_postfit',
-                      'model_comparison'):
+                      'model_comparison', 'save_script'):
             setattr(o, _flag, _as_flag(getattr(o, _flag), _flag))
         o.slope_correlated = _as_flag(o.slope_correlated, 'slope_correlated',
                                       {'auto': 'auto'})
@@ -2697,6 +2697,9 @@ class Kbstat:
             output.multiple_comparisons.to_excel(mc_path, index=False)
             print(f'Saved MultipleComparisons.xlsx to {out_dir}')
 
+        if self.options.save_script:
+            self._save_script(out_dir)
+
         cr = output.correlation
         if cr is not None:
             if cr.correlation_table is not None:
@@ -2713,6 +2716,28 @@ class Kbstat:
                               (cr.fig_partial_table, 'PartialCorrelationTable')]:
                 if fig is not None:
                     self._write_fig(fig, out_dir, stem, html=False, tight=True)
+
+    def _save_script(self, out_dir):
+        """Write the code that created the options into out_dir."""
+        path, text = getattr(self.options, '_source', (None, None))
+        if not text:
+            return
+        if path:
+            name = os.path.basename(path)
+            dest = os.path.join(out_dir, name)
+            # out_dir may be the script's own folder; never overwrite the original.
+            if os.path.exists(dest) and os.path.samefile(dest, path):
+                return
+        else:
+            # A notebook cell holds the options and usually not the run call,
+            # which sits in a later cell; append it so the file runs on its own.
+            name = 'analysis.py'
+            dest = os.path.join(out_dir, name)
+            if not re.search(r'^[^#\n]*Kbstat\(', text, re.M):
+                text = text.rstrip() + '\n\nKbstat(options).run_save()\n'
+        with open(dest, 'w', encoding='utf-8') as fh:
+            fh.write(text)
+        print(f'Saved {name} to {out_dir}')
 
     @staticmethod
     def _autofit_xlsx(writer, sheet_name):

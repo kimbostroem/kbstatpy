@@ -121,17 +121,9 @@ reruns exactly this analysis (`python3 analysis.py`, started from the folder
 that holds the data file), so the results never get separated from the code
 that made them."""
 
-# The newest cell in the input history that creates the options is the options
-# cell as last run, the version that produced the results. The pattern is
-# anchored at a line start, so this cell's own source, which spells it out,
-# never matches, however often it is rerun.
 RUN_CODE = """kb = Kbstat(options)
-kb.run_save()
+kb.run_save();"""
 
-import os, re
-code = next(c for c in reversed(In) if re.search(r'^options = KbstatOptions\\(\\)', c, re.M))
-with open(os.path.join(options.out_dir, 'analysis.py'), 'w') as f:
-    f.write(code.rstrip() + '\\n\\nKbstat(options).run_save()\\n')"""
 
 DOWNLOAD_MD = """## 5. Download the results
 

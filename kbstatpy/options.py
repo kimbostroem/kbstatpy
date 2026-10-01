@@ -55,6 +55,12 @@ class KbstatOptions:
     #: folder names, and the first differs from the keyword by one character.
     _BASE_DIR_KEYWORDS = ('script_dir', 'auto')
 
+    def __post_init__(self):
+        # Not a field: it is captured, not configured, and stays out of the
+        # option table, repr and equality.
+        from ._scriptdir import _caller_source
+        object.__setattr__(self, '_source', _caller_source())
+
     def __setattr__(self, name, value):
         """Resolve a `base_dir` keyword as it is assigned.
 
@@ -239,6 +245,13 @@ class KbstatOptions:
     # that is about a second per variable on 18 000 rows with a random intercept,
     # more with random slopes, which dominate the cost far more than row count.
     model_comparison: bool = False
+
+    # Write the code that created these options into out_dir beside the
+    # results, so a results folder always carries the analysis that produced
+    # it: a script is copied under its own name, a notebook cell is written as
+    # analysis.py with the run call appended. Nothing is written where no
+    # source is recoverable (a REPL line, exec() of a string).
+    save_script: bool = True
 
     remove_outliers_prefit: bool = False   # IQR-based outlier removal per group before fitting
     remove_outliers_postfit: bool = False  # Pearson-residual outlier removal after fitting (refits model)

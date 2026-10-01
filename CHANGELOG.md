@@ -1,5 +1,11 @@
 # Changes
 
+## [1.33.0] - 2026-10-01
+
+### Features
+
+- `save()` writes the analysis code into `out_dir` beside the results: a script is copied under its own name, a notebook cell is saved as `analysis.py` with the run call appended. On by default; `save_script = False` switches it off.
+
 ## [1.32.1] - 2026-10-01
 
 ### Changes

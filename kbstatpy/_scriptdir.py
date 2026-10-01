@@ -28,6 +28,7 @@ rather than guessing, and `chdir()` warns and leaves the working directory
 alone, since in those contexts it is already the one the user chose.
 """
 import inspect
+import linecache
 import os
 import sys
 import warnings
@@ -64,6 +65,41 @@ def _caller_file():
         # break.
         del frame
     return None
+
+
+def _caller_source():
+    """The code of the first frame outside this package, as (path, text).
+
+    `path` is the script's absolute path when the caller is a file on disk,
+    and None for a notebook cell, whose text IPython keeps in `linecache`
+    under a temporary name that is never written to disk. Both None where no
+    text is recoverable: a REPL line, or `exec()` of a string.
+
+    Read at the moment the options are created, not at save(), because in a
+    notebook the two happen in different cells and only the first holds the
+    analysis. Reading the file then, rather than recording only its path, also
+    means an edit made while the fit runs is not mistaken for the code that
+    produced the results.
+    """
+    frame = inspect.currentframe()
+    try:
+        while frame is not None:
+            name = frame.f_globals.get('__file__')
+            inside = bool(name) and os.path.abspath(name).startswith(
+                _PACKAGE_DIR + os.sep)
+            if not inside:
+                if name and os.path.isfile(name):
+                    try:
+                        with open(name, encoding='utf-8') as fh:
+                            return os.path.abspath(name), fh.read()
+                    except (OSError, UnicodeDecodeError):
+                        return None, None
+                text = ''.join(linecache.getlines(frame.f_code.co_filename))
+                return None, (text or None)
+            frame = frame.f_back
+    finally:
+        del frame
+    return None, None
 
 
 def script_dir():
