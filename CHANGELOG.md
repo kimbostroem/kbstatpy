@@ -1,5 +1,12 @@
 # Changes
 
+## [1.32.1] - 2026-10-01
+
+### Changes
+
+- The template notebook saves the analysis as `analysis.py` in `out_dir`, so the results zip holds the script that reruns it.
+- The Colab playground opens with *Run your own analysis*, which needs no demo setup first; the demo cells follow together.
+
 ## [1.32.0] - 2026-09-30
 
 ### Features
