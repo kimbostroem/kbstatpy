@@ -1,5 +1,17 @@
 # Changes
 
+## [1.34.0] - 2026-10-01
+
+### Features
+
+- Curved covariates: an entry of `covariate`, or a formula term, may be a power or function of one column. `z^2` fits the polynomial z + z² from centred z, `log(w)`, `sqrt(t)` and `z^0.5` transform the raw values, `I(z^2)` is exactly z². Each term is labelled as written in the ANOVA.
+- In a formula, `^` on a single numeric variable now means a power, unlike R, and kbstatpy warns when it reads one. `Summary.txt` shows the formula as written and as passed to R.
+
+### Bugs
+
+- A squared covariate was silently lost. `covariate = 'z^2'` fitted a straight line, since R reads `z^2` as `z`; `I(z^2)` in a formula was fitted but missing from the ANOVA table, which then reported only the linear term. Results from either spelling should be regenerated.
+- `poly()` in a formula, and a power inside an interaction, now raise with an explanation instead of crashing.
+
 ## [1.33.0] - 2026-10-01
 
 ### Features

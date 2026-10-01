@@ -247,7 +247,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
 | `demo_dir` | str | *(auto)* Absolute path to the bundled demo folder, for example inputs: `os.path.join(options.demo_dir, 'data/sleep.csv')` |
-| `formula` | str | Explicit Wilkinson formula. A complete alternative to `y`, `x`, `id` and `interaction` rather than an addition. `y` (or `Y`) on the left is a placeholder that `options.y` fills in, one model per entry; a real column name there fits that one outcome (see below) |
+| `formula` | str | Explicit Wilkinson formula. A complete alternative to `y`, `x`, `id` and `interaction` rather than an addition. `y` (or `Y`) on the left is a placeholder that `options.y` fills in, one model per entry; a real column name there fits that one outcome (see below). **`^` on a single numeric variable is a power, unlike R**: `z^2` fits z + z², see [Curved covariates](#curved-covariates-powers-and-functions) |
 | `y` | str or list | Dependent variable(s). Several run one analysis each, see [Multi-y](#multi-y) |
 | `y_units` | str or list | Default `''` (no units). Unit label(s) for the y-axis, e.g. `'ms'`, or `'kg, N, m'` for multi-y, matched to `y` by position. An empty entry, or `'1'`, means that variable has no unit |
 | `x` | list / str | Fixed-effect factor column names |
@@ -258,7 +258,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `slope` | list / str | Variables with random slopes, e.g. `'A, B'` → `(1 + A + B \| id)` |
 | `slope_correlated` | bool or str | Default `'auto'`. Covariance structure for the slopes: `True` full, `False` diagonal, `'auto'` full with a diagonal fallback when it comes back singular |
 | `interaction` | list / str / int | Default `'auto'`, every interaction the design can support. `''` is additive, an integer caps the order, `'all'` is the full factorial, or name the terms. See [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
-| `covariate` | list / str | Numeric covariates: in the model, out of the plots and post-hoc |
+| `covariate` | list / str | Numeric covariates: in the model, out of the plots and post-hoc. An entry may be a power or function of one column: `'z^2'` fits the polynomial z + z² from centred z, `'log(w)'`, `'sqrt(t)'` or `'z^0.5'` transform the raw values, `'I(z^2)'` is exactly z². See [Curved covariates](#curved-covariates-powers-and-functions) |
 | `scale_covariates` | bool | Default `True`. Centre and scale the numeric covariates to z-scores before fitting. It changes no result — a covariate not in an interaction has its coefficient and its standard error divided by the same number, so every t, F and p is identical, and estimated marginal means are evaluated at the covariate means either way — but it conditions the optimisation, which matters where covariates span very different magnitudes. `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`, and `Summary.txt` names what was scaled. Categorical and constant covariates are left alone |
 | `y_transform` | str | Transform with `y` as placeholder, e.g. `'log(y)'`, `'sqrt(y)'`, `'y**0.4'`. `^` is accepted for exponentiation. EMMs and CIs are back-transformed |
 | `correlation` | list / str | Numeric variables for pairwise correlation, see [Correlation analysis](#correlation-analysis). Also spelled `correlate` |
@@ -300,6 +300,26 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `font` | str or list | Default `'Helvetica, DejaVu Sans'`. Font family, or a fallback chain tried in order. See [Fonts](#fonts) |
 
 ### Notes on particular options
+
+#### Curved covariates: powers and functions
+
+A linear model is linear in its coefficients, not in its predictors, so a curved relationship needs no other kind of model, only the right columns. A covariate entry, or a fixed-effect term of `formula`, may be an expression in one numeric column:
+
+```python
+options.covariate = 'cadence^2'                    # cadence + cadence^2, an inverted U
+options.covariate = 'age^3, log(dose)'             # a cubic in age, and the log of dose
+options.formula   = 'power ~ sex + cadence^2 + (1 | subject)'
+```
+
+| Written | Fitted |
+|---|---|
+| `z^k`, k = 2, 3, … | The polynomial z + z² + … + zᵏ, the powers built from z centred at its mean (its z-score when `scale_covariates` is on). The lower powers are added because without them the curve's vertex is pinned to z = 0, an arbitrary point of the scale |
+| `I(z^2)` | Exactly z², raw, nothing added: R's "as is", for a vertex that really is at zero |
+| `log(z)`, `log10`, `log2`, `exp`, `sqrt`, `abs`, `z^0.5`, `1/z` | The transform of the raw values, then scaled like any covariate. Values outside the domain (log of 0) raise and name the column |
+
+Centring changes no fit, no prediction and not the test of the highest power; it makes the lower terms slopes at the mean of z rather than at z = 0, and removes most of their collinearity. Each term is its own column, labelled as written in `Anova.xlsx` and `Summary.txt`; `Summary.txt` lists how each was built and, for a formula, both the formula as written and the one passed to R. See [Polynomial covariates](STATISTICAL_NOTES.md#polynomial-covariates-centring-and-lower-order-terms).
+
+**In a formula, `^` here departs from R**, and kbstatpy warns when it reads one as a power. R reads `z^2` as z crossed with itself, which is z: the square silently disappears. Since that reading is a no-op, nothing meaningful is lost; `(a + b)^2`, the crossing that means something, keeps its R meaning. A formula copied from kbstatpy into R must use the version `Summary.txt` reports as passed to R. A power inside an interaction (`group * z^2`) and R's `poly()` are refused with a message; powers apply to covariates only, since a factor's levels already allow any pattern of means.
 
 Options whose behaviour needs more than a line. The statistical ones are in [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md), linked from the table above.
 

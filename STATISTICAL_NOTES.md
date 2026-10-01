@@ -32,6 +32,7 @@
     - [What counts as a family (`posthoc_family`)](#what-counts-as-a-family-posthoc_family)
   - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
+  - [Polynomial covariates: centring and lower-order terms](#polynomial-covariates-centring-and-lower-order-terms)
 - [Technical aspects](#technical-aspects)
   - [Long vs. wide data format](#long-vs-wide-data-format)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
@@ -493,6 +494,18 @@ Every predictor is listed, worst first, in `Summary.txt` and in `VIF.xlsx`. The 
 
 ---
 
+### Polynomial covariates: centring and lower-order terms
+
+`covariate = 'z^2'` fits z + z², not z² alone, and builds the powers from z centred at its mean. Two separate reasons:
+
+**The lower terms make the model independent of the zero point of the scale.** y = β₀ + β₂z² can only describe parabolas with their vertex at z = 0. For cadence in rpm that is a point far outside the data; for temperature it depends on whether the column is in °C or K, so the same measurements would give different fits and p-values. With z included, any shifted parabola is representable, since (z − c)² = z² − 2cz + c², and the fit no longer depends on the origin. The same holds for z³, which needs z² and z. It is the principle that keeps the main effects in a model with their interaction. Where theory really puts the vertex at zero (energy ∝ v²), `I(z^2)` fits the single term.
+
+**Centring changes what the lower coefficients mean, not the model.** Predictions, residuals, the overall fit and the test of the highest power are identical with and without it. The coefficient of z, however, is the slope where the other powers vanish: at z = 0 uncentred, at the mean centred. On a simulated inverted U in cadence (peak at the mean, 85 rpm) the linear term's F was 1238 uncentred, the slope at 0 rpm, and 0.2 centred, the slope at the peak; both are correct, but only the second answers a question anyone asks, and the ANOVA table reports it. Centring also removes most of the correlation between z and z², which for z far from zero is near 1 and inflates the standard errors of the lower terms. The VIF of a power is computed against the predictors outside its own polynomial, since the correlation inside it is there by construction.
+
+Transforms such as log, sqrt and fractional powers are applied to the raw values, which must be in their domain, and scaled afterwards; centring before them would take the log of negative numbers. Orthogonal polynomials (R's `poly()`) would be a third parametrisation, with uncorrelated terms but coefficients without a direct reading, and are not offered.
+
+Estimated marginal means hold each term column at its mean. For a factor's EMMs in a model with a polynomial covariate this averages the curvature over the sample instead of evaluating it at the mean of z; differences between factor levels are unaffected unless the factor interacts with the polynomial, which kbstatpy does not support.
+
 ## Technical aspects
 
 Implementation details and design decisions behind kbstatpy's data handling, visualisation, and output.
@@ -572,6 +585,8 @@ y ~ x1 + x1:x2       # main effect of x1 and the x1×x2 interaction, but not the
 ```
 
 The `*` operator expands to all main effects and their interaction. The `:` operator specifies an interaction term only, without implying the main effects. This makes it straightforward to include partial interactions (Demo 9).
+
+**One departure from R: `^` on a single numeric variable is a power.** In R, `^` caps the order of a crossing, `(a + b + c)^2` being all main effects and two-way interactions, and on a single variable it is a no-op: `z^2` is `z`, so a squared term written that way silently disappears. kbstatpy reads `z^2` as the polynomial z + z² (see [Polynomial covariates](#polynomial-covariates-centring-and-lower-order-terms)), warns that it did so, and reports the formula actually passed to R. `(a + b)^2` keeps its R meaning, and `I(z^2)` its R meaning of exactly z².
 
 **Random effects** are added in parentheses after a `|` separator:
 

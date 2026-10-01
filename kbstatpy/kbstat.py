@@ -173,6 +173,7 @@ class Kbstat:
         self.vif_table: pd.DataFrame = None
         self._scaled_covariates: list = []
         self._covariate_originals: dict = {}
+        self._built_terms: list = []          # generated covariate columns built for this fit (_terms.py)
         self.AIC    = None
         self.BIC    = None
         self.logLik = None
@@ -506,6 +507,97 @@ class Kbstat:
             return False
         return True
 
+    def _resolve_covariate_terms(self):
+        """Turn expression terms in options.covariate and options.formula into
+        generated column names, registered on the options.
+
+        The registry lives on the options object, not on this instance, because
+        the options are normalised more than once and are deep-copied for each
+        dependent variable and each split level; a second pass finds only
+        registered names and leaves them alone.
+        """
+        from ._terms import expand, rewrite_formula
+        o = self.options
+        registry = dict(getattr(o, '_cov_terms', {}))
+        covs = list(o.covariate or [])
+        if o.formula:
+            if getattr(o, '_formula_written', None) is None:
+                object.__setattr__(o, '_formula_written', o.formula)
+            new_formula, entries, registry, caret = rewrite_formula(o.formula, registry)
+            if caret:
+                warnings.warn(
+                    "In kbstatpy formulas '^' on a single numeric variable is a "
+                    "power and does NOT follow R's formula syntax: 'z^2' fits the "
+                    "polynomial z + z^2 (powers of centred z), where R would read "
+                    "it as z alone. '(a + b)^2' keeps its R meaning. The formula "
+                    f"passed to R is: {new_formula}", stacklevel=4)
+            o.formula = new_formula
+            covs += [e for e in entries if e not in covs]
+        columns, registry, notes = expand(covs, registry)
+        for line in notes:
+            print(f'Polynomial covariate         : {line}')
+        o.covariate = columns
+        object.__setattr__(o, '_cov_terms', registry)
+        for col, term in registry.items():
+            self._display_names.setdefault(col, term.label)
+        factors = set(o.x if isinstance(o.x, list) else self._split_csv(o.x or ''))
+        on_factor = sorted({t.label for t in registry.values() if t.var in factors})
+        if on_factor:
+            raise ValueError(
+                f"{', '.join(on_factor)}: powers and functions apply to numeric "
+                "covariates only, and the variable is a factor in options.x. A "
+                "factor's levels already allow any pattern of means.")
+
+    def _build_covariate_terms(self):
+        """Compute the generated covariate columns in the data.
+
+        After _scale_covariates, so a power is built from the z-score of its
+        variable when the covariates are scaled (centred either way), while a
+        transform such as log(z) is taken of the raw values and then scaled
+        itself. After the constraints, so the centring describes the analysed
+        sample.
+        """
+        terms = getattr(self.options, '_cov_terms', {}) or {}
+        self._built_terms = []
+        if self.data is None:
+            return
+        for col, t in terms.items():
+            if col not in (self.options.covariate or []):
+                continue
+            if t.var not in self.data.columns:
+                raise ValueError(f"covariate term {t.label!r}: column {t.var!r} "
+                                 "is not in the data")
+            if not pd.api.types.is_numeric_dtype(self.data[t.var]):
+                raise ValueError(
+                    f"covariate term {t.label!r}: {t.var!r} is not numeric. "
+                    "Powers and functions apply to numeric covariates only.")
+            if col in self.data.columns:
+                raise ValueError(
+                    f"covariate term {t.label!r} is fitted as column {col!r}, and "
+                    "the data already has a column of that name. Rename it.")
+            raw = self._covariate_originals.get(t.var, self.data[t.var]).astype(float)
+            if t.kind == 'power':
+                base = (self.data[t.var] if t.var in self._scaled_covariates
+                        else raw - raw.mean())
+                self.data[col] = base ** t.power
+            else:
+                with np.errstate(all='ignore'):
+                    vals = np.asarray(t.function()(raw.to_numpy()), dtype=float)
+                bad = np.isfinite(raw.to_numpy()) & ~np.isfinite(vals)
+                if bad.any():
+                    eg = ', '.join(f'{v:g}' for v in pd.unique(raw[bad])[:3])
+                    raise ValueError(
+                        f"covariate term {t.label!r} is undefined for {int(bad.sum())} "
+                        f"value(s) of {t.var!r} (e.g. {eg}). Restrict the data with "
+                        "options.constraints or choose another transform.")
+                self.data[col] = vals
+                sd = float(self.data[col].std())
+                if self.options.scale_covariates and np.isfinite(sd) and sd > 0:
+                    self._covariate_originals[col] = self.data[col].copy()
+                    self.data[col] = (self.data[col] - self.data[col].mean()) / sd
+                    self._scaled_covariates.append(col)
+            self._built_terms.append(t)
+
     def _resolve_synonyms(self):
         """Copy any alternative option spelling onto its canonical option.
 
@@ -565,6 +657,12 @@ class Kbstat:
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
+        # Covariate terms that are expressions of one column -- z^2, log(w) --
+        # become generated columns, here in the options and in _build_terms
+        # in the data; see _terms.py for what each expression means. Before
+        # the formula backfill, so the base variables of a formula's powers are
+        # known to be covariates and are not cast to factors.
+        self._resolve_covariate_terms()
         # A formula names the factors and grouping variables too. Fill them in
         # here, not first in fit(): the categorical cast runs before fit(), and
         # with options.x still empty it skipped the formula's factors, so
@@ -1001,6 +1099,7 @@ class Kbstat:
         self._apply_constraints()
         # After the constraints, so the z-scores describe the analysed sample.
         self._scale_covariates()
+        self._build_covariate_terms()
         self.vif_table = self._compute_vif()
         self._vif_warning()
         if self.options.remove_outliers_prefit:
@@ -4666,9 +4765,19 @@ class Kbstat:
                 groups = d[g]
                 break
         group_name = self._id_vars()[0] if (self._id_vars() and groups is not None) else ''
+        # z, z^2, z^3 are correlated by construction, and that says nothing
+        # about whether the polynomial as a whole is confounded with the other
+        # predictors -- so each member is regressed on the rest only.
+        family = {}
+        for col, t in (getattr(self.options, '_cov_terms', {}) or {}).items():
+            if t.kind == 'power':
+                family.setdefault(t.var, {t.var}).add(col)
+        own = {m: fam for fam in family.values() for m in fam}
         rows = []
         for v in num:
-            others = [c for c in num if c != v]
+            others = [c for c in num if c != v and c not in own.get(v, ())]
+            if not others:
+                continue
             r2 = LinearRegression().fit(X[others], X[v]).score(X[others], X[v])
             vif = 1 / (1 - r2) if r2 < 1.0 else float('inf')
             if groups is not None:
@@ -4682,7 +4791,7 @@ class Kbstat:
                          'verdict': _vif_verdict(vif),
                          'SE_factor': round(vif ** 0.5, 2),
                          'n': len(X), 'n_indep': n_indep, 'varies': varies})
-        return pd.DataFrame(rows)
+        return pd.DataFrame(rows) if rows else None
 
     def _vif_flagged(self):
         """The rows worth reporting (VIF >= _VIF_FLAG), worst first, or
@@ -4930,7 +5039,7 @@ class Kbstat:
             self.options.x = [v for v in parsed['x'] if v not in covs]
             print(f'Detected independent variables: {", ".join(self.options.x)}')
             if covs:
-                print(f'Detected covariates          : {", ".join(self.options.covariate)}')
+                print(f'Detected covariates          : {", ".join(self._disp(c) for c in self.options.covariate)}')
         if not self.options.id:
             self.options.id = parsed['id']
             if self.options.id:
@@ -5376,7 +5485,11 @@ class Kbstat:
 
         # --- Formula ---
         formula = self._build_formula()
-        lines += ['FORMULA', '-------', formula, '']
+        lines += ['FORMULA', '-------', formula]
+        _written = getattr(self.options, '_formula_written', None)
+        if _written and self._formula_with_y(_written, self.options.y) != formula:
+            lines.append(f'  as written: {self._formula_with_y(_written, self.options.y)}')
+        lines.append('')
 
         # --- Model information ---
         n_obs = self._n_obs_label()
@@ -5496,7 +5609,7 @@ class Kbstat:
         if self.anova_table is not None:
             at = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
             lines += ['ANOVA (Type III)', '----------------',
-                      _bounded_p_table(at).to_string(index=False),
+                      _bounded_p_table(self._disp_vals(at, 'Term')).to_string(index=False),
                       f'  Denominator df method: {self._df_method_label()}', '']
 
             # --- The two markers an incomplete design puts in the table ---
@@ -5655,6 +5768,28 @@ class Kbstat:
                 '  the fitted values beside it as <name>_scaled.',
                 '',
             ]
+
+        # --- Covariate terms computed from an expression ---
+        if self._built_terms:
+            lines += ['COVARIATE TERMS', '---------------']
+            w = max(len(t.label) for t in self._built_terms)
+            for t in self._built_terms:
+                how = (f'power {t.power} of {t.var}, centred'
+                       + (' (z-score)' if t.var in self._scaled_covariates else '')
+                       if t.kind == 'power' else
+                       f'computed from the raw values of {t.var}'
+                       + (', then scaled' if t.column in self._scaled_covariates else ''))
+                lines.append(f'  {t.label:<{w}}  fitted as {t.column}: {how}')
+            if any(t.kind == 'power' for t in self._built_terms):
+                lines += [
+                    '  A power z^k is fitted with all lower powers of z, built from z',
+                    '  centred at its mean. The lower-order terms are therefore slopes',
+                    '  and curvatures at the mean of z, not at z = 0; the fit and the',
+                    '  test of the highest power are the same either way. The VIF of a',
+                    '  power is computed against the predictors outside its polynomial,',
+                    '  since z, z^2, ... are correlated by construction.',
+                ]
+            lines += ['  Estimated marginal means hold each term column at its mean.', '']
 
         # --- Collinearity among the numeric fixed effects ---
         # Only when there is something to say. A table of VIFs near 1 is noise;

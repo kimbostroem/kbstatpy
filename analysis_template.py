@@ -47,6 +47,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # are empty: 'auto' drops it and says so in Summary.txt, 'all' raises.
 
 # options.covariate   = 'age'               # numeric covariates: in the model, out of the plots
+# options.covariate   = 'age^2, log(dose)'  # curved: age + age^2 (centred), log of raw dose
 # options.scale_covariates = False         # DEFAULT is True: centre/scale them (no test changes)
 # options.slope       = 'condition'         # random slope(s) on options.id, not just an intercept
 
