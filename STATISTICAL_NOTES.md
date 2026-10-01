@@ -33,6 +33,7 @@
   - [Why estimated marginal means?](#why-estimated-marginal-means)
   - [VIF and multicollinearity](#vif-and-multicollinearity)
   - [Polynomial covariates: centring and lower-order terms](#polynomial-covariates-centring-and-lower-order-terms)
+  - [Trend components of an ordered factor](#trend-components-of-an-ordered-factor)
 - [Technical aspects](#technical-aspects)
   - [Long vs. wide data format](#long-vs-wide-data-format)
   - [Wilkinson notation for model formulae](#wilkinson-notation-for-model-formulae)
@@ -505,6 +506,14 @@ Every predictor is listed, worst first, in `Summary.txt` and in `VIF.xlsx`. The 
 Transforms such as log, sqrt and fractional powers are applied to the raw values, which must be in their domain, and scaled afterwards; centring before them would take the log of negative numbers. Orthogonal polynomials (R's `poly()`) would be a third parametrisation, with uncorrelated terms but coefficients without a direct reading, and are not offered.
 
 Estimated marginal means hold each term column at its mean. For a factor's EMMs in a model with a polynomial covariate this averages the curvature over the sample instead of evaluating it at the mean of z; differences between factor levels are unaffected unless the factor interacts with the polynomial, which kbstatpy does not support.
+
+### Trend components of an ordered factor
+
+`ordered = 'dose'` asks how the means of an ordered factor change along its levels without giving up the factor. Its k−1 degrees of freedom are split into orthogonal polynomial contrasts on the estimated marginal means, with R's `contr.poly(k, scores = positions)`: the positions are the labels' numeric values when they all parse as numbers, so unequal spacing is honoured, and ranks in `x_order` order otherwise. The linear contrast is rescaled to (p − p̄) / Σ(p − p̄)², which changes no test and makes its estimate the slope per unit of position; quadratic and cubic keep the orthonormal weights, whose estimates have no unit worth reading. Beyond the cubic the remaining components are tested jointly, since a quartic in five dose steps is rarely interpretable.
+
+The decomposition is exact: in a balanced additive model the squared t of the components plus df × F of the remainder add up to (k − 1) times the factor's omnibus F, and with equal spacing the tests equal emmeans' own `"poly"` contrasts (both checked in `tests/test_ordered_trend.py`). The components answer focused 1-df questions and can be significant where the omnibus is not, for the same reason as the trend in [level-wise profile analysis](#level-wise-profile-analysis-demo-16). They are planned and orthogonal, so their p-values are not corrected.
+
+This is not the same as entering the factor as a numeric covariate with `z^2`. That fits a curve and nothing else, two parameters instead of k−1, and gives up the per-level means and post-hoc comparisons; the trend components keep the means free and only read their pattern. With an interaction, the marginal trend averages over the levels of the partner factor, and the trend within each of its levels is reported beside it. For a GLMM the contrasts are on the link scale.
 
 ## Technical aspects
 

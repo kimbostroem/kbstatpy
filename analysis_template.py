@@ -124,6 +124,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # options.correlation_method  = 'pearson'   # pearson | spearman
 # options.correlation_control = 'age'       # partial this out of every correlation
 # options.profile_across      = 'dose'      # profile across one ordered factor (>= 3 levels)
+# options.ordered             = 'dose'      # trend components (linear, quadratic, cubic) of ordered factors
 
 # ---------------------------------------------------------------------------
 Kbstat(options).run_save()                  # fit, test, plot, and write everything to out_dir

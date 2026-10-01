@@ -1,5 +1,11 @@
 # Changes
 
+## [1.35.0] - 2026-10-01
+
+### Features
+
+- `ordered` names categorical variables with ordered levels. They keep their post-hoc comparisons and plots, and their k−1 df are also split into linear, quadratic and cubic trend components plus a joint test beyond, marginal and per cell of an interacting factor. Numeric labels set the spacing. Writes `Trend_<variable>.xlsx`.
+
 ## [1.34.0] - 2026-10-01
 
 ### Features

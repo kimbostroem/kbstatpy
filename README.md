@@ -280,6 +280,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `posthoc_family` | str | Default `'cell'`. What the correction spans: `'cell'` each cell separately, `'pooled'` all cells as one family, `'cross'` within each cell then across. See [What counts as a family](STATISTICAL_NOTES.md#what-counts-as-a-family-posthoc_family) |
 | `posthoc_compare` | str | Default `'auto'` (the first x-variable). Which factor(s) get pairwise comparisons, comma-separated; `''` or `'none'` turns them off. Comparisons are per cell, see [Comparing any factor](STATISTICAL_NOTES.md#comparing-any-factor-per-cell-demo-15) |
 | `profile_across` | str | Name one ordered factor to profile the factors interacting with it across its levels, see [Level-wise profile analysis](#level-wise-profile-analysis) |
+| `ordered` | list / str | Default `''` (off). Categorical variables with ordered levels (dose steps, sets, age bands), in `x` or as categorical covariates. The model is unchanged; the variable's k−1 df are also split into linear, quadratic and cubic trend components plus a joint test beyond, marginal and, when it interacts, per cell. Positions come from numeric labels, otherwise `x_order` is required. Writes `Trend_<variable>.xlsx`, see [Ordered factors](#ordered-factors-trend-components) |
 | `y_correction` | str | Default `'none'`. Correction across the dependent variables of a multi-y run: `'bonferroni'`, `'holm'`, `'FDR'`, `'FDR_correlated'`. See [Family-wise correction](STATISTICAL_NOTES.md#family-wise-correction-across-dependent-variables-demo-13) |
 | `split` | str | Default `''` (off). Fit the same model separately for each level of this column, e.g. one model per task; results go to `<out_dir>/<y>/<level>/`. Level order follows `x_order[split]` if given. See [One model per level](#one-model-per-level-split) |
 | `split_correction` | str | Default `'none'`. Correct each post-hoc contrast, and each ANOVA term, across the levels of `split`: `'bonferroni'`, `'holm'`, `'FDR'`, `'FDR_correlated'`. Applied to `pCorr`; gives the column `pSplit`, which then drives `significance` and the plot brackets. See [Correction across split levels](STATISTICAL_NOTES.md#correction-across-split-levels) |
@@ -300,6 +301,20 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `font` | str or list | Default `'Helvetica, DejaVu Sans'`. Font family, or a fallback chain tried in order. See [Fonts](#fonts) |
 
 ### Notes on particular options
+
+#### Ordered factors: trend components
+
+A factor whose levels are ordered, such as dose 0 / 1 / 2 / 5 mg, keeps everything a factor gets: post-hoc comparisons, EMMs per level, its panel in the data plot. `ordered` adds the question the order poses, whether the means rise steadily or bend:
+
+```python
+options.x       = 'dose, sex'
+options.ordered = 'dose'                       # numeric labels: their spacing is used
+options.x_order = 'fitness: low, medium, high' # non-numeric labels need their order
+```
+
+The k−1 degrees of freedom of the factor are split into orthogonal polynomial contrasts on the EMMs: **linear**, **quadratic** and **cubic**, each a focused 1-df test, and one **joint test beyond the cubic** when there are more than four levels. A focused test can be significant where the omnibus F, spread over all k−1 df, is not. The linear estimate is the change per unit of the labels (per step when the positions are ranks); the higher components are in contrast units and are read by their tests. The model, the ANOVA and the post-hoc comparisons do not change.
+
+When the factor interacts with another categorical predictor, the trend is also reported within each of its levels, since the marginal trend averages over a pattern that may differ between them. A categorical covariate can be ordered too and gets the trend table only, like its other output. A numeric covariate is refused with a pointer to `z^2`, which gives a curve in a variable that has an order already. Results go to `Summary.txt` and `Trend_<variable>.xlsx`; see [Trend components](STATISTICAL_NOTES.md#trend-components-of-an-ordered-factor).
 
 #### Curved covariates: powers and functions
 
@@ -556,6 +571,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `PartialCorrelationTable.pdf/.png` | Colour-coded lower-triangle table for partial correlations |
 | `PartialCorrelation.xlsx` | Partial r, p, significance, and Cohen's r label |
 | `VIF.xlsx` | Variance Inflation Factors for the numeric predictors, with the sample size and the number of independent units beside each |
+| `Trend_<variable>.xlsx` | Trend components of an `ordered` variable: cell (`all`, or the level of an interacting factor), component, estimate, SE, CI, df, t/z or F, p |
 | `LevelProfile.pdf/.png` | Profile plot for `profile_across`: response EMMs across the ordered factor, one line per level of the profiled factor, with 95 % CI error bars |
 | `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |

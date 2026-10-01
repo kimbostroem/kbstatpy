@@ -95,6 +95,7 @@ class ModelResult:
     fig_diagnostics: object = None  # diagnostics figure
     model_comparison: object = None  # ML criteria per fixed-effect structure, or None
     profile_across: object = None   # level-wise profile result dict, or None
+    trend: object = None            # {ordered variable: trend result dict}, or None
     fig_profile_across: object = None  # profile plot figure, or None
     fig_profile_contrast: object = None  # differential (contrast) profile figure, or None
 
@@ -653,7 +654,7 @@ class Kbstat:
         # done inline in correlate(), never here, so it was the one list-valued
         # option that kept whatever spelling it was given. The inline handling
         # stays, since it also covers a direct correlate() call.
-        for attr in ('x', 'slope', 'covariate', 'correlation_control'):
+        for attr in ('x', 'slope', 'covariate', 'correlation_control', 'ordered'):
             v = getattr(o, attr)
             if isinstance(v, str):
                 setattr(o, attr, self._split_csv(v))
@@ -904,6 +905,7 @@ class Kbstat:
                 fig_data=worker.fig_data,
                 fig_diagnostics=worker.fig_diagnostics,
                 profile_across=getattr(worker, 'profile_across_result', None),
+                trend=(getattr(worker, 'trend_results', None) or None),
                 fig_profile_across=getattr(worker, 'fig_profile_across', None),
                 fig_profile_contrast=getattr(worker, 'fig_profile_contrast', None),
             ))
@@ -988,6 +990,7 @@ class Kbstat:
                 fig_data=worker.fig_data,
                 fig_diagnostics=worker.fig_diagnostics,
                 profile_across=getattr(worker, 'profile_across_result', None),
+                trend=(getattr(worker, 'trend_results', None) or None),
                 fig_profile_across=getattr(worker, 'fig_profile_across', None),
                 fig_profile_contrast=getattr(worker, 'fig_profile_contrast', None),
             ))
@@ -1044,6 +1047,7 @@ class Kbstat:
                 fig_data=self.fig_data,
                 fig_diagnostics=self.fig_diagnostics,
                 profile_across=getattr(self, 'profile_across_result', None),
+                trend=(getattr(self, 'trend_results', None) or None),
                 fig_profile_across=getattr(self, 'fig_profile_across', None),
                 fig_profile_contrast=getattr(self, 'fig_profile_contrast', None),
             ))
@@ -1114,6 +1118,8 @@ class Kbstat:
             self.model_comparison_table = self._compare_model_structures()
         if self.options.profile_across:
             self.profile_across()
+        if self.options.ordered:
+            self.trend()
         self.plot_diagnostics()
         # With options.split the data plots wait until the across-split correction
         # is known, so their brackets show pSplit (run() draws them then).
@@ -2014,6 +2020,185 @@ class Kbstat:
                 pass
         return rows
 
+    #: Highest trend component reported on its own; anything beyond is one
+    #: joint test, since a quartic in five dose steps is rarely interpretable.
+    _TREND_MAX_ORDER = 3
+
+    _TREND_R = '''
+        function(emm, p, by, max_order) {
+          k <- length(p)
+          cp <- contr.poly(k, scores = p)
+          meth <- list(linear = (p - mean(p)) / sum((p - mean(p))^2))
+          if (k >= 3 && max_order >= 2) meth$quadratic <- cp[, 2]
+          if (k >= 4 && max_order >= 3) meth$cubic <- cp[, 3]
+          ct <- emmeans::contrast(emm, method = meth)
+          main <- as.data.frame(summary(ct, infer = c(TRUE, TRUE)))
+          rem <- NULL
+          if (k - 1 > max_order) {
+            rm <- lapply((max_order + 1):(k - 1), function(j) cp[, j])
+            names(rm) <- paste0("order", (max_order + 1):(k - 1))
+            ct2 <- emmeans::contrast(emm, method = rm)
+            rem <- as.data.frame(emmeans::test(
+              ct2, joint = TRUE, by = if (length(by)) by else NULL))
+          }
+          # Factor columns as text: rpy2 hands an R factor over as its codes,
+          # which turned 'supp = OJ' into 'supp = 1.0' in the per-cell rows.
+          chr <- function(d) { if (!is.null(d)) d[] <- lapply(d, function(c)
+                                 if (is.factor(c)) as.character(c) else c); d }
+          list(main = chr(main), rem = chr(rem))
+        }'''
+
+    def _ordered_levels(self, B):
+        """(levels in order, positions) of the ordered variable B.
+
+        Positions are the labels' numeric values when every label parses as a
+        number, so dose 1 / 2 / 10 keeps its real spacing; the order is then
+        the numeric one unless x_order says otherwise. Non-numeric labels have
+        no order of their own, so x_order must give it -- guessing from the
+        order of appearance would make the trend depend on how the file was
+        sorted.
+        """
+        present = [str(v) for v in pd.unique(self.data[B].dropna().astype(str))]
+        xo = self.options.x_order
+        given = [str(v) for v in xo.get(B, [])] if isinstance(xo, dict) else []
+        try:
+            numeric = {l: float(l) for l in present}
+        except ValueError:
+            numeric = None
+        if given:
+            order = [l for l in given if l in present]
+            missing = [l for l in present if l not in order]
+            if missing:
+                raise ValueError(
+                    f"options.ordered: x_order for {B!r} does not list the "
+                    f"level(s) {missing}")
+        elif numeric is not None:
+            order = sorted(present, key=numeric.get)
+        else:
+            raise ValueError(
+                f"options.ordered: the levels of {B!r} are not numbers, so their "
+                f"order has to be given, e.g. x_order = '{B}: "
+                f"{', '.join(present[:3])}'")
+        positions = ([numeric[l] for l in order] if numeric is not None
+                     else [float(i + 1) for i in range(len(order))])
+        return order, positions
+
+    def trend(self):
+        """Polynomial trend components of every variable in options.ordered.
+
+        Contrasts on the estimated marginal means, on the link scale, with
+        orthogonal polynomial weights for the level positions (R's contr.poly
+        with scores). The model is not touched: the components split the
+        variable's k-1 degrees of freedom into focused 1-df questions -- does
+        it rise steadily, does it bend -- which can be significant where the
+        diffuse omnibus is not. The linear weights are slope-normalised, so its
+        estimate is the change per unit of position (per step when the
+        positions are ranks); the higher components are in contrast units and
+        are read by their tests. The components are planned and orthogonal, so
+        their p-values are not corrected.
+
+        When B shares a model term with another categorical predictor, the
+        trend is reported within each of that predictor's levels as well,
+        since the marginal trend averages over an interaction that may differ
+        in direction between them.
+        """
+        import rpy2.robjects.pandas2ri as p2ri
+        self.trend_results = {}
+        names = list(self.options.ordered or [])
+        if not names or self.model is None:
+            return self.trend_results
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        factors = list(self.options.x or [])
+        cats = factors + [c for c in (self.options.covariate or [])
+                          if c in self.data.columns
+                          and not pd.api.types.is_numeric_dtype(self.data[c])]
+        for B in names:
+            if B not in self.data.columns:
+                raise ValueError(f"options.ordered: {B!r} is not a column of the data")
+            if B not in cats:
+                if B in (self.options.covariate or []):
+                    raise ValueError(
+                        f"options.ordered: {B!r} is a numeric covariate, which has "
+                        f"an order already. For a curved effect write it as "
+                        f"covariate = '{B}^2'.")
+                raise ValueError(f"options.ordered: {B!r} is not a factor or "
+                                 "categorical covariate of the model")
+            order, positions = self._ordered_levels(B)
+            if len(order) < 3:
+                warnings.warn(
+                    f"options.ordered: {B!r} has {len(order)} levels; with two the "
+                    "trend is the single contrast, so none is reported.", stacklevel=2)
+                continue
+            partners = []
+            terms = self.anova_table['Term'] if self.anova_table is not None else []
+            for term in terms:
+                parts = str(term).split(':')
+                if B in parts and len(parts) > 1:
+                    partners += [f for f in parts
+                                 if f != B and f in cats and f not in partners]
+            rows = []
+            for by in ([[]] + ([partners] if partners else [])):
+                rows += self._trend_rows(r_obj, B, order, positions, by, p2ri)
+            self.trend_results[B] = {'order': order, 'positions': positions,
+                                     'partners': partners, 'table': pd.DataFrame(rows)}
+        return self.trend_results
+
+    def _trend_rows(self, r_obj, B, order, positions, by, p2ri):
+        """Trend rows for B, marginal (by = []) or within the cells of `by`."""
+        ro.globalenv['kbstat_trend_model'] = r_obj
+        spec = f'~ {B}' + (f' | {" * ".join(by)}' if by else '')
+        emm = ro.r(f'suppressMessages(emmeans::emmeans(kbstat_trend_model, {spec}))')
+        levs = [str(v) for v in
+                ro.r('function(e, v) as.character(levels(e)[[v]])')(emm, B)]
+        # The model's level labels may be spelled differently from the data's
+        # ('1' against '1.0'), so a label that does not match is matched by value.
+        pos_of = dict(zip(order, positions))
+        pos = []
+        for l in levs:
+            if l in pos_of:
+                pos.append(pos_of[l])
+                continue
+            try:
+                pos.append(next(p for o, p in pos_of.items() if float(o) == float(l)))
+            except (StopIteration, ValueError):
+                raise RuntimeError(
+                    f"options.ordered: could not match the levels of {B!r} in the "
+                    f"model ({levs}) to their order ({order})") from None
+        res = ro.r(self._TREND_R)(emm, ro.FloatVector(pos), ro.StrVector(by),
+                                  self._TREND_MAX_ORDER)
+        main = p2ri.rpy2py(res[0])
+        rem = None if res[1] is ro.NULL else p2ri.rpy2py(res[1])
+
+        def _cell(row):
+            if not by:
+                return 'all'
+            return ', '.join(f'{self._disp(v)} = {row[v]}' for v in by)
+
+        stat = next((c for c in ('t.ratio', 'z.ratio') if c in main.columns), None)
+        lo = next((c for c in ('lower.CL', 'asymp.LCL') if c in main.columns), None)
+        hi = next((c for c in ('upper.CL', 'asymp.UCL') if c in main.columns), None)
+        rows = []
+        for _, r in main.iterrows():
+            rows.append({'cell': _cell(r), 'component': str(r['contrast']),
+                         'estimate': float(r['estimate']), 'SE': float(r['SE']),
+                         'CI_low': float(r[lo]) if lo else np.nan,
+                         'CI_high': float(r[hi]) if hi else np.nan,
+                         'df1': 1.0,
+                         'df2': float(r['df']) if 'df' in main.columns else np.inf,
+                         'stat': float(r[stat]) if stat else np.nan,
+                         'p': float(r['p.value'])})
+        if rem is not None:
+            for _, r in rem.iterrows():
+                rows.append({'cell': _cell(r),
+                             'component': f'beyond cubic ({int(r["df1"])} df, joint)',
+                             'estimate': np.nan, 'SE': np.nan, 'CI_low': np.nan,
+                             'CI_high': np.nan, 'df1': float(r['df1']),
+                             'df2': float(r['df2']), 'stat': float(r['F.ratio']),
+                             'p': float(r['p.value'])})
+        for r in rows:
+            r['significance'] = _sig_stars(r['p'])
+        return rows
+
     def profile_across(self):
         """Level-wise profile analysis across the ordered factor options.profile_across.
 
@@ -2781,6 +2966,10 @@ class Kbstat:
                     print(f'Saved LevelProfile.xlsx to {d}')
             if res.fig_profile_across is not None:
                 self._write_fig(res.fig_profile_across, d, 'LevelProfile', html=False, tight=True)
+            for B, tr in (getattr(res, 'trend', None) or {}).items():
+                stem = f'Trend_{self._safe_name(B)}'
+                tr['table'].to_excel(os.path.join(d, f'{stem}.xlsx'), index=False)
+                print(f'Saved {stem}.xlsx to {d}')
             if getattr(res, 'fig_profile_contrast', None) is not None:
                 self._write_fig(res.fig_profile_contrast, d, 'LevelProfileContrast',
                                 html=False, tight=True)
@@ -5868,6 +6057,30 @@ class Kbstat:
                     '  tables above show the within-model values.',
                     '',
                 ]
+
+        # --- Trend components of the ordered variables ---
+        for B, tr in (getattr(self, 'trend_results', None) or {}).items():
+            title = f'TREND ACROSS {self._disp(B)} (options.ordered)'
+            t = tr['table'].copy()
+            for c in ('estimate', 'SE', 'CI_low', 'CI_high', 'stat'):
+                t[c] = t[c].round(4)
+            t['df2'] = t['df2'].round(2)
+            lines += [title, '-' * len(title),
+                      '  Levels (positions): ' + ', '.join(
+                          f'{l} ({p:g})' for l, p in zip(tr['order'], tr['positions'])),
+                      _bounded_p_table(t).to_string(index=False),
+                      '  Contrasts on the estimated marginal means'
+                      + (' (link scale)' if self._family() != 'gaussian' else '') + '.',
+                      '  linear: change per unit of position (per step when the positions',
+                      '  are ranks). quadratic and cubic are orthogonal polynomial contrasts',
+                      '  in contrast units: read them by their tests. The components are',
+                      '  planned and orthogonal and are not corrected for multiplicity.']
+            if tr['partners']:
+                lines += [f'  {self._disp(B)} interacts with '
+                          f'{", ".join(self._disp(f) for f in tr["partners"])}, so the',
+                          '  trend is also given within each cell; the "all" rows average',
+                          '  over a pattern that may differ between the cells.']
+            lines.append('')
 
         # --- Level-wise profile ---
         pa = getattr(self, 'profile_across_result', None)

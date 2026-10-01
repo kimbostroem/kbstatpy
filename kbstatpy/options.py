@@ -473,6 +473,19 @@ class KbstatOptions:
     # LevelProfile.xlsx and a profile plot. '' (default) = off.
     profile_across: str = ''
 
+    # Categorical variables whose levels are ordered: dose steps, sets of a
+    # fatigue protocol, age bands. Nothing about the model changes -- the
+    # variable stays a factor with its post-hoc comparisons and plots, or a
+    # categorical covariate -- but its k-1 degrees of freedom are also split
+    # into polynomial trend components: linear, quadratic and cubic, each a
+    # focused 1-df test, plus one joint test for anything beyond the cubic.
+    # Level positions are the labels' numeric values when they all parse as
+    # numbers (so dose 1 / 2 / 10 keeps its spacing), otherwise the order given
+    # by x_order, which is then required. When the variable interacts with
+    # other factors, the trend is also reported within each of their cells.
+    # Writes Trend_<variable>.xlsx. '' (default) = off; comma-separated list.
+    ordered: object = ''
+
     # Fit the same model separately for each level of one column, e.g. one model per
     # task when each task is its own set of trials. The analysis runs once per level
     # on that level's rows only; results are written to <out_dir>/<y>/<level>/.
