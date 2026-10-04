@@ -196,6 +196,7 @@ class Kbstat:
         self._df_runtime   = None             # df method after any runtime KR fallback (set in anova)
         self.n_obs_fit     = None             # rows the fit actually used (set in _construct_and_fit)
         self.model_comparison_table = None    # ML criteria per fixed-effect structure (opt-in)
+        self.intercept_test: dict = None      # test of the mean, intercept-only models (set in anova)
         self.output: Output = None            # populated by run(); read or pass to save()
 
     # ------------------------------------------------------------------
@@ -720,6 +721,17 @@ class Kbstat:
                 "posthoc_family must be one of: cell, pooled, cross "
                 f"(got {pf!r})")
         o.scale_covariates = _as_flag(o.scale_covariates, 'scale_covariates')
+        # test_value: None (test against 0 on the fitted scale) or a number in
+        # the units of y. Checked here, not where it is used, so a typo fails
+        # before the fit rather than after it.
+        _tv = o.test_value
+        if _tv is None or (isinstance(_tv, str) and _tv.strip().lower() in ('', 'none')):
+            o.test_value = None
+        else:
+            try:
+                o.test_value = float(_tv)
+            except (TypeError, ValueError):
+                raise ValueError(f"test_value must be a number or None (got {_tv!r})")
         _pc = str(o.posthoc_correction or 'none').strip().lower()
         if o.posthoc_family == 'pooled' and _pc not in _POSTHOC_ADJUST_MAP:
             warnings.warn(
@@ -1504,6 +1516,14 @@ class Kbstat:
 
         method = self._df_method() or 'satterthwaite'  # ignored by LM (exact) / GLMM (asymptotic)
         self._lift_emm_obs_limits(method)
+        self.intercept_test = None
+        if self._intercept_only():
+            self.anova_table = self._intercept_anova(method, data_to_use)
+            return self.anova_table
+        if self.options.test_value is not None:
+            warnings.warn(
+                "options.test_value applies only to an intercept-only model (no x, "
+                "no covariate) and is ignored here.", stacklevel=2)
         try:
             self.model.anova(jointtest_kwargs={'mode': method, 'lmer_df': method})
         except Exception as exc:
@@ -1537,6 +1557,158 @@ class Kbstat:
         self.anova_table = raw
         return self.anova_table
 
+    def _intercept_only(self) -> bool:
+        """No factor and no covariate: the model is y ~ 1, plus any random terms."""
+        return not self.options.x and not self.options.covariate
+
+    def _intercept_null(self, r_obj):
+        """The tested value on the model's scale, and what it is on the response scale.
+
+        options.test_value is given in the units of y, so it goes through the
+        same transformation as y: y_transform, or the link of a GLMM. Without
+        one, the test is against 0 on the fitted scale, which is 0 itself for an
+        untransformed normal outcome and, for example, a mean of 1 under a log
+        link -- the response-scale value is returned so the summary can say so.
+        """
+        v = self.options.test_value
+        link_fun = link_inv = None
+        if self.options.y_transform:
+            link_fun = lambda a: float(self._transform_fn(np.array([a]))[0])
+            link_inv = (lambda a: float(self._inverse_fn(np.array([a]))[0])
+                        if self._inverse_fn is not None else None)
+        elif self._family() != 'gaussian':
+            def link_fun(a):
+                return float(ro.r('function(m, v) family(m)$linkfun(v)')(r_obj, a)[0])
+
+            def link_inv(a):
+                return float(ro.r('function(m, v) family(m)$linkinv(v)')(r_obj, a)[0])
+        if v is None:
+            try:
+                resp = link_inv(0.0) if link_inv else 0.0
+            except Exception:
+                resp = float('nan')
+            return 0.0, resp
+        null = link_fun(v) if link_fun else v
+        if not np.isfinite(null):
+            raise ValueError(
+                f"test_value={v:g} has no value on the scale the model is fitted on "
+                "(y_transform or link); choose a value inside its domain.")
+        return null, v
+
+    def _intercept_anova(self, method, data_to_use):
+        """Test of the mean for an intercept-only model, as a one-row ANOVA table.
+
+        emmeans::joint_tests, which builds the ANOVA for every other model, has
+        no factor to test here and stops ("There are no factors to test"). The
+        only fixed effect is the intercept, i.e. the mean, so the test is
+        emmeans' test of that one estimated marginal mean against
+        options.test_value, with the same df method as everywhere else. Without
+        a random effect this is the one-sample t-test; F = t^2 keeps the table
+        in the shape the rest of the output expects.
+        """
+        import rpy2.robjects.pandas2ri as p2ri
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        null, null_resp = self._intercept_null(r_obj)
+        ro.globalenv['kbstat_int_model'] = r_obj
+
+        def _test(m):
+            if m:
+                ro.r("emmeans::emm_options(lmer.df = '%s')" % m)
+            emm = ro.r('emmeans::emmeans(kbstat_int_model, ~ 1)')
+            return p2ri.rpy2py(ro.r('as.data.frame')(
+                ro.r('emmeans::test')(emm, null=null)))
+        try:
+            tst = _test(method)
+        except Exception as exc:
+            if method != 'kenward-roger':
+                raise
+            warnings.warn(
+                f"Kenward-Roger could not be computed for this model/dataset "
+                f"({type(exc).__name__}); falling back to Satterthwaite. Set "
+                "df_method='satterthwaite' or 'auto' to silence this.", stacklevel=2)
+            self._df_runtime = method = 'satterthwaite'
+            tst = _test(method)
+        row = tst.iloc[0]
+        est, se = float(row['emmean']), float(row['SE'])
+        df = float(row['df']) if 'df' in tst.columns else float('inf')
+        t = (est - null) / se
+        p = float(row['p.value'])
+        resp = p2ri.rpy2py(ro.r('as.data.frame')(
+            ro.r('emmeans::emmeans(kbstat_int_model, ~ 1, type = "response")')))
+        r0 = resp.iloc[0]
+        val_col = next(c for c in ('emmean', 'response', 'rate', 'prob') if c in resp.columns)
+        lo_col = next(c for c in ('lower.CL', 'asymp.LCL') if c in resp.columns)
+        hi_col = next(c for c in ('upper.CL', 'asymp.UCL') if c in resp.columns)
+        mean, lo, hi = float(r0[val_col]), float(r0[lo_col]), float(r0[hi_col])
+        if self.options.y_transform and self._inverse_fn is not None:
+            mean, lo, hi = (float(self._inverse_fn(np.array([v]))[0]) for v in (mean, lo, hi))
+        # Cohen's d: the distance from the tested value in units of the total
+        # SD of y -- every variance component plus the residual, so a random
+        # intercept does not make the same distance look larger. Not defined on
+        # a link scale, where there is no residual SD to divide by.
+        d = float('nan')
+        if self._family() == 'gaussian':
+            try:
+                if isinstance(self.model, Lmer):
+                    total = float(ro.r('function(m) sum(as.data.frame(lme4::VarCorr(m))$vcov)')(r_obj)[0])
+                else:
+                    total = float(ro.r('sigma')(r_obj)[0]) ** 2
+                d = (est - null) / np.sqrt(total)
+            except Exception:
+                pass
+        n_obs = self.n_obs_fit or len(data_to_use)
+        F = t ** 2
+        self.intercept_test = dict(mean=mean, ci_low=lo, ci_high=hi, null=null,
+                                   null_resp=null_resp, estimate=est, SE=se, df=df,
+                                   t=t, p=p, d=d)
+        table = pd.DataFrame([{'Term': '(Intercept)', 'DF1': 1.0, 'DF2': df, 'F': F, 'p': p}])
+        table['etaSqp'] = _f2eta_sq_p(table['F'], table['DF1'], table['DF2'], n_obs)
+        table['SMD'] = abs(d)
+        table['effectSize'] = table['etaSqp'].apply(_effect_label_eta)
+        table['significance'] = table['p'].apply(_sig_stars)
+        return table
+
+    def _intercept_emm(self):
+        """The overall mean as a one-row EMM grid keyed by the plot's constant
+        column, and the one-row statistics table, for an intercept-only model."""
+        import rpy2.robjects.pandas2ri as p2ri
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        ro.globalenv['kbstat_int_model'] = r_obj
+        emm = p2ri.rpy2py(ro.r('as.data.frame')(
+            ro.r('emmeans::emmeans(kbstat_int_model, ~ 1, type = "response")')))
+        emm = emm.drop(columns=[c for c in emm.columns if c == '1'])
+        emm.insert(0, self._ALL_COL, self._ALL_LEVEL)
+        self._emm_df = emm
+        self._emm_df_full = None
+        self.statistics_table = self._build_statistics_table([])
+
+    #: The constant one-level column an intercept-only model is plotted against,
+    #: so the single group goes through the same violin/EMM code as any factor.
+    _ALL_COL, _ALL_LEVEL = '_all', 'all'
+
+    def _variance_components(self):
+        """Variance components of a Gaussian LMM, or None.
+
+        A list of (group, term, variance) rows from lme4::VarCorr, residual
+        last; covariances between random terms are left out. Only for lmer
+        fits, where the residual variance is on the scale of y and the shares
+        are therefore interpretable as such.
+        """
+        if not isinstance(self.model, Lmer):
+            return None
+        import rpy2.robjects.pandas2ri as p2ri
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        try:
+            # The NA filtering is done in R: rpy2 hands NA_character_ over as
+            # an object that is neither None nor NaN, so pandas cannot see it.
+            vc = p2ri.rpy2py(ro.r(
+                'function(m) { d <- as.data.frame(lme4::VarCorr(m)); '
+                'd <- d[is.na(d$var2), ]; d$var1[is.na(d$var1)] <- ""; d }')(r_obj))
+        except Exception:
+            return None
+        rows = [(str(r.grp), str(r.var1), float(r.vcov)) for r in vc.itertuples()]
+        return rows or None
+
     def posthoc(self):
         """Perform post-hoc pairwise comparisons and build a comparison table.
 
@@ -1551,6 +1723,8 @@ class Kbstat:
             raise RuntimeError('Call fit() before posthoc()')
         factors = self.options.x if self.options.x else []
         if not factors:
+            if self._intercept_only():
+                self._intercept_emm()
             return None
         self.model.set_factors(factors)
         # Override the contr.treatment default that set_factors() hard-codes
@@ -3271,7 +3445,7 @@ class Kbstat:
         a white EMM marker with a 95 % CI bar, and significance brackets.
         """
         self._apply_font()
-        if not self.options.x:
+        if not self.options.x and not self._intercept_only():
             print("No independent variables to plot.")
             return
         # Use raw (untransformed) data for plotting so the y-axis is in original units
@@ -3281,6 +3455,9 @@ class Kbstat:
             base = base.copy()
             base['is_outlier'] = (self.data['is_outlier'].values
                                   if 'is_outlier' in self.data.columns else False)
+        if not self.options.x:
+            self.fig_data = self._intercept_figure(base)
+            return
 
         x_all = list(self.options.x)
 
@@ -3316,6 +3493,24 @@ class Kbstat:
             figs.update(self._compare_figures(base, var, x_ordered,
                                                self.contrasts_by_var.get(var)))
         self.fig_data = figs if figs else None
+
+    def _intercept_figure(self, base):
+        """Data plot of an intercept-only model: one violin of all observations
+        with the estimated mean and its CI, plus a dashed line at test_value
+        when one was given. Drawn by the ordinary data-figure code against a
+        constant one-level column, so it looks like any other kbstatpy plot."""
+        base = base.copy()
+        base[self._ALL_COL] = pd.Categorical([self._ALL_LEVEL] * len(base))
+        self._display_names.setdefault(self._ALL_COL, '')
+        fig = self._build_data_figure(base, [self._ALL_COL], {}, contrasts=None)
+        tv = self.options.test_value
+        if tv is not None and fig is not None and fig.axes:
+            ax = fig.axes[0]
+            ax.axhline(tv, color='0.35', lw=1.2, ls='--', zorder=0.5)
+            ax.annotate(f'test value {tv:g}', xy=(1, tv), xycoords=('axes fraction', 'data'),
+                        xytext=(-4, 3), textcoords='offset points', ha='right',
+                        va='bottom', fontsize=9, color='0.35')
+        return fig
 
     def _compare_figures(self, base, var, x_ordered, contrasts):
         """Build the data figure(s) for one comparison variable, keyed by the
@@ -5072,6 +5267,9 @@ class Kbstat:
     def _formula_tail(self, y, rhs):
         """Attach the random-effect terms to a finished fixed-effect right-hand
         side. Shared by the explicit and the resolved-structure paths."""
+        # No factor and no covariate is the intercept-only model, y ~ 1: written
+        # out, since 'y ~ ' is not a formula and '~ + z' only parses by luck.
+        rhs = rhs.strip().strip('+').strip() or '1'
         groups = self._id_groups()
         if groups:
             # Slopes attach to the first grouping factor only. Repeating them on
@@ -5189,6 +5387,13 @@ class Kbstat:
         # optional \w* also strips a covariance-structure prefix like diag(...).
         fixed_rhs = re.sub(r'\+?\s*\w*\([^)]+\)', '', rhs).strip().strip('+').strip()
 
+        # The intercept controls 1, 0 and -1 are not variables. Read as one,
+        # `y ~ 1` reported a factor called '1' and `y ~ 1 + group` handed it
+        # to emmeans as a factor to compare.
+        fixed_rhs = '+'.join(t for t in re.split(r'[+]', fixed_rhs)
+                             if t.strip() not in ('0', '1', '-1', '')
+                             and not t.strip().startswith('-'))
+
         # Collect unique main-effect variable names (ignore interaction terms with :)
         x = []
         seen = set()
@@ -5226,7 +5431,8 @@ class Kbstat:
             # Exclude declared covariates so they don't appear as factors
             covs = set(self.options.covariate)
             self.options.x = [v for v in parsed['x'] if v not in covs]
-            print(f'Detected independent variables: {", ".join(self.options.x)}')
+            if self.options.x:
+                print(f'Detected independent variables: {", ".join(self.options.x)}')
             if covs:
                 print(f'Detected covariates          : {", ".join(self._disp(c) for c in self.options.covariate)}')
         if not self.options.id:
@@ -5470,6 +5676,8 @@ class Kbstat:
         because it is what a plain `x` now gives: since 1.22.0 `interaction`
         defaults to 'auto'.
         """
+        if self._intercept_only():
+            return 'intercept only (no predictors)'
         labels = []
         r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
         if r_obj is not None:
@@ -5721,7 +5929,8 @@ class Kbstat:
         re_note = self._re_structure_note()
         if re_note:
             lines.append(f'  Random-slope structure : {re_note}')
-        lines.append(f'  Contrast coding        : effects (contr.sum)')
+        if self.options.x:                  # no factor, no coding to report
+            lines.append(f'  Contrast coding        : effects (contr.sum)')
         if self.model is not None:
             lines.append(f'  {"Deg.-of-freedom method":<22} : {self._df_method_label()}')
         lines.append('')
@@ -5737,7 +5946,7 @@ class Kbstat:
         # ANOVA row. Different dependent variables can legitimately differ here,
         # since their missing-value patterns differ.
         _ia_terms, _ia_dropped = self._resolve_interaction()
-        if _ia_terms is not None:
+        if _ia_terms is not None and len(self.options.x or []) > 1:
             _spec = self.options.interaction
             _asked = ("every estimable interaction" if _spec == 'auto'
                       else "the full factorial" if _spec == 'all'
@@ -5795,7 +6004,9 @@ class Kbstat:
             lines += ['FIXED EFFECTS', '-------------', coef_df.to_string(), '']
 
         # --- ANOVA table ---
-        if self.anova_table is not None:
+        if self.anova_table is not None and self.intercept_test is not None:
+            lines += self._intercept_test_lines()
+        elif self.anova_table is not None:
             at = self.anova_table.to_pandas() if hasattr(self.anova_table, 'to_pandas') else self.anova_table
             lines += ['ANOVA (Type III)', '----------------',
                       _bounded_p_table(self._disp_vals(at, 'Term')).to_string(index=False),
@@ -5878,6 +6089,8 @@ class Kbstat:
                         'method used here is the more principled one.',
                         '',
                     ]
+
+        lines += self._variance_component_lines()
 
         # --- Model-structure comparison (opt-in) ---
         mc = getattr(self, 'model_comparison_table', None)
@@ -6166,6 +6379,91 @@ class Kbstat:
 
         return '\n'.join(lines)
 
+    def _intercept_test_lines(self) -> list:
+        """Summary section for an intercept-only model: the mean and its test."""
+        it = self.intercept_test
+        yu = self.options.y_units
+        if isinstance(yu, (list, tuple)):
+            yu = yu[0] if len(yu) == 1 else ''
+        unit = f' {yu}' if isinstance(yu, str) and yu.strip() not in ('', '1') else ''
+        has_re = bool(self._id_groups())
+        inf_df = not np.isfinite(it['df'])
+        stat = (f"z = {it['t']:.3f}" if inf_df else f"t({it['df']:.4g}) = {it['t']:.3f}")
+        tv = self.options.test_value
+        if tv is not None:
+            against = f'{tv:g}{unit} (options.test_value)'
+        elif self.options.y_transform or self._family() != 'gaussian':
+            against = (f'0 on the fitted scale, i.e. {it["null_resp"]:.4g}{unit} '
+                       'on the scale of y')
+        else:
+            against = f'0{unit}'
+        lines = ['TEST OF THE MEAN (intercept-only model)',
+                 '---------------------------------------',
+                 f"  Mean (EMM) [95% CI] : {it['mean']:.4g}{unit} "
+                 f"[{it['ci_low']:.4g}, {it['ci_high']:.4g}]",
+                 f'  Tested against      : {against}',
+                 f"  Test                : {stat}, {_p_text(it['p'])}"]
+        if np.isfinite(it['d']):
+            lines.append(f"  Cohen's d           : {it['d']:.3f} "
+                         f"({_cohen_label(abs(it['d']), (0.2, 0.5, 0.8))})")
+        lines += [f'  Denominator df method: {self._df_method_label()}', '']
+        if not has_re and self._family() == 'gaussian' and not self.options.y_transform:
+            lines += ['  The model has no predictor, so its only coefficient is the mean:',
+                      '  y = b0 + e. Testing b0 is the one-sample t-test.']
+        elif has_re:
+            lines += ['  The model has no predictor, so its only fixed coefficient is the',
+                      '  mean: y = b0 + u + e, with u the random intercept. The test',
+                      '  counts the grouping units, not the rows, as the replicates, so',
+                      '  several values per unit do not inflate it.']
+        else:
+            lines += ['  The model has no predictor, so its only coefficient is the mean,',
+                      '  tested on the scale the model is fitted on.']
+        if tv is None:
+            lines += ['  Set options.test_value to test against another value.']
+        if self._family() == 'gaussian':
+            lines += ["  Cohen's d is the distance from the tested value in units of the",
+                      '  total SD of y' + (' (all variance components plus the residual)'
+                                            if has_re else '')
+                      + (', on the transformed scale.' if self.options.y_transform else '.')]
+        lines.append('')
+        return lines
+
+    def _variance_component_lines(self) -> list:
+        """Summary section: variance per random term and residual, and the ICC
+        where the random part is intercepts only."""
+        vc = self._variance_components()
+        if not vc:
+            return []
+        total = sum(v for _, _, v in vc)
+        w = max(8, *(len(self._disp(g)) for g, _, _ in vc))
+        lines = ['VARIANCE COMPONENTS', '-------------------',
+                 f'  {"group":<{w}}  {"term":<12} {"variance":>10} {"SD":>9} {"share":>7}']
+        for g, term, v in vc:
+            lines.append(f'  {self._disp(g):<{w}}  {term:<12} {v:10.4g} '
+                         f'{np.sqrt(v):9.4g} {v / total:7.1%}')
+        intercepts_only = all(t in ('(Intercept)', '') for _, t, _ in vc)
+        if intercepts_only and total > 0:
+            adjusted = not self._intercept_only()
+            for g, term, v in vc:
+                if g != 'Residual':
+                    lines.append(f'  ICC ({self._disp(g)})'
+                                 + (' adjusted' if adjusted else '')
+                                 + f' : {v / total:.3f}')
+            lines += ['  The ICC is the share of the variance that lies between the units',
+                      '  of the grouping factor: 0 means they do not differ, 1 means all',
+                      '  values within a unit are equal. With one grouping factor it is',
+                      '  the reliability of a single measurement, ICC(1).']
+            if adjusted:
+                lines += ['  "adjusted": computed after the fixed effects, so it describes',
+                          '  the variance they leave unexplained.']
+        else:
+            lines += ['  No ICC: with random slopes the share of a grouping factor depends',
+                      '  on the value of the slope variable.']
+        if self.options.y_transform:
+            lines += ['  Variances are on the transformed scale (y_transform).']
+        lines.append('')
+        return lines
+
     def _write_summary(self, out_dir: str):
         """Write the analysis summary to Summary.txt."""
         with open(os.path.join(out_dir, 'Summary.txt'), 'w', encoding='utf-8') as fh:
@@ -6206,7 +6504,8 @@ class Kbstat:
         # observed=True: report only factor-level combinations that actually
         # occur. With categorical factors the default (observed=False) returns
         # the full cartesian product, padding the table with empty N=0/NaN cells.
-        groups = self.data.groupby(factors, observed=True)
+        groups = (self.data.groupby(factors, observed=True) if factors
+                  else [((), self.data)])                  # intercept-only: one row
         for keys, group in groups:
             if not isinstance(keys, tuple):
                 keys = (keys,)
@@ -6357,6 +6656,16 @@ def _bounded_p_table(df):
         out[col] = ['' if pd.isna(v) else ('<1e-308' if v == 0 else f'{v:.6e}')
                     for v in vals]
     return out
+
+
+def _p_text(p):
+    """'p = 0.0123' for the summary prose, with the same underflow bound as
+    _bounded_p_table."""
+    if p is None or not np.isfinite(p):
+        return 'p = n/a'
+    if p == 0:
+        return 'p < 1e-308'
+    return f'p = {p:.4g}' if p >= 1e-4 else f'p = {p:.3e}'
 
 
 def _f2eta_sq_p(F, df1, df2, n_obs=None):

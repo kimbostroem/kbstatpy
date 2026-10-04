@@ -1,5 +1,16 @@
 # Changes
 
+## [1.36.0] - 2026-10-04
+
+### Features
+
+- Intercept-only models: `x = ''` or `formula = 'y ~ 1'` fits the mean alone. `y ~ 1` is the one-sample t-test; `y ~ 1 + (1 | id)` counts units, not rows. `Summary.txt` reports the mean, its CI, Cohen's d and the test against the new `test_value` (default 0).
+- `Summary.txt` lists the variance components of normal mixed models, and the ICC where the random part is intercepts only (labelled adjusted when there are fixed effects).
+
+### Bugs
+
+- The `1` of an explicit formula was read as a factor, so `y ~ 1` crashed and `y ~ 1 + group` failed in the post-hoc.
+
 ## [1.35.0] - 2026-10-01
 
 ### Features

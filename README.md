@@ -231,6 +231,8 @@ options.formula = 'y1 ~ x1 + (1 | subject)'   # fits y1 only, and warns that y i
 
 Random terms are written as in lme4, including nested (`(1 | subject/session)`) and several terms (`(1 | subject) + (1 | subject:session)`).
 
+**Intercept-only models.** With no factor and no covariate, either `options.x = ''` or `formula = 'y ~ 1'`, the model is the mean alone: `y ~ 1` is the one-sample t-test, `y ~ 1 + (1 | subject)` the same with several values per subject. `Summary.txt` then reports the mean with its CI and its test against `test_value` (default 0), and the data plot is a single violin. See [Intercept-only models](STATISTICAL_NOTES.md#intercept-only-models-the-mean-and-the-icc).
+
 With neither given, the dependent variable is taken from the formula. The cost of the convention is that a column genuinely called `y` or `Y` cannot be named on the left; set `options.y` to it instead.
 
 
@@ -272,6 +274,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 | `max_iterations` | int | Default `10000`. Optimizer cap for glmmTMB fits. Raise it if a large model reports an iteration limit at the optimum |
 | `df_method` | str | Default `'auto'`. Denominator df for the ANOVA and the post-hoc, used for both so they agree. Also `'kenward-roger'`, `'satterthwaite'`, `'asymptotic'`. See [Degrees of freedom](STATISTICAL_NOTES.md#degrees-of-freedom-kenward-roger-and-satterthwaite) |
 | `kr_max_obs` | int | Default `5000`. Above this, `df_method='auto'` takes Satterthwaite. A cost threshold, not a statistical one; `0` removes it |
+| `test_value` | float | Default `None` (tests against 0). Value the mean is tested against in an intercept-only model, in the units of y; drawn as a dashed line in the data plot. Ignored, with a warning, when `x` or `covariate` is set |
 | `model_comparison` | bool | Default `False`. Report AIC/BIC for a ladder of fixed-effect structures beside the fitted one. **A report, not a selection**, see [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
 | `remove_outliers_prefit` | bool | Default `False`. Exclude outliers before fitting, by the IQR rule per group |
 | `remove_outliers_postfit` | bool | Default `False`. Exclude outliers after fitting, by Pearson residual, then refit. Combines with the prefit rule |
@@ -556,11 +559,11 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 
 | File | Contents |
 |---|---|
-| `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², SMD, effect size label |
+| `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², SMD, effect size label. For an intercept-only model, one row: the test of the mean (F = t²) |
 | `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference, t/z, SMD, p (raw + corrected) |
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, EMM, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered. With `scale_covariates` on, each scaled covariate appears beside its original as `<name>_scaled` |
-| `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes |
+| `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes. For a normal mixed model also the variance components and, where the random part is intercepts only, the ICC |
 | `DataPlots.pdf/.png/.html` | Data plots with model 95 % CI bar, EMM marker, and significance brackets. Style depends on `plot_style`: violin + jitter scatter (default for continuous outcomes), or observed mean/proportion bars (default for binary outcomes). `show_emm_lines` extends each group's EMM across the panel as a reference line, and `show_group_size` labels each group with its observation count. The `.html` version is interactive: hover over any data point to see its observation index, group, and value; hover over an EMM dot to see the marginal mean. A single plot shows at most three factors (x-axis, column facets, row facets); with a 4th (or further) fixed-effect factor the plot is split into one file per level-combination of the extra factor(s), named `DataPlots_<level>` (e.g. `DataPlots_male`, `DataPlots_female`) |
 | `Diagnostics.pdf/.png/.html` | Six model diagnostic plots: histogram of residuals, Q-Q plot, residuals vs. fitted, lagged residuals, fitted vs. response, and either a random-effects Q-Q plot (for models with a random effect) or a Scale-Location plot (for plain linear models). The distribution panels (histogram, Q-Q) use DHARMa quantile residuals (normal-scaled; ~N(0,1) under a correct model for any family, so they are valid normality checks even for non-Gaussian GLMMs, with a deviance/Pearson fallback if DHARMa is unavailable); the structure panels (residuals vs. fitted, lagged, scale-location) use deviance residuals, which avoid the quantile residuals' boundary capping and suit structure/autocorrelation/homoscedasticity checks. The `.html` version is interactive with hover tooltips on all scatter panels. Inspect after every run — visual diagnostics are more reliable than formal tests (Shapiro–Wilk, Levene, Durbin–Watson) because formal tests have too little power at small n and flag trivial deviations at large n. See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#diagnostic-plots) for panel-by-panel interpretation |
 | `<script>.py` / `analysis.py` | The code that created the options (`save_script`), in `out_dir` itself: the script under its own name, or the notebook cell as `analysis.py` with the run call appended, so the folder can be rerun |

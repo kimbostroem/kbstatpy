@@ -246,6 +246,17 @@ class KbstatOptions:
     # more with random slopes, which dominate the cost far more than row count.
     model_comparison: bool = False
 
+    # The value the mean is tested against in an intercept-only model
+    # (`y ~ 1`, `y ~ 1 + (1 | id)`: no x and no covariate), in the units of y.
+    # Without a random effect this is the one-sample t-test. None (default)
+    # tests against 0 on the scale the model is fitted on -- 0 for a normal
+    # outcome, which is what a column of differences is tested against -- and
+    # draws no reference line, since 0 is often far outside the data. A number
+    # is tested on the response scale (passed through y_transform or the link)
+    # and drawn as a dashed line in the data plot. Ignored when x or a
+    # covariate is set.
+    test_value: object = None
+
     # Write the code that created these options into out_dir beside the
     # results, so a results folder always carries the analysis that produced
     # it: a script is copied under its own name, a notebook cell is written as

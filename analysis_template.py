@@ -34,7 +34,7 @@ options.out_dir = 'results/my_analysis'     # created if missing, relative to ba
 # The model                                                         [required]
 # ---------------------------------------------------------------------------
 options.y  = 'my_outcome'                   # dependent variable, comma-separated for several
-options.x  = 'group, condition'             # fixed factor(s), the first goes on the x-axis
+options.x  = 'group, condition'             # fixed factor(s), the first goes on the x-axis; '' = y ~ 1, the mean alone
 options.id = 'subject'                      # random grouping factor, '' for no random effect
 
 # options.interaction = 'auto'             # DEFAULT: every interaction the design supports
@@ -79,6 +79,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # ---------------------------------------------------------------------------
 # options.df_method        = 'auto'         # auto | kenward-roger | satterthwaite | asymptotic
 # options.model_comparison = False          # AIC/BIC for additive vs two-way vs factorial
+# options.test_value       = 175            # x = '': test the mean against this value (default 0)
 
 # ---------------------------------------------------------------------------
 # Post-hoc comparisons

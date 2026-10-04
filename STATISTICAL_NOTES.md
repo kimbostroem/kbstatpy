@@ -4,6 +4,7 @@
 
 - [Why linear mixed models — and why GLM?](#why-linear-mixed-models-and-why-glm)
 - [Equivalence to classical tests](#equivalence-to-classical-tests)
+  - [Intercept-only models: the mean and the ICC](#intercept-only-models-the-mean-and-the-icc)
   - [Independent-samples t-test (Demo 1)](#independent-samples-t-test-demo-1)
   - [Paired t-test (Demo 2)](#paired-t-test-demo-2)
   - [Two-way ANOVA (Demo 3)](#two-way-anova-demo-3)
@@ -86,6 +87,16 @@ When the classical assumptions *are* met, the full GLMM reduces to its classical
 ## Equivalence to classical tests
 
 kbstatpy fits all models through the LMM/GLMM framework, but for simple designs the results reduce exactly (or nearly exactly) to their classical counterparts.
+
+### Intercept-only models: the mean and the ICC
+
+The simplest model has no predictor at all: `y ~ 1`, i.e. y = β₀ + ε. Its only coefficient is the mean, and testing β₀ against a value μ₀ (`options.test_value`, default 0) is the **one-sample t-test**: same t, same df = n − 1, same p. Against 0 it is also the test of a column of differences, which is what a paired t-test computes internally.
+
+With several values per unit, `y ~ 1 + (1 | id)` adds a random intercept, y = β₀ + u_id + ε. The test of β₀ then counts the units, not the rows, as the replicates; on balanced data it equals the one-sample t-test on the per-unit means, with df = (number of units) − 1. Treating the rows as independent instead would overstate the df and understate the p-value, which is the pseudo-replication the random intercept exists to prevent.
+
+The same model splits the variance of y into the part between units (σ²_id) and the part within them (σ²_ε). Their ratio is the **intraclass correlation**, ICC = σ²_id / (σ²_id + σ²_ε), the share of the variance that lies between units. With persons as units and repeated measurements of the same quantity, it is the reliability of a single measurement, ICC(1) in the Shrout and Fleiss scheme (one-way random effects, single measure; Koo and Li 2016). kbstatpy reports the variance components of every normal mixed model in `Summary.txt`, and the ICC wherever the random part has intercepts only. In a model with fixed effects the ICC is labelled *adjusted*: it is computed from the variance the fixed effects leave unexplained, so it answers a different question from the intercept-only ICC and is typically larger. With random slopes no ICC is given, since a unit's share of the variance then depends on the value of the slope variable.
+
+Cohen's d for the test of the mean is (mean − μ₀) / SD, with SD the total standard deviation of y: every variance component plus the residual. Dividing by the residual SD alone would make the same distance look larger the more of the variance the random intercept absorbs. For a GLMM the test is on the link scale against the linked value of `test_value`, and no d is given.
 
 ### Independent-samples t-test (Demo 1)
 
