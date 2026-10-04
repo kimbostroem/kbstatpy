@@ -4584,15 +4584,19 @@ class Kbstat:
             sqrt_abs = np.sqrt(np.abs(struct_resid))
             sns.scatterplot(x=fitted, y=sqrt_abs, ax=axes[5], s=s_diag)
             order = np.argsort(fitted)
-            try:  # lowess trend if available, else a linear fit
-                from statsmodels.nonparametric.smoothers_lowess import lowess
-                sm = lowess(sqrt_abs, fitted, frac=0.67, return_sorted=True)
-                axes[5].plot(sm[:, 0], sm[:, 1], color='red', linestyle='--', linewidth=1.2)
-            except Exception:
-                if len(fitted) > 2:
-                    coef = np.polyfit(fitted, sqrt_abs, 1)
-                    axes[5].plot(fitted[order], np.polyval(coef, fitted[order]),
-                                 color='red', linestyle='--', linewidth=1.2)
+            # An intercept-only LM has one fitted value for every row: there is
+            # no trend to draw, and fitting one only warns ("poorly conditioned").
+            flat = np.ptp(fitted) <= 1e-12 * max(1.0, np.abs(fitted).max())
+            if not flat:
+                try:  # lowess trend if available, else a linear fit
+                    from statsmodels.nonparametric.smoothers_lowess import lowess
+                    sm = lowess(sqrt_abs, fitted, frac=0.67, return_sorted=True)
+                    axes[5].plot(sm[:, 0], sm[:, 1], color='red', linestyle='--', linewidth=1.2)
+                except Exception:
+                    if len(fitted) > 2:
+                        coef = np.polyfit(fitted, sqrt_abs, 1)
+                        axes[5].plot(fitted[order], np.polyval(coef, fitted[order]),
+                                     color='red', linestyle='--', linewidth=1.2)
             axes[5].set_title("Scale-Location")
             axes[5].set_xlabel("Fitted Values", labelpad=4)
             axes[5].set_ylabel(r"$\sqrt{|\mathrm{Residuals}|}$", labelpad=4)

@@ -615,14 +615,16 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_16_profile.py` | `toothgrowth.csv` | Level-wise profile analysis with `profile_across` — how the supp effect changes across the ordered dose levels: per-level contrast (Layer 1) + focused linear-trend interaction (Layer 2) |
 | `demo_17_dispersion.py` | `toothgrowth.csv` | Per-group dispersion with `dispersion` (glmmTMB `dispformula`) — a Gamma model fitted with constant vs by-dose dispersion; the by-dose fit lowers AIC when groups differ in relative scatter |
 | `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
+| `demo_19_intercept_only.py` | `sleepstudy.csv` | Intercept-only models: `Reaction ~ 1` (one-sample t-test against `test_value` = 250 ms) vs `Reaction ~ 1 + (1 \| Subject)` on the two baseline days. Same mean, but t(35) becomes t(17): pseudo-replication. The ICC is the test-retest reliability |
 
-**Equivalence to classical tests** (demos 1–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
+**Equivalence to classical tests** (demos 1–5, 19) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
 - **Demo 1** — identical to an independent-samples t-test (F = t², same df and p-value)
 - **Demo 2** — equivalent to a paired t-test for balanced data (same estimate, SE, df = n − 1, and p-value); generalises to missing data and unequal group sizes
 - **Demo 3** — identical to a classical two-way factorial ANOVA with Type III SS (10 observations per cell)
 - **Demo 4** — identical to a one-way repeated-measures ANOVA (4-level within-subject factor) under compound symmetry; LMM generalises to missing cells and unbalanced designs
 - **Demo 5** — classical Pearson correlation; additionally computes partial correlations to isolate direct associations when variables co-trend
+- **Demo 19** — `y ~ 1` is the one-sample t-test; with a random intercept the test counts subjects, not rows, and the variance components give the ICC
 
 **Transcending classical tests** (demos 6–11) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -690,6 +692,7 @@ results inline:
 | 16 · Level-wise profile (`profile_across`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_16_profile.ipynb) |
 | 17 · Per-group dispersion (`dispersion`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_17_dispersion.ipynb) |
 | 18 · Plot annotations (`show_emm_lines`, `show_group_size`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_18_plot_annotations.ipynb) |
+| 19 · Intercept-only models: one-sample t-test and ICC | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_19_intercept_only.ipynb) |
 
 ---
 

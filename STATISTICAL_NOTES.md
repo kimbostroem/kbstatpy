@@ -90,6 +90,8 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Intercept-only models: the mean and the ICC
 
+Demo 19 shows both models side by side on the two baseline days of `sleepstudy`.
+
 The simplest model has no predictor at all: `y ~ 1`, i.e. y = β₀ + ε. Its only coefficient is the mean, and testing β₀ against a value μ₀ (`options.test_value`, default 0) is the **one-sample t-test**: same t, same df = n − 1, same p. Against 0 it is also the test of a column of differences, which is what a paired t-test computes internally.
 
 With several values per unit, `y ~ 1 + (1 | id)` adds a random intercept, y = β₀ + u_id + ε. The test of β₀ then counts the units, not the rows, as the replicates; on balanced data it equals the one-sample t-test on the per-unit means, with df = (number of units) − 1. Treating the rows as independent instead would overstate the df and understate the p-value, which is the pseudo-replication the random intercept exists to prevent.

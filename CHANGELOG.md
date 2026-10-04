@@ -1,5 +1,15 @@
 # Changes
 
+## [1.36.1] - 2026-10-04
+
+### Features
+
+- Demo 19: intercept-only models on the `sleepstudy` baseline days. `Reaction ~ 1` against 250 ms, then with a random intercept per subject: same mean, t(35) becomes t(17), and the ICC gives the test-retest reliability. Script and Colab notebook.
+
+### Bugs
+
+- The diagnostics of an intercept-only model without random effect no longer warn "Polyfit may be poorly conditioned"; with one fitted value there is no trend to draw.
+
 ## [1.36.0] - 2026-10-04
 
 ### Features
