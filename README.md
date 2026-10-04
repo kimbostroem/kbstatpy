@@ -250,9 +250,19 @@ With neither given, the dependent variable is taken from the formula. The cost o
 
 ## Options reference
 
-**Values are case-insensitive, and a wrong one raises.** The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `split_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
+<details>
+<summary><b>Values are case-insensitive, and a wrong one raises</b></summary>
 
-**Switching an option off.** Which of `''` and `'none'` turns something off depends on what the option names, and the two are not interchangeable. Options that name *things* — variables, factors, expressions (`x`, `covariate`, `slope`, `interaction`, `correlation`, `correlation_control`, `profile_across`, `dispersion`, `constraints`, `split`) — are switched off by leaving them **empty**; `'none'` there is read as a name, so `correlation = 'none'` looks for a column called `none` and fails. Options that name a *mode or method* (`posthoc_correction`, `y_correction`, `split_correction`, `data_outliers`, `x_label`, `y_label`) take **`'none'`** as one of their listed choices, and `''` falls back to the default rather than to "off". On/off flags (`show_group_size`, `show_emm_lines`, `remove_outliers_*`) also accept `'none'` for off, alongside `False`. Two deliberate exceptions: `posthoc_compare` accepts either spelling, and for `title` the two differ — `''` shows the plain variable name, `'none'` removes the title entirely.
+The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `split_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
+
+</details>
+
+<details>
+<summary><b>Switching an option off</b></summary>
+
+Which of `''` and `'none'` turns something off depends on what the option names, and the two are not interchangeable. Options that name *things* — variables, factors, expressions (`x`, `covariate`, `slope`, `interaction`, `correlation`, `correlation_control`, `profile_across`, `dispersion`, `constraints`, `split`) — are switched off by leaving them **empty**; `'none'` there is read as a name, so `correlation = 'none'` looks for a column called `none` and fails. Options that name a *mode or method* (`posthoc_correction`, `y_correction`, `split_correction`, `data_outliers`, `x_label`, `y_label`) take **`'none'`** as one of their listed choices, and `''` falls back to the default rather than to "off". On/off flags (`show_group_size`, `show_emm_lines`, `remove_outliers_*`) also accept `'none'` for off, alongside `False`. Two deliberate exceptions: `posthoc_compare` accepts either spelling, and for `title` the two differ — `''` shows the plain variable name, `'none'` removes the title entirely.
+
+</details>
 
 | Option | Type | Description |
 |---|---|---|
