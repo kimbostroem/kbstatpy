@@ -1,5 +1,15 @@
 # Changes
 
+## [1.37.0] - 2026-10-04
+
+### Features
+
+- `in_file` may be a URL. A share link without file extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised as CSV or Excel by its content, so data can be read straight from a link without uploading it. A link to the share's web page is rejected with a hint.
+
+### Bugs
+
+- A `.CSV` file with an upper-case extension was read as Excel and failed.
+
 ## [1.36.2] - 2026-10-04
 
 ### Changes

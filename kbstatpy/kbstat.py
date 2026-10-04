@@ -426,7 +426,7 @@ class Kbstat:
         the process, so the rest of the script keeps resolving against the
         working directory as before. An absolute path ignores it either way.
         """
-        if not path or os.path.isabs(path):
+        if not path or os.path.isabs(path) or _is_url(path):
             return path
         base = getattr(self.options, 'base_dir', '') or ''
         if base:
@@ -4755,11 +4755,13 @@ class Kbstat:
         path = self.options.in_file
         if not path:
             raise ValueError('options.in_file is required')
-        if path.endswith('.csv'):
-            self.data = pd.read_csv(path, sep=None, engine='python', encoding_errors='replace')
+        source, is_csv = (_fetch_url(path) if _is_url(path)
+                          else (path, path.lower().endswith('.csv')))
+        if is_csv:
+            self.data = pd.read_csv(source, sep=None, engine='python', encoding_errors='replace')
             self.data.columns = self.data.columns.str.lstrip('﻿')
         else:
-            self.data = pd.read_excel(path)
+            self.data = pd.read_excel(source)
 
         # options.split: this worker analyses one level's rows only. Filtered here,
         # before the raw copy for plotting, so model and plots see the same rows.
@@ -6660,6 +6662,53 @@ def _bounded_p_table(df):
         out[col] = ['' if pd.isna(v) else ('<1e-308' if v == 0 else f'{v:.6e}')
                     for v in vals]
     return out
+
+
+def _is_url(path) -> bool:
+    """Whether in_file names a web address rather than a file."""
+    return isinstance(path, str) and path.strip().lower().startswith(('http://', 'https://', 'ftp://'))
+
+
+def _fetch_url(url, timeout=60):
+    """Download in_file from a URL; return (file-like, is_csv).
+
+    A share link often has no file extension -- a sciebo/Nextcloud link ends in
+    /download -- so the format is read from the bytes themselves: xlsx is a zip
+    archive, xls an OLE file, anything else is taken as text. A link to the
+    share's web page instead of the file returns HTML, which pandas would read
+    as a table of garbage without complaint; that is caught here, since it is
+    the mistake almost everyone makes with a share link once.
+    """
+    import io
+    import urllib.error
+    import urllib.request
+    import ssl
+    req = urllib.request.Request(url, headers={'User-Agent': 'kbstatpy'})
+    # The python.org builds for macOS do not use the system certificates, so
+    # every https download fails there with CERTIFICATE_VERIFY_FAILED until the
+    # user runs "Install Certificates.command". certifi's bundle, where it is
+    # installed (it comes with requests and most data stacks), avoids that.
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            data = resp.read()
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"options.in_file: the server answered {e.code} {e.reason} for {url}") from None
+    except urllib.error.URLError as e:
+        raise ValueError(f"options.in_file: could not reach {url} ({e.reason})") from None
+    head = data[:512].lstrip().lower()
+    if head.startswith((b'<!doctype html', b'<html')) or b'<html' in head[:200]:
+        raise ValueError(
+            f"options.in_file: {url} returns a web page, not a data file. For a "
+            "sciebo/Nextcloud share link, add /download at the end "
+            "(https://.../s/<token>/download).")
+    if data[:4] == b'PK\x03\x04' or data[:8] == b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1':
+        return io.BytesIO(data), False
+    return io.StringIO(data.decode('utf-8-sig', errors='replace')), True
 
 
 def _p_text(p):

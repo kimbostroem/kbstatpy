@@ -86,7 +86,11 @@ Run the cell and pick your file. It lands in `/content`, the notebook's working
 directory, so the options below find it by its plain file name. The cell then
 shows the columns and the first rows, which you need for the options.
 
-Alternatively, drag the file into the Files pane (folder icon on the left)."""
+Alternatively, drag the file into the Files pane (folder icon on the left).
+
+**Data behind a link need no upload:** set `options.in_file` to the URL instead
+of a file name. A sciebo/Nextcloud share link works too; add `/download` at its
+end (`https://.../s/<token>/download`)."""
 
 UPLOAD_CODE = """import sys
 import pandas as pd

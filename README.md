@@ -266,7 +266,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 
 | Option | Type | Description |
 |---|---|---|
-| `in_file` | str | Path to the input data (`.csv` or `.xlsx`) |
+| `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint |
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
 | `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
