@@ -90,7 +90,7 @@ kbstatpy fits all models through the LMM/GLMM framework, but for simple designs 
 
 ### Intercept-only models: the mean and the ICC
 
-Demo 19 shows both models side by side on the two baseline days of `sleepstudy`.
+Demo 0 shows both models side by side on the two baseline days of `sleepstudy`.
 
 The simplest model has no predictor at all: `y ~ 1`, i.e. y = β₀ + ε. Its only coefficient is the mean, and testing β₀ against a value μ₀ (`options.test_value`, default 0) is the **one-sample t-test**: same t, same df = n − 1, same p. Against 0 it is also the test of a column of differences, which is what a paired t-test computes internally.
 

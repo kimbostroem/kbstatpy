@@ -1,4 +1,4 @@
-"""Demo 19 — Intercept-only models: the mean, the one-sample t-test and the ICC
+"""Demo 0 — Intercept-only models: the mean, the one-sample t-test and the ICC
 
 The simplest model has no predictor at all: every value is one common number
 plus a deviation,
@@ -45,8 +45,8 @@ def options(out_dir, id_var):
 
 # 1. Every row counted as independent: the one-sample t-test, t(35).
 # options.formula = 'Reaction ~ 1'               # alternative: Wilkinson formula
-Kbstat(options('results/demo_19_intercept_only/one_sample', '')).run_save()
+Kbstat(options('results/demo_00_intercept_only/one_sample', '')).run_save()
 
 # 2. A random intercept per subject: t(17), and the ICC in Summary.txt.
 # options.formula = 'Reaction ~ 1 + (1 | Subject)'
-Kbstat(options('results/demo_19_intercept_only/random_intercept', 'Subject')).run_save()
+Kbstat(options('results/demo_00_intercept_only/random_intercept', 'Subject')).run_save()

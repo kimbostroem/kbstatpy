@@ -1,5 +1,11 @@
 # Changes
 
+## [1.36.2] - 2026-10-04
+
+### Changes
+
+- The intercept-only demo is now demo 0 (`demo_00_intercept_only`), first in every list, since `y ~ 1` is the most basic model. The other demos keep their numbers and links; the `demo_19` links of 1.36.1 no longer work.
+
 ## [1.36.1] - 2026-10-04
 
 ### Features
