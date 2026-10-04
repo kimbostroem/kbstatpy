@@ -71,6 +71,11 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Python C:\Users\me\anacond
 
 Only Python is installed per environment. The R packages go into your R user library and are shared by every environment, which is what you want: they are the same packages either way.
 
+<details>
+<summary><b>If the Windows install fails</b></summary>
+
+The messages below are the common ones on Windows. Each is followed by what it means and what to do.
+
 > **`python.exe : Python was not found; run without arguments to install from the Microsoft Store`**
 > PowerShell found the Microsoft Store placeholder named `python.exe` instead of your Python — usually because Anaconda is installed but no environment is activated in the shell you called from. Activate one, or pass `-Python`, as above. (Up to version 1.15.0 the installer aborted here with a `NativeCommandError` instead of moving on to the next interpreter; fixed in 1.15.1.)
 
@@ -83,6 +88,11 @@ Only Python is installed per environment. The R packages go into your R user lib
 
 > **`UnicodeDecodeError: 'utf-8' codec can't decode byte ...` while R prints a message**
 > R is reporting in a language whose accented characters `rpy2` cannot decode, so the real message is lost behind this one. Switch R to English and open a new shell: `[Environment]::SetEnvironmentVariable('LANGUAGE', 'en', 'User')`.
+
+</details>
+
+<details>
+<summary><b>What the installers do</b></summary>
 
 Either installer:
 1. Checks the prerequisites and **stops with instructions if one is missing or too old** — which package manager command or download page to use for Python 3.10+ and R 4.4+ on your platform, rather than a failure further down that does not name the cause
@@ -101,6 +111,8 @@ On **Linux** the opposite holds: CRAN serves Linux packages as source only, so a
 To avoid compiling altogether, point R at a binary repository — [Posit Package Manager](https://packagemanager.posit.co/client/#/repos/cran/setup) serves prebuilt packages for the common distributions — and put the `options(repos = ...)` line it gives you in `~/.Rprofile`. `install.sh` installs from whatever repository R is configured with, and falls back to CRAN when that is nothing.
 
 Native Windows support is recent — earlier versions of `rpy2` could not be installed there reliably, and this README said so. If a native install does give trouble, run the macOS/Linux steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell (e.g. Ubuntu) instead, and please open an issue.
+
+</details>
 
 ---
 
