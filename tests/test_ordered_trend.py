@@ -54,7 +54,7 @@ def test_equal_spacing_matches_emmeans_poly():
     t = kb.trend_results['dose']['table']
     ref = ro.r(f'''local({{
         suppressMessages(library(emmeans))
-        d <- read.csv("{TOOTH}")
+        d <- read.csv("{TOOTH.replace(os.sep, '/')}")
         d$dose <- factor(d$dose, levels = c("low", "medium", "high"))
         op <- options(contrasts = c("contr.sum", "contr.poly")); on.exit(options(op))
         m <- lm(len ~ dose * supp, d)
