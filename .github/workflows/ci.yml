@@ -24,7 +24,7 @@ jobs:
     name: Lint the installers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: install.sh syntax
         run: bash -n install.sh
@@ -94,9 +94,9 @@ jobs:
           - os: macos-latest
             python: '3.12'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
 
@@ -116,7 +116,7 @@ jobs:
         run: mkdir -p "$R_LIBS_USER"
 
       - name: Cache the R library
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # Spelled out rather than read back from ${{ env.R_LIBS_USER }}:
           # setup-r exports R_LIBS_USER as RUNNER_TEMP/Library unconditionally,
@@ -190,7 +190,7 @@ jobs:
         # always(), so a figure that renders wrongly can be looked at rather than
         # guessed at from a log.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: results-${{ matrix.os }}-py${{ matrix.python }}
           path: results/
