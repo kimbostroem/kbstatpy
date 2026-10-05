@@ -44,8 +44,12 @@ def test_a_script_is_copied_under_its_own_name():
         script = os.path.join(tmp, 'my_analysis.py')
         with open(script, 'w') as fh:
             fh.write(OPTIONS + "options.out_dir = 'out'\nKbstat(options).run_save()\n")
-        subprocess.run([sys.executable, script], cwd=tmp, check=True,
-                       capture_output=True, env={**os.environ, 'PYTHONPATH': ROOT})
+        res = subprocess.run([sys.executable, script], cwd=tmp, capture_output=True,
+                             text=True, env={**os.environ, 'PYTHONPATH': ROOT})
+        # The output is captured to keep the log readable, so on failure it has
+        # to be shown, or the log says only "exit status 1" (as it did on CI).
+        assert res.returncode == 0, (f'script exited with {res.returncode}:\n'
+                                     + (res.stderr or res.stdout)[-3000:])
         copy = os.path.join(tmp, 'out', 'my_analysis.py')
         assert os.path.isfile(copy), 'script not copied into out_dir'
         assert open(copy).read() == open(script).read(), 'copy differs from the script'

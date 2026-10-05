@@ -156,7 +156,11 @@ jobs:
         # where Rscript is not on the PATH that `shell: bash` gets.
         # Asked through Python, which is on the PATH everywhere here by
         # definition, so the step does not depend on which shell it runs in.
+        # shell: bash, because the escaped quotes below are bash quoting; under
+        # the Windows default (pwsh) Python received a truncated string and
+        # failed with a SyntaxError, so the versions were never recorded there.
         continue-on-error: true
+        shell: bash
         run: python -c "import rpy2.robjects as ro; print(ro.r('paste(sapply(c(\"glmmTMB\",\"TMB\",\"Matrix\",\"lme4\",\"emmeans\",\"DHARMa\"), function(p) paste(p, tryCatch(as.character(packageVersion(p)), error=function(e) \"MISSING\"))), collapse=\"\\n\")')[0])"
 
       - name: Install the test-only dependencies
@@ -173,7 +177,9 @@ jobs:
           fail=0
           for f in tests/test_*.py; do
               echo "== $f"
-              python "$f" || fail=1
+              # faulthandler: a crash inside R (a segfault) otherwise ends the
+              # process with no Python traceback, so the log cannot say where.
+              python -X faulthandler "$f" || fail=1
           done
           exit $fail
 
