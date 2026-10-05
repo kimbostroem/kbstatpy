@@ -45,7 +45,10 @@ def test_a_script_is_copied_under_its_own_name():
         with open(script, 'w') as fh:
             fh.write(OPTIONS + "options.out_dir = 'out'\nKbstat(options).run_save()\n")
         res = subprocess.run([sys.executable, script], cwd=tmp, capture_output=True,
-                             text=True, env={**os.environ, 'PYTHONPATH': ROOT})
+                             text=True, env={**os.environ, 'PYTHONPATH': os.pathsep.join(
+                                 filter(None, [ROOT, os.environ.get('PYTHONPATH', '')]))})
+        # PYTHONPATH is extended, not replaced: where the packages are found
+        # through it (a CI runner), replacing it left the script without numpy.
         # The output is captured to keep the log readable, so on failure it has
         # to be shown, or the log says only "exit status 1" (as it did on CI).
         assert res.returncode == 0, (f'script exited with {res.returncode}:\n'
