@@ -25,6 +25,12 @@ import textwrap
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ.setdefault('MPLBACKEND', 'Agg')
+# The environment before R starts. Once kbstatpy is imported, R has prepended
+# its library paths to LD_LIBRARY_PATH, /usr/lib/x86_64-linux-gnu among them,
+# and a child Python inheriting that on an Ubuntu runner loads the system's
+# libpython3.12 instead of its own. That one looks in dist-packages, so the
+# script died with "No module named 'numpy'" (CI, Ubuntu / Python 3.12 only).
+ENV0 = dict(os.environ)
 
 DATA = os.path.join(ROOT, 'demos', 'data', 'sleep.csv')
 
@@ -45,8 +51,8 @@ def test_a_script_is_copied_under_its_own_name():
         with open(script, 'w') as fh:
             fh.write(OPTIONS + "options.out_dir = 'out'\nKbstat(options).run_save()\n")
         res = subprocess.run([sys.executable, script], cwd=tmp, capture_output=True,
-                             text=True, env={**os.environ, 'PYTHONPATH': os.pathsep.join(
-                                 filter(None, [ROOT, os.environ.get('PYTHONPATH', '')]))})
+                             text=True, env={**ENV0, 'PYTHONPATH': os.pathsep.join(
+                                 filter(None, [ROOT, ENV0.get('PYTHONPATH', '')]))})
         # PYTHONPATH is extended, not replaced: where the packages are found
         # through it (a CI runner), replacing it left the script without numpy.
         # The output is captured to keep the log readable, so on failure it has
