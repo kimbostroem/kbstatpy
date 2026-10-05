@@ -1,5 +1,11 @@
 # Changes
 
+## [1.37.1] - 2026-10-05
+
+### Changes
+
+- Test suite only, no change to the library: two tests that failed on CI since 1.33.0 (Ubuntu, Python 3.12) and 1.35.0 (Windows) are fixed, so CI passes again on all platforms. Failing tests now show their cause in the log.
+
 ## [1.37.0] - 2026-10-04
 
 ### Features
