@@ -1,22 +1,11 @@
 # Changes
 
-## [1.37.4] - 2026-10-06
-
-### Changes
-
-- The template notebook's intro and options text mention that `in_file` may be a URL, not only an uploaded file's name.
-
-## [1.37.3] - 2026-10-06
-
-### Changes
-
-- The Colab notebooks and the README name downloading the results as the first way to keep them: the zip holds all tables and figures and the script that reruns the analysis. Mounting Google Drive stays the alternative.
-
 ## [1.37.2] - 2026-10-06
 
 ### Changes
 
-- The Colab start page and the README's Colab section describe reading the data straight from a URL (1.37.0), including sciebo/Nextcloud share links. The start page now counts 19 demos.
+- Colab start page, template notebook and README describe reading the data straight from a URL (1.37.0), including sciebo/Nextcloud share links, at every point where the data come in. The start page now counts 19 demos.
+- They name downloading the results as the first way to keep them: the zip holds all tables and figures and the script that reruns the analysis. Mounting Google Drive stays the alternative.
 
 ## [1.37.1] - 2026-10-05
 
