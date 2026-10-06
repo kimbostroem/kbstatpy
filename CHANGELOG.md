@@ -1,5 +1,11 @@
 # Changes
 
+## [1.37.2] - 2026-10-06
+
+### Changes
+
+- The Colab start page and the README's Colab section describe reading the data straight from a URL (1.37.0), including sciebo/Nextcloud share links. The start page now counts 19 demos.
+
 ## [1.37.1] - 2026-10-05
 
 ### Changes
