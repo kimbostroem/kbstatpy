@@ -58,7 +58,7 @@ from top to bottom:
 
 1. **Setup** installs kbstatpy and its R packages (~1-2 min, once per session).
 2. **Upload** your data file (`.csv` or `.xlsx`, one row per observation) and
-   see its columns.
+   see its columns, or skip the upload and give a URL in step 3.
 3. **Options**: fill in the file name and your column names.
 4. **Run** fits the model and shows tables and figures.
 5. **Download** the results as a zip file.
@@ -110,7 +110,8 @@ for name in uploaded:
 
 OPTIONS_MD = """## 3. Options
 
-Set `in_file` to the uploaded file's name and `y`, `x` and `id` to your column
+Set `in_file` to the uploaded file's name, or to a URL (for a sciebo/Nextcloud
+share the link ending in `/download`), and `y`, `x` and `id` to your column
 names. Every commented-out line shows the value kbstatpy uses anyway: uncomment
 a line only to change it, and delete what you do not need. Full reference:
 [options table](https://github.com/kimbostroem/kbstatpy#options-reference) and

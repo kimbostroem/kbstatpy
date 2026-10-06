@@ -1,5 +1,11 @@
 # Changes
 
+## [1.37.4] - 2026-10-06
+
+### Changes
+
+- The template notebook's intro and options text mention that `in_file` may be a URL, not only an uploaded file's name.
+
 ## [1.37.3] - 2026-10-06
 
 ### Changes
