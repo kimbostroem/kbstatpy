@@ -64,9 +64,10 @@ from top to bottom:
 5. **Download** the results as a zip file.
 
 > **Files vanish with the runtime.** Uploads and results are deleted when the
-> Colab session ends. To keep them, mount your Google Drive (Drive icon in the
-> Files pane on the left) and use paths such as
-> `/content/drive/MyDrive/stats/my_data.csv`.
+> Colab session ends. To keep them, either **download the results** (step 5: one
+> zip with all tables and figures, and `analysis.py`, the script that reruns the
+> analysis), or mount your Google Drive (Drive icon in the Files pane on the
+> left) and use paths such as `/content/drive/MyDrive/stats/my_data.csv`.
 >
 > **Whose notebook is this?** The moment you run or edit a cell, Colab keeps a
 > private copy in your own Google account (*File → Save a copy in Drive*)."""

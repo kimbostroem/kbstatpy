@@ -685,7 +685,7 @@ New here? The guided playground walks through one demo and points to the rest:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/kbstatpy_colab.ipynb)
 
-**Your own data on Colab.** The template notebook is [`analysis_template.py`](analysis_template.py) as a notebook: setup, upload your file and see its columns, fill in the options, run, download the results as a zip. The zip also holds `analysis.py`, the options cell as a script that reruns the analysis (`save_script`). Uploads and results vanish with the runtime; mount Google Drive to keep them. Data behind a link need no upload at all: set `in_file` to the URL, for a sciebo/Nextcloud share the link ending in `/download`.
+**Your own data on Colab.** The template notebook is [`analysis_template.py`](analysis_template.py) as a notebook: setup, upload your file and see its columns, fill in the options, run, download the results as a zip. The zip also holds `analysis.py`, the options cell as a script that reruns the analysis (`save_script`). Uploads and results vanish with the runtime; to keep them, download the results zip, which includes the script, or mount Google Drive. Data behind a link need no upload at all: set `in_file` to the URL, for a sciebo/Nextcloud share the link ending in `/download`.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/analysis_template.ipynb)
 

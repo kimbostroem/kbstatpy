@@ -1,5 +1,11 @@
 # Changes
 
+## [1.37.3] - 2026-10-06
+
+### Changes
+
+- The Colab notebooks and the README name downloading the results as the first way to keep them: the zip holds all tables and figures and the script that reruns the analysis. Mounting Google Drive stays the alternative.
+
 ## [1.37.2] - 2026-10-06
 
 ### Changes
