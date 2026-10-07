@@ -1,5 +1,11 @@
 # Changes
 
+## [1.39.0] - 2026-10-07
+
+### Features
+
+- In a notebook, `import kbstatpy` says that R is starting and when it is ready. The first import in a session can take up to a minute on a cloud share, and it no longer looks like a hang. Scripts print nothing extra; `KBSTATPY_QUIET=1` silences it.
+
 ## [1.38.2] - 2026-10-07
 
 ### Bugs

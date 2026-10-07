@@ -140,7 +140,7 @@ It works on any hub that offers a terminal and conda or mamba. It was set up and
    print(Kbstat)
    ```
 
-   The very first import prints *Matplotlib is building the font cache*; that happens once. Then fill in the options and run, or upload the [template notebook](analysis_template.ipynb) and work through it with the kbstatpy kernel. Its setup cell recognises the hub: without kbstatpy in the kernel it runs the installer of step 3 itself and then says to switch the kernel.
+   The import says *kbstatpy: starting R …* and, when it is done, *kbstatpy … ready*: the first time in a session that takes up to a minute, while R starts. The very first import ever also prints *Matplotlib is building the font cache*, once. After Shift+Enter the cursor jumps to a new, empty cell; the number in brackets appears to the left of the cell that ran. Then fill in the options and run, or upload the [template notebook](analysis_template.ipynb) and work through it with the kbstatpy kernel. Its setup cell recognises the hub: without kbstatpy in the kernel it runs the installer of step 3 itself and then says to switch the kernel.
 
 A cell is finished when `[*]` to its left has turned into a number.
 
