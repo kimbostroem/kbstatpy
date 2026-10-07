@@ -57,19 +57,31 @@ else
 fi
 echo "    using $SOLVER"
 
-# 2. The environment, by path in the home folder. Not quiet: the download
-#    progress is the only sign of life during the longest step. An existing
-#    env is completed rather than skipped, so a run that was interrupted
-#    (closed tab, lost connection) is repaired by simply running this again.
+# 2. The environment, by path in the home folder. An existing env is
+#    completed rather than skipped, so a run that was interrupted (closed tab,
+#    lost connection) is repaired by simply running this again.
+#    mamba's progress bars do not overwrite themselves in the hub's terminal:
+#    every redraw became a new line, hundreds of lines of "━━━━", which looks
+#    like an error. So: no progress bars (and their lines filtered, should any
+#    come through), and a heartbeat every 20 s as the sign of life instead.
+heartbeat() {
+    while sleep 20; do
+        e=$(( $(date +%s) - START ))
+        printf '    ... still working (%d:%02d)\n' $((e / 60)) $((e % 60))
+    done
+}
 if [ -x "$ENV/bin/python" ]; then
     step 2 "Checking the environment in $ENV (installs only what is missing)"
-    # shellcheck disable=SC2086  # PKGS is a word list on purpose
-    "$SOLVER" install -y -p "$ENV" -c conda-forge $PKGS
+    ACTION="install"
 else
     step 2 "Creating the environment in $ENV: Python, R and R packages (the long step)"
-    # shellcheck disable=SC2086
-    "$SOLVER" create -y -p "$ENV" -c conda-forge $PKGS
+    ACTION="create"
 fi
+heartbeat & HEARTBEAT=$!
+# shellcheck disable=SC2086  # PKGS is a word list on purpose
+MAMBA_NO_PROGRESS_BARS=1 "$SOLVER" "$ACTION" -y -p "$ENV" -c conda-forge $PKGS 2>&1 \
+    | grep --line-buffered -v '━'
+kill "$HEARTBEAT" 2>/dev/null; wait "$HEARTBEAT" 2>/dev/null
 
 # 3. kbstatpy itself, always the newest from GitHub. The first call brings the
 #    Python dependencies; the second replaces kbstatpy even when the version

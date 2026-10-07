@@ -126,7 +126,7 @@ It works on any hub that offers a terminal and conda or mamba. It was set up and
    curl -sSL https://raw.githubusercontent.com/kimbostroem/kbstatpy/master/install_jupyterhub.sh | bash
    ```
 
-   The first time it takes a few minutes. It shows its progress in five numbered steps (`==> [1/5]` to `==> [5/5]`); the second, Python and R with all R packages, is the long one. It is finished when a framed message says **kbstatpy is installed** and the input line (ending in `$`) is back. Leave the tab open until then. If it says *Something went wrong* instead, run the same command once more: it completes what is missing.
+   The first time it takes a few minutes. It shows its progress in five numbered steps (`==> [1/5]` to `==> [5/5]`); the second, Python and R with all R packages, is the long one, and shows a line *… still working* every 20 seconds. It is finished when a framed message says **kbstatpy is installed** and the input line (ending in `$`) is back. Leave the tab open until then. If it says *Something went wrong* instead, run the same command once more: it completes what is missing.
 4. **Reload the page** in the browser (F5, or Cmd+R on a Mac). The Launcher now has a **kbstatpy** tile under *Notebook*. Closing the terminal tab is fine; nothing is lost.
 
 **Every time: analyse**

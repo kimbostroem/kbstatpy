@@ -1,5 +1,11 @@
 # Changes
 
+## [1.38.2] - 2026-10-07
+
+### Bugs
+
+- The JupyterHub installer filled the terminal with hundreds of lines of progress bars, which looked like an error. It now shows a short "still working" line every 20 seconds instead.
+
 ## [1.38.1] - 2026-10-07
 
 ### Bugs
