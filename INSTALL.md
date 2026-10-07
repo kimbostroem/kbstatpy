@@ -126,7 +126,7 @@ It works on any hub that offers a terminal and conda or mamba. It was set up and
    curl -sSL https://raw.githubusercontent.com/kimbostroem/kbstatpy/master/install_jupyterhub.sh | bash
    ```
 
-   The first time it takes a few minutes. It is finished when the prompt (the line ending in `$`) is back and the last lines read *kbstatpy setup complete*.
+   The first time it takes a few minutes. It shows its progress in five numbered steps (`==> [1/5]` to `==> [5/5]`); the second, Python and R with all R packages, is the long one. It is finished when a framed message says **kbstatpy is installed** and the input line (ending in `$`) is back. Leave the tab open until then. If it says *Something went wrong* instead, run the same command once more: it completes what is missing.
 4. **Reload the page** in the browser (F5, or Cmd+R on a Mac). The Launcher now has a **kbstatpy** tile under *Notebook*. Closing the terminal tab is fine; nothing is lost.
 
 **Every time: analyse**
@@ -146,7 +146,7 @@ A cell is finished when `[*]` to its left has turned into a number.
 
 ### Update, start afresh, remove
 
-- **Update kbstatpy:** run the command of step 3 again. It finds the existing environment, keeps it, and installs the newest kbstatpy. Restart the kernel afterwards (*Kernel → Restart Kernel*).
+- **Update kbstatpy, or repair an interrupted installation:** run the command of step 3 again. It keeps the existing environment, adds whatever is missing, and installs the newest kbstatpy. Restart the kernel afterwards (*Kernel → Restart Kernel*).
 - **Start afresh:** `rm -rf ~/envs/kbstat`, then step 3 again.
 - **Remove:** `rm -rf ~/envs/kbstat ~/.local/share/jupyter/kernels/kbstat`.
 
@@ -171,6 +171,9 @@ The installer avoids the first three. They are listed for anyone installing by h
 
 > **`ModuleNotFoundError: No module named 'kbstatpy'`**
 > The notebook runs a different kernel. Switch to *kbstatpy* (top right, or *Kernel → Change Kernel*).
+
+> **Odd errors after reinstalling, such as `No module named 'stack_data'`**
+> A notebook kept running on the old installation while it was deleted or replaced. Restart its kernel (*Kernel → Restart Kernel*), or close the notebook and open a new one.
 
 > **No kbstatpy tile after the installation**
 > Reload the page once more. If it is still missing, run the command of step 3 again and read its last lines.

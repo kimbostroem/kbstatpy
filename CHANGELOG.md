@@ -1,10 +1,17 @@
 # Changes
 
+## [1.38.1] - 2026-10-07
+
+### Bugs
+
+- The JupyterHub installer ran for minutes without any sign of progress. It now shows numbered steps and the download progress, and ends with a framed message saying whether kbstatpy loads.
+- Running it again after an interrupted installation now completes the environment instead of skipping it.
+
 ## [1.38.0] - 2026-10-07
 
 ### Features
 
-- kbstatpy runs on a JupyterHub, such as a university's, as an alternative to Colab that needs no Google account. One command installs it once into the home folder, as a Jupyter kernel `kbstatpy`; the README describes it.
+- kbstatpy runs on a JupyterHub, such as a university's, as an alternative to Colab that needs no Google account. One command installs it once into the home folder, as a Jupyter kernel `kbstatpy`; INSTALL.md describes it.
 - The template notebook works on a JupyterHub too: its setup cell installs kbstatpy there, and the upload and download steps say what to do on a hub.
 - `in_file` and `out_dir` accept a leading `~` for the home folder, for example `'~/sciebo/data.csv'`.
 
