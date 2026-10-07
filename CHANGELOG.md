@@ -1,5 +1,11 @@
 # Changes
 
+## [1.40.0] - 2026-10-07
+
+### Features
+
+- In a notebook, kbstatpy says when a newer version has been released, and how to update (on a JupyterHub: the install line). It looks this up while R starts, without delaying the import, and stays silent without network. `KBSTATPY_NO_UPDATE_CHECK=1` switches it off.
+
 ## [1.39.1] - 2026-10-07
 
 ### Bugs

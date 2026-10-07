@@ -146,7 +146,7 @@ A cell is finished when `[*]` to its left has turned into a number.
 
 ### Update, start afresh, remove
 
-- **Update kbstatpy, or repair an interrupted installation:** run the command of step 3 again. It keeps the existing environment, adds whatever is missing, and installs the newest kbstatpy. Restart the kernel afterwards (*Kernel → Restart Kernel*).
+- **Update kbstatpy, or repair an interrupted installation:** an installation stays at its version; when a newer one has been released, the first import in a notebook says so. Run the command of step 3 again. It keeps the existing environment, adds whatever is missing, and installs the newest kbstatpy. Restart the kernel afterwards (*Kernel → Restart Kernel*).
 - **Start afresh:** `rm -rf ~/envs/kbstat`, then step 3 again.
 - **Remove:** `rm -rf ~/envs/kbstat ~/.local/share/jupyter/kernels/kbstat`.
 

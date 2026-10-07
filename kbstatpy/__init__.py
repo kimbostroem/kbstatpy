@@ -10,9 +10,14 @@ import time as _time
 # KBSTATPY_QUIET=1 silences it there too.
 _ANNOUNCE = 'ipykernel' in _sys.modules and not _os.environ.get('KBSTATPY_QUIET')
 _t0 = _time.monotonic()
+_update_check = None
 if _ANNOUNCE:
     print('kbstatpy: starting R and loading its packages '
           '(the first time in a session this can take up to a minute) ...', flush=True)
+    # While R starts, look up whether a newer kbstatpy has been released
+    # (notebooks only, in the background, silent on any failure: _update.py).
+    from ._update import start as _start_update_check
+    _update_check = _start_update_check()
 
 from ._windows import prepare_r_dll_path, silence_r_cmd_config  # noqa: E402
 
@@ -30,9 +35,13 @@ from ._scriptdir import chdir, script_dir  # noqa: E402
 from .options import KbstatOptions   # noqa: E402
 from .kbstat import Kbstat           # noqa: E402
 
-__version__ = "1.39.1"
+__version__ = "1.40.0"
 __all__ = ["Kbstat", "KbstatOptions", "chdir", "script_dir",
            "__version__"]
 
 if _ANNOUNCE:
     print(f'kbstatpy {__version__} ready ({_time.monotonic() - _t0:.0f} s).', flush=True)
+    if _update_check is not None:
+        _notice = _update_check.notice(__version__)
+        if _notice:
+            print(_notice, flush=True)

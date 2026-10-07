@@ -98,7 +98,7 @@ kb = Kbstat(options)
 kb.run_save()   # compute, display, and save — all in one call
 ```
 
-The first `import kbstatpy` in a session starts R and loads its packages: a few seconds on a laptop, up to a minute on a small cloud share. In a notebook it says so (`kbstatpy: starting R ...`, then `kbstatpy … ready`); scripts print nothing extra. `KBSTATPY_QUIET=1` silences it.
+The first `import kbstatpy` in a session starts R and loads its packages: a few seconds on a laptop, up to a minute on a small cloud share. In a notebook it says so (`kbstatpy: starting R ...`, then `kbstatpy … ready`); scripts print nothing extra. While R starts, a notebook also looks up whether a newer kbstatpy has been released and, if so, says so and how to update (silent without network; `KBSTATPY_NO_UPDATE_CHECK=1` switches the lookup off). `KBSTATPY_QUIET=1` silences both.
 
 `run_save()` is the convenience one-liner: it is exactly `run()` followed by
 `save()`, which you can also call separately. `run()` computes the analysis,
