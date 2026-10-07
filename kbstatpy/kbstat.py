@@ -428,11 +428,14 @@ class Kbstat:
 
         A leading `~` is the home folder, as in a shell. Without this,
         '~/sciebo/data.csv' (where a JupyterHub mounts sciebo) became a folder
-        literally named '~' under the working directory.
+        literally named '~' under the working directory. The expanded path is
+        normalised: on Windows the home folder comes with backslashes and the
+        rest of '~/sciebo/x.csv' with slashes.
         """
         if not path or _is_url(path):
             return path
-        path = os.path.expanduser(path)
+        if path.startswith('~'):
+            path = os.path.normpath(os.path.expanduser(path))
         if os.path.isabs(path):
             return path
         base = getattr(self.options, 'base_dir', '') or ''

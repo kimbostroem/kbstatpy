@@ -1,5 +1,11 @@
 # Changes
 
+## [1.39.1] - 2026-10-07
+
+### Bugs
+
+- On Windows, a `~` path (1.38.0) came back with mixed separators, such as `C:\Users\me/sciebo/data.csv`. It is now normalised. The test for `~` paths failed on Windows because of how it faked the home folder; it is fixed too.
+
 ## [1.39.0] - 2026-10-07
 
 ### Features

@@ -239,20 +239,25 @@ def test_an_absolute_path_survives_both_guards():
 def test_a_leading_tilde_is_the_home_folder():
     # On a JupyterHub sciebo is mounted at ~/sciebo; an unexpanded '~' became
     # a folder of that name under the working directory, and the file was
-    # "not found" although the path was right.
+    # "not found" although the path was right. The home folder is faked
+    # through HOME and USERPROFILE: Python reads HOME on macOS and Linux but
+    # USERPROFILE on Windows, where a HOME-only fake left the real home in place
+    # and failed only on CI's Windows runner. The result must also come with
+    # the platform's own separators, not '\\' and '/' mixed.
     home = tempfile.mkdtemp()
-    old = os.environ.get('HOME')
-    os.environ['HOME'] = home
+    saved = {k: os.environ.get(k) for k in ('HOME', 'USERPROFILE')}
+    os.environ['HOME'] = os.environ['USERPROFILE'] = home
     try:
         o = KbstatOptions()
         o.base_dir = tempfile.mkdtemp()                # must not apply to a ~ path
         got = Kbstat(o)._resolve_path('~/sciebo/x.csv')
     finally:
-        if old is None:
-            del os.environ['HOME']
-        else:
-            os.environ['HOME'] = old
-    assert got == os.path.join(home, 'sciebo', 'x.csv'), got
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    assert got == os.path.normpath(os.path.join(home, 'sciebo', 'x.csv')), got
 
 
 if __name__ == '__main__':
