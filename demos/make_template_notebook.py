@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Build analysis_template.ipynb from analysis_template.py.
 
-The notebook is the template for people who run kbstatpy on Google Colab (or
-any Jupyter server): set up, upload the data, fill in the options, run,
-download. Its options cell is the body of analysis_template.py, so the option
+The notebook is the template for people who run kbstatpy on Google Colab or a
+JupyterHub (or any Jupyter server): set up, upload the data, fill in the
+options, run, download. Its options cell is the body of analysis_template.py, so the option
 list is written once; tests/test_analysis_template.py fails if the committed
 notebook no longer matches what this script builds.
 
@@ -18,6 +18,9 @@ import re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE = os.path.join(ROOT, 'analysis_template.py')
 NOTEBOOK = os.path.join(ROOT, 'analysis_template.ipynb')
+
+RAW = 'https://raw.githubusercontent.com/kimbostroem/kbstatpy/master'
+SETUP_BASE = RAW + '/demos'                     # colab_setup.sh
 
 COLAB_URL = ('https://colab.research.google.com/github/kimbostroem/kbstatpy/'
              'blob/master/analysis_template.ipynb')
@@ -53,10 +56,11 @@ INTRO = f"""# kbstatpy: your own analysis
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({COLAB_URL})
 
 A template for analysing **your own data** with
-[kbstatpy](https://github.com/kimbostroem/kbstatpy) on Google Colab. Run the cells
-from top to bottom:
+[kbstatpy](https://github.com/kimbostroem/kbstatpy) on Google Colab or on a
+JupyterHub, such as your university's. Run the cells from top to bottom:
 
-1. **Setup** installs kbstatpy and its R packages (~1-2 min, once per session).
+1. **Setup** installs kbstatpy and its R packages: on Colab ~1-2 min in every
+   session, on a JupyterHub a few minutes once.
 2. **Upload** your data file (`.csv` or `.xlsx`, one row per observation) and
    see its columns, or skip the upload and give a URL in step 3.
 3. **Options**: fill in the file name and your column names.
@@ -70,16 +74,35 @@ from top to bottom:
 > left) and use paths such as `/content/drive/MyDrive/stats/my_data.csv`.
 >
 > **Whose notebook is this?** The moment you run or edit a cell, Colab keeps a
-> private copy in your own Google account (*File → Save a copy in Drive*)."""
+> private copy in your own Google account (*File → Save a copy in Drive*).
+
+**No Google account?** Use a JupyterHub (for example `uni-muenster.jupyterhub.nrw`,
+with your university login) and open this notebook there. Files stay in your
+home folder there, and kbstatpy is installed only once."""
 
 SETUP_MD = """## 1. Setup
 
-Installs kbstatpy and the R packages it relies on. Does nothing outside Colab,
-where kbstatpy is expected to be installed already."""
+Installs kbstatpy and the R packages it relies on.
 
-SETUP_CODE = """import sys
+- **Colab:** runs every time, since Colab forgets everything between sessions.
+- **JupyterHub:** the first time, it creates a `kbstatpy` kernel in your home
+  folder (a few minutes). Then switch to it, *Kernel → Change Kernel →
+  kbstatpy*, and go on with step 2. From then on, choose that kernel and this
+  cell only confirms it. To update kbstatpy later, run the setup again in a
+  terminal: `curl -sSL """ + RAW + """/install_jupyterhub.sh | bash`.
+- **Elsewhere:** kbstatpy is expected to be installed already."""
+
+SETUP_CODE = """import importlib.util, os, sys
 if 'google.colab' in sys.modules:
-    !curl -sSL https://raw.githubusercontent.com/kimbostroem/kbstatpy/master/demos/colab_setup.sh | bash"""
+    !curl -sSL """ + SETUP_BASE + """/colab_setup.sh | bash
+elif importlib.util.find_spec('kbstatpy') is not None:
+    print('kbstatpy is installed in this kernel: go on with step 2.')
+elif os.environ.get('JUPYTERHUB_USER'):
+    !curl -sSL """ + RAW + """/install_jupyterhub.sh | bash
+    print('Now switch the kernel: Kernel > Change Kernel > kbstatpy. Then go on with step 2.')
+else:
+    print('kbstatpy is not installed in this kernel; see '
+          'https://github.com/kimbostroem/kbstatpy/blob/master/INSTALL.md')"""
 
 UPLOAD_MD = """## 2. Upload your data
 
@@ -88,20 +111,28 @@ directory, so the options below find it by its plain file name. The cell then
 shows the columns and the first rows, which you need for the options.
 
 Alternatively, drag the file into the Files pane (folder icon on the left).
+On a JupyterHub, upload with the arrow button in the file browser instead: the
+cell then shows the columns of the data files next to the notebook. A sciebo
+connected to the hub appears as `~/sciebo`, and `in_file` can point there
+directly (`'~/sciebo/my_data.csv'`).
 
 **Data behind a link need no upload:** set `options.in_file` to the URL instead
 of a file name. A sciebo/Nextcloud share link works too; add `/download` at its
 end (`https://.../s/<token>/download`)."""
 
-UPLOAD_CODE = """import sys
+UPLOAD_CODE = """import os, sys
 import pandas as pd
 
 if 'google.colab' in sys.modules:
     from google.colab import files
     uploaded = list(files.upload())
 else:
-    uploaded = []
-    print('Not on Colab: put your data file next to this notebook.')
+    # On a JupyterHub or a local server the file is uploaded in the file
+    # browser; show what is there.
+    uploaded = sorted(f for f in os.listdir('.') if f.endswith(('.csv', '.xlsx', '.xls')))
+    if not uploaded:
+        print('No data file next to this notebook yet: upload it with the arrow '
+              'button in the file browser, then run this cell again.')
 
 for name in uploaded:
     data = pd.read_excel(name) if name.endswith(('.xlsx', '.xls')) else pd.read_csv(name)
@@ -134,7 +165,9 @@ kb.run_save();"""
 DOWNLOAD_MD = """## 5. Download the results
 
 Zips `out_dir`, results and `analysis.py`, and downloads it. The files are
-also visible in the Files pane, where a right-click downloads a single one."""
+also visible in the Files pane, where a right-click downloads a single one.
+On a JupyterHub the results stay in your home folder anyway; the zip appears
+next to the notebook, and a right-click on it downloads it."""
 
 DOWNLOAD_CODE = """import shutil, sys
 

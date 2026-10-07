@@ -47,7 +47,7 @@ def _r_home():
 
     R_HOME first (an explicit choice, and what rpy2 itself reads), then the
     registry keys the R installer writes. R64 before R and machine-wide before
-    per-user, matching install.ps1: prefer the 64-bit build, which is the only
+    per-user, matching install_windows.ps1: prefer the 64-bit build, which is the only
     one rpy2 can load.
     """
     home = os.environ.get('R_HOME')

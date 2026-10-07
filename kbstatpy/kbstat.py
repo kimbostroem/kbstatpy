@@ -425,8 +425,15 @@ class Kbstat:
         script's own folder, via `base_dir = 'script_dir'` -- without moving
         the process, so the rest of the script keeps resolving against the
         working directory as before. An absolute path ignores it either way.
+
+        A leading `~` is the home folder, as in a shell. Without this,
+        '~/sciebo/data.csv' (where a JupyterHub mounts sciebo) became a folder
+        literally named '~' under the working directory.
         """
-        if not path or os.path.isabs(path) or _is_url(path):
+        if not path or _is_url(path):
+            return path
+        path = os.path.expanduser(path)
+        if os.path.isabs(path):
             return path
         base = getattr(self.options, 'base_dir', '') or ''
         if base:

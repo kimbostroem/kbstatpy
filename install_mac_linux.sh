@@ -223,7 +223,7 @@ if version_lt "$PYTHON_VERSION" "$MIN_PYTHON"; then
     echo "ERROR: Python $PYTHON_VERSION found, but kbstatpy needs $MIN_PYTHON or newer."
     python_help
     echo "  If a newer Python is already installed, run this installer with it, e.g.:"
-    echo "    python3.13 -m venv ~/kbstatpy-env && source ~/kbstatpy-env/bin/activate && bash install.sh"
+    echo "    python3.13 -m venv ~/kbstatpy-env && source ~/kbstatpy-env/bin/activate && bash install_mac_linux.sh"
     exit 1
 fi
 echo "  Python $PYTHON_VERSION found"

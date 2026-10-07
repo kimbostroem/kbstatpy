@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Static checks on install.ps1, the Windows installer.
+"""Static checks on install_windows.ps1, the Windows installer.
 
-install.ps1 cannot be executed anywhere in this project's test loop: the
+install_windows.ps1 cannot be executed anywhere in this project's test loop: the
 development machines are macOS, there is no Windows CI, and PowerShell 5.1
 behaviour differs from pwsh on other platforms in exactly the area that broke.
 So it is checked by reading instead, and only for failure modes that actually
@@ -40,7 +40,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PS1_PATH = os.path.join(ROOT, 'install.ps1')
+PS1_PATH = os.path.join(ROOT, 'install_windows.ps1')
 
 # The only two functions allowed to invoke a native executable.
 NATIVE_HELPERS = ('Invoke-Native', 'Get-NativeLine')
@@ -117,7 +117,7 @@ def function_range(name):
     code = code_lines()
     start = next((n for n, l in code.items()
                   if re.match(r'^\s*function\s+' + re.escape(name) + r'\b', l)), None)
-    assert start, f'install.ps1 has no function {name}'
+    assert start, f'install_windows.ps1 has no function {name}'
     depth = 0
     for n in range(start, max(code) + 1):
         depth += code[n].count('{') - code[n].count('}')
@@ -160,12 +160,12 @@ def test_script_scope_stays_strict():
     of the script are written on the assumption that a failure stops the run."""
     assert re.search(r"^\$ErrorActionPreference\s*=\s*'Stop'\s*$",
                      '\n'.join(lines()), re.M), \
-        "install.ps1 no longer sets $ErrorActionPreference = 'Stop' at script scope"
+        "install_windows.ps1 no longer sets $ErrorActionPreference = 'Stop' at script scope"
 
 
 def test_here_strings_are_closed():
     _, unterminated = strip_here_strings(lines())
-    assert not unterminated, 'install.ps1 has an unterminated here-string'
+    assert not unterminated, 'install_windows.ps1 has an unterminated here-string'
 
 
 def test_brackets_balance():

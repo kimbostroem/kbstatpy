@@ -9,7 +9,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 ## Table of contents
 
 - [Requirements](#requirements)
-- [Installation](#installation)
+- [Installation](#installation) · [INSTALL.md](INSTALL.md)
 - [Data format](#data-format)
 - [Quick start](#quick-start)
 - [Options reference](#options-reference)
@@ -33,86 +33,37 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 
 - Python 3.10+ (64-bit)
 - R 4.4+
-- **Platform:** macOS, Linux, or Windows. macOS and Linux are the routinely tested platforms; native Windows is supported by `install.ps1` (see below), with [WSL](https://learn.microsoft.com/windows/wsl/install) as a fallback.
+- **Platform:** macOS, Linux, or Windows. macOS and Linux are the routinely tested platforms; native Windows is supported by `install_windows.ps1` (see below), with [WSL](https://learn.microsoft.com/windows/wsl/install) as a fallback.
 
-All Python and R package dependencies are handled by the installer (see below).
+All Python and R package dependencies are handled by the installers; see [Installation](#installation) and [INSTALL.md](INSTALL.md).
 
 ---
 
 ## Installation
 
+The short version; [INSTALL.md](INSTALL.md) has the details, the troubleshooting, and a step-by-step guide for Colab and JupyterHub.
+
 **macOS / Linux**
 
 ```bash
 cd kbstatpy
-bash install.sh
+bash install_mac_linux.sh
 ```
 
 **Windows**
 
 ```powershell
 cd kbstatpy
-powershell -ExecutionPolicy Bypass -File install.ps1
+powershell -ExecutionPolicy Bypass -File install_windows.ps1
 ```
 
-**Anaconda / Miniconda, or a venv:** activate the environment you want *first* and the installer uses it — no extra flag needed. This works from the Anaconda Prompt as well as from PowerShell, since the installer reads `CONDA_PREFIX` / `VIRTUAL_ENV` and those survive into the `powershell` call:
+**JupyterHub** (in a terminal on the hub, no Google account needed; [step by step](INSTALL.md#jupyterhub))
 
-```powershell
-conda create -n kbstatpy python=3.13
-conda activate kbstatpy
-powershell -ExecutionPolicy Bypass -File install.ps1
+```bash
+curl -sSL https://raw.githubusercontent.com/kimbostroem/kbstatpy/master/install_jupyterhub.sh | bash
 ```
 
-The installer prints the full path of the interpreter it is about to write to before it installs anything, and names the conda environment or venv it belongs to — so nothing lands in an environment you did not mean. With none activated it installs into the interpreter it finds and says so. To pick one without activating it, pass `-Python` (a path to `python.exe`, or the environment folder, or a command name to look up on `PATH`):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Python C:\Users\me\anaconda3\envs\kbstatpy\python.exe
-```
-
-Only Python is installed per environment. The R packages go into your R user library and are shared by every environment, which is what you want: they are the same packages either way.
-
-<details>
-<summary><b>If the Windows install fails</b></summary>
-
-The messages below are the common ones on Windows. Each is followed by what it means and what to do.
-
-> **`python.exe : Python was not found; run without arguments to install from the Microsoft Store`**
-> PowerShell found the Microsoft Store placeholder named `python.exe` instead of your Python — usually because Anaconda is installed but no environment is activated in the shell you called from. Activate one, or pass `-Python`, as above. (Up to version 1.15.0 the installer aborted here with a `NativeCommandError` instead of moving on to the next interpreter; fixed in 1.15.1.)
-
-> **`unable to load shared object '...\library\stats\libs\x64\stats.dll': LoadLibrary failure: The specified module could not be found`**
-> R started (`rpy2` even reports its version) but cannot load its own libraries. The file it names is present; the R DLLs beside `R.dll` that it depends on are not on the search path, because R installs itself without touching `PATH`. From version 1.15.7 `import kbstatpy` puts them there itself. On an older version, or if it persists, set it for your account and open a new shell (with your own R version in the path):
-> ```powershell
-> $p = [Environment]::GetEnvironmentVariable('Path', 'User')
-> [Environment]::SetEnvironmentVariable('Path', $p + ';C:\Program Files\R\R-4.6.1\bin\x64', 'User')
-> ```
-
-> **`UnicodeDecodeError: 'utf-8' codec can't decode byte ...` while R prints a message**
-> R is reporting in a language whose accented characters `rpy2` cannot decode, so the real message is lost behind this one. Switch R to English and open a new shell: `[Environment]::SetEnvironmentVariable('LANGUAGE', 'en', 'User')`.
-
-</details>
-
-<details>
-<summary><b>What the installers do</b></summary>
-
-Either installer:
-1. Checks the prerequisites and **stops with instructions if one is missing or too old** — which package manager command or download page to use for Python 3.10+ and R 4.4+ on your platform, rather than a failure further down that does not name the cause
-2. Installs **kbstatpy** and its Python dependencies (`pymer4`, `rpy2`, `pandas`, `scipy`, `sympy`, `seaborn`, `openpyxl`, …) from `pyproject.toml`, so `import kbstatpy` works from any directory
-3. Installs all required R packages (`lme4`, `lmerTest`, `glmmTMB`, `emmeans`, `DHARMa`, …)
-4. Verifies that `rpy2` can actually start R and load `glmmTMB` and `emmeans`, so a broken bridge is reported here instead of part-way through your first analysis
-
-Plus what the platform needs on top of that:
-- **macOS:** fixes the `rpy2` / R version symlink if needed, and warns about a mismatched Xcode Command Line Tools architecture
-- **Windows:** installs into the activated conda environment or venv if there is one (and reports which), finds R through the registry (the R installer does not add R to `PATH`, so there is nothing to configure by hand), and creates the personal R library that a non-interactive `Rscript` cannot create on demand. `import kbstatpy` then adds R's own library folder (`<R_HOME>\bin\x64`) to the search path of that Python process, so R can load the DLLs it fetches lazily, `Rlapack` above all; nothing has to be set by hand for this either
-
-On Windows nothing needs to be compiled: `rpy2` installs from a prebuilt `win_amd64` wheel, and CRAN serves the R packages as Windows binaries, so Rtools is not required.
-
-On **Linux** the opposite holds: CRAN serves Linux packages as source only, so a cold install compiles the whole dependency closure — around 130 packages, a quarter of an hour — and needs a C/C++/Fortran toolchain plus libcurl, OpenSSL, libuv, zlib and ICU in their `-dev`/`-devel` form (`sudo apt install r-base-dev build-essential libcurl4-openssl-dev libssl-dev libuv1-dev zlib1g-dev libicu-dev cmake` on Debian/Ubuntu). `DHARMa` is the package that needs most of them, by way of `gap` → `plotly` → `httr` → `curl` and `qgam` → `shiny` → `bslib` → `sass` → `fs`, so a missing header shows up as a `DHARMa` failure that looks unrelated to anything network- or filesystem-shaped. `install.sh` names the command for your distribution if a build fails.
-
-To avoid compiling altogether, point R at a binary repository — [Posit Package Manager](https://packagemanager.posit.co/client/#/repos/cran/setup) serves prebuilt packages for the common distributions — and put the `options(repos = ...)` line it gives you in `~/.Rprofile`. `install.sh` installs from whatever repository R is configured with, and falls back to CRAN when that is nothing.
-
-Native Windows support is recent — earlier versions of `rpy2` could not be installed there reliably, and this README said so. If a native install does give trouble, run the macOS/Linux steps inside a [WSL](https://learn.microsoft.com/windows/wsl/install) shell (e.g. Ubuntu) instead, and please open an issue.
-
-</details>
+**Google Colab:** nothing to install; open the [template notebook](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/analysis_template.ipynb) and run it.
 
 ---
 
@@ -266,7 +217,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 
 | Option | Type | Description |
 |---|---|---|
-| `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint |
+| `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint. A leading `~` is the home folder, as in `'~/sciebo/data.csv'` |
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
 | `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
@@ -690,6 +641,8 @@ New here? The guided playground walks through one demo and points to the rest:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/analysis_template.ipynb)
 
 `analysis_template.ipynb` is built from `analysis_template.py` by `demos/make_template_notebook.py`; rerun it after editing the template, or `tests/test_analysis_template.py` fails.
+
+**Your own data on a JupyterHub, without a Google account.** The same template runs on a JupyterHub, such as a university's; kbstatpy installs there once, with one command. Step by step: [INSTALL.md](INSTALL.md#jupyterhub).
 
 Or open any individual demo directly — each installs itself and renders its
 results inline:

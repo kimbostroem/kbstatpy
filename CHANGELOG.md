@@ -1,5 +1,18 @@
 # Changes
 
+## [1.38.0] - 2026-10-07
+
+### Features
+
+- kbstatpy runs on a JupyterHub, such as a university's, as an alternative to Colab that needs no Google account. One command installs it once into the home folder, as a Jupyter kernel `kbstatpy`; the README describes it.
+- The template notebook works on a JupyterHub too: its setup cell installs kbstatpy there, and the upload and download steps say what to do on a hub.
+- `in_file` and `out_dir` accept a leading `~` for the home folder, for example `'~/sciebo/data.csv'`.
+
+### Changes
+
+- The installers are named after their platform: `install_mac_linux.sh` (macOS and Linux) and `install_windows.ps1` (formerly `install.sh` and `install.ps1`), next to the new `install_jupyterhub.sh`.
+- Installation has its own file, [INSTALL.md](INSTALL.md): own computer, Colab, and a step-by-step guide for JupyterHub with its common errors. The README keeps the short version.
+
 ## [1.37.2] - 2026-10-06
 
 ### Changes

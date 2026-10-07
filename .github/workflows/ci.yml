@@ -1,6 +1,6 @@
 # The repository had no CI before this. Its job is to make the claim in README.md
 # ("native Windows is supported") verifiable rather than asserted: the maintainer
-# works on macOS, so nothing else exercises install.ps1 or the rpy2 bridge on
+# works on macOS, so nothing else exercises install_windows.ps1 or the rpy2 bridge on
 # Windows.
 #
 # There is deliberately no "fast, R-free tests" job. Every test imports kbstatpy,
@@ -16,7 +16,7 @@ on:
 
 jobs:
   # Genuinely dependency-free, so it fails fast and separately from anything
-  # needing R. Lints install.ps1 against the engine it actually targets: Windows
+  # needing R. Lints install_windows.ps1 against the engine it actually targets: Windows
   # PowerShell 5.1 is not the engine on any runner here, so a plain parse would
   # miss the 7.x-only syntax (??, ternary, && chains) that 5.1 rejects. The
   # compatibility rules check against a real 5.1 platform profile instead.
@@ -26,34 +26,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: install.sh syntax
-        run: bash -n install.sh
+      - name: install_mac_linux.sh syntax
+        run: bash -n install_mac_linux.sh
 
       - name: Install PSScriptAnalyzer
         shell: pwsh
         run: Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
 
-      - name: install.ps1 parse check
+      - name: install_windows.ps1 parse check
         shell: pwsh
         run: |
           $tokens = $null; $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile(
-              (Resolve-Path ./install.ps1).Path, [ref]$tokens, [ref]$errors) | Out-Null
+              (Resolve-Path ./install_windows.ps1).Path, [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) {
               $errors | ForEach-Object {
-                  Write-Host "::error file=install.ps1,line=$($_.Extent.StartLineNumber)::$($_.Message)"
+                  Write-Host "::error file=install_windows.ps1,line=$($_.Extent.StartLineNumber)::$($_.Message)"
               }
               exit 1
           }
           Write-Host "parse OK - $($tokens.Count) tokens"
 
-      - name: install.ps1 vs Windows PowerShell 5.1
+      - name: install_windows.ps1 vs Windows PowerShell 5.1
         shell: pwsh
         run: |
           $win51 = 'win-48_x64_10.0.17763.0_5.1.17763.316_x64_4.0.30319.42000_framework'
           # PSAvoidUsingWriteHost is excluded deliberately: an installer's whole
           # job is talking to a human, and Write-Output would put the banner text
-          # into the pipeline, where install.sh uses plain echo.
+          # into the pipeline, where install_mac_linux.sh uses plain echo.
           $settings = @{
               IncludeRules = @('PSUseCompatibleSyntax', 'PSUseCompatibleCommands', 'PSUseCompatibleTypes')
               Rules = @{
@@ -62,10 +62,10 @@ jobs:
                   PSUseCompatibleTypes    = @{ Enable = $true; TargetProfiles = @($win51) }
               }
           }
-          $found = Invoke-ScriptAnalyzer -Path ./install.ps1 -Settings $settings
+          $found = Invoke-ScriptAnalyzer -Path ./install_windows.ps1 -Settings $settings
           if ($found) {
               $found | ForEach-Object {
-                  Write-Host "::error file=install.ps1,line=$($_.Line)::[$($_.RuleName)] $($_.Message)"
+                  Write-Host "::error file=install_windows.ps1,line=$($_.Line)::[$($_.RuleName)] $($_.Message)"
               }
               exit 1
           }
@@ -124,20 +124,20 @@ jobs:
           # this same path while reading as though the job chose it.
           path: ${{ runner.temp }}/Library
           # Keyed on the installers, since that is where the package list lives.
-          key: ${{ runner.os }}-R-${{ hashFiles('install.sh', 'install.ps1') }}
+          key: ${{ runner.os }}-R-${{ hashFiles('install_mac_linux.sh', 'install_windows.ps1') }}
           restore-keys: ${{ runner.os }}-R-
 
       - name: Run the installer (Windows)
         if: runner.os == 'Windows'
         # Invoked exactly as README.md tells users to, and through `powershell`
         # rather than `pwsh` on purpose: 5.1 is what a default Windows box has,
-        # and it is the engine install.ps1 is written for.
+        # and it is the engine install_windows.ps1 is written for.
         shell: cmd
-        run: powershell -ExecutionPolicy Bypass -File install.ps1
+        run: powershell -ExecutionPolicy Bypass -File install_windows.ps1
 
       - name: Run the installer (macOS / Linux)
         if: runner.os != 'Windows'
-        run: bash ./install.sh
+        run: bash ./install_mac_linux.sh
 
       - name: Import check
         # Overlaps the installer's own verification step, and kept anyway: it

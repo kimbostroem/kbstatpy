@@ -236,6 +236,25 @@ def test_an_absolute_path_survives_both_guards():
         assert k._resolve_path(absolute) == absolute, absolute
 
 
+def test_a_leading_tilde_is_the_home_folder():
+    # On a JupyterHub sciebo is mounted at ~/sciebo; an unexpanded '~' became
+    # a folder of that name under the working directory, and the file was
+    # "not found" although the path was right.
+    home = tempfile.mkdtemp()
+    old = os.environ.get('HOME')
+    os.environ['HOME'] = home
+    try:
+        o = KbstatOptions()
+        o.base_dir = tempfile.mkdtemp()                # must not apply to a ~ path
+        got = Kbstat(o)._resolve_path('~/sciebo/x.csv')
+    finally:
+        if old is None:
+            del os.environ['HOME']
+        else:
+            os.environ['HOME'] = old
+    assert got == os.path.join(home, 'sciebo', 'x.csv'), got
+
+
 if __name__ == '__main__':
     failures = 0
     for name, fn in sorted(globals().items()):

@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    kbstatpy installer for native Windows - the PowerShell counterpart of install.sh.
+    kbstatpy installer for native Windows - the PowerShell counterpart of install_mac_linux.sh.
 
 .DESCRIPTION
-    Mirrors install.sh step for step, with two substitutions. The macOS-only steps
+    Mirrors install_mac_linux.sh step for step, with two substitutions. The macOS-only steps
     (Xcode Command Line Tools architecture check, R.framework version symlink fix)
     have no Windows analogue and are dropped; in their place this script locates R
     the way Windows actually requires and verifies the rpy2 -> R bridge at the end.
@@ -36,16 +36,16 @@
     conda/venv interpreter, then `python`, then the `py -3` launcher.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File install.ps1
+    powershell -ExecutionPolicy Bypass -File install_windows.ps1
 
 .EXAMPLE
     # Into a specific Anaconda environment (from the Anaconda Prompt):
     #   conda activate ankle-instability
-    #   powershell -ExecutionPolicy Bypass -File install.ps1
+    #   powershell -ExecutionPolicy Bypass -File install_windows.ps1
 
 .EXAMPLE
     # Into a specific interpreter, no activation needed:
-    powershell -ExecutionPolicy Bypass -File install.ps1 -Python C:\Users\me\anaconda3\envs\ankle\python.exe
+    powershell -ExecutionPolicy Bypass -File install_windows.ps1 -Python C:\Users\me\anaconda3\envs\ankle\python.exe
 #>
 
 param(
@@ -109,7 +109,7 @@ function Invoke-Python {
     # and `-m pip` cannot install into the wrong interpreter.
     #
     # Output is deliberately streamed rather than collected - that would buffer
-    # pip's progress until the command finished, where install.sh shows it live.
+    # pip's progress until the command finished, where install_mac_linux.sh shows it live.
     param([string[]]$Arguments)
     Invoke-Native -Exe $script:PythonExe -Arguments (@($script:PythonArgs) + $Arguments)
 }
@@ -170,7 +170,7 @@ function Get-ActiveEnvironment {
 }
 
 function Resolve-RHome {
-    # PATH first (matches install.sh), then the registry keys the Windows
+    # PATH first (matches install_mac_linux.sh), then the registry keys the Windows
     # installer writes, then the default install location. R.home() is asked
     # rather than derived from the Rscript path, because that path may be either
     # bin\ or bin\x64\ depending on the R version.
@@ -308,9 +308,9 @@ if (-not $script:PythonExe) {
         Write-Host '  Store placeholder, which only prints "Python was not found".'
         Write-Host '  If you use Anaconda, activate the environment you want and re-run:'
         Write-Host '    conda activate <env>'
-        Write-Host '    powershell -ExecutionPolicy Bypass -File install.ps1'
+        Write-Host '    powershell -ExecutionPolicy Bypass -File install_windows.ps1'
         Write-Host '  Or point the installer straight at an interpreter:'
-        Write-Host '    powershell -ExecutionPolicy Bypass -File install.ps1 -Python <path>\python.exe'
+        Write-Host '    powershell -ExecutionPolicy Bypass -File install_windows.ps1 -Python <path>\python.exe'
     } else {
         Write-Host 'ERROR: no working Python found.'
     }
@@ -415,7 +415,7 @@ if ($LASTEXITCODE -ne 0) {
 # without reinstalling. $PSScriptRoot rather than '.', so the script also works
 # when invoked from another working directory.
 #
-# install.sh pins great_tables==0.14.0 when the Xcode CLT are missing, because
+# install_mac_linux.sh pins great_tables==0.14.0 when the Xcode CLT are missing, because
 # great_tables >= 0.15 pulls multimark, which then has to compile. No such pin
 # is needed here: multimark publishes a win_amd64 wheel.
 Invoke-Python -Arguments @('-m', 'pip', 'install', '-e', $PSScriptRoot)
@@ -474,7 +474,7 @@ if (!is.na(lib) && nzchar(lib)) {
 # overridden. "@CRAN@" is the R placeholder for "no mirror chosen yet", not a
 # repository, and is dropped. Nothing compiles on Windows either way -- CRAN
 # serves binaries for every package here -- so this matters less than it does
-# in install.sh, where it is the difference between one minute and seventeen.
+# in install_mac_linux.sh, where it is the difference between one minute and seventeen.
 repos <- getOption("repos")
 repos <- repos[!is.na(repos) & nzchar(repos) & repos != "@CRAN@"]
 if (length(repos) == 0) repos <- c(CRAN = "https://cloud.r-project.org")

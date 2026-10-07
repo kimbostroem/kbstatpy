@@ -21,9 +21,9 @@ echo "  Done."
 # ------------------------------------------------------------------
 
 echo ""
-echo "[2/4] Activating environment and running install.sh ..."
+echo "[2/4] Activating environment and running install_mac_linux.sh ..."
 source "$ENV_DIR/bin/activate"
-bash "$SCRIPT_DIR/install.sh"
+bash "$SCRIPT_DIR/install_mac_linux.sh"
 
 # ------------------------------------------------------------------
 # 3. Run all demos
