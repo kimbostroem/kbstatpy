@@ -1561,7 +1561,10 @@ class Kbstat:
         # missing, which data_to_use still contains).
         n_obs = self.n_obs_fit or len(data_to_use)
         raw['etaSqp'] = _f2eta_sq_p(raw['F'], raw['DF1'], raw['DF2'], n_obs)
-        raw['SMD'] = _f2smd(raw['F'], raw['DF1'], raw['DF2'], n_obs)
+        # No SMD here: a term is not a difference between two means, and the
+        # 2·sqrt(F/df) it used to show is d only for two independent groups. On
+        # a within-subject factor it came out near twice d_z (2.71 on the paired
+        # sleep data, where d = 0.83). The pairwise d is in the post-hoc table.
         raw['effectSize'] = raw['etaSqp'].apply(_effect_label_eta)
         raw['significance'] = raw['p'].apply(_sig_stars)
         self.anova_table = raw
@@ -1656,16 +1659,7 @@ class Kbstat:
         # SD of y -- every variance component plus the residual, so a random
         # intercept does not make the same distance look larger. Not defined on
         # a link scale, where there is no residual SD to divide by.
-        d = float('nan')
-        if self._family() == 'gaussian':
-            try:
-                if isinstance(self.model, Lmer):
-                    total = float(ro.r('function(m) sum(as.data.frame(lme4::VarCorr(m))$vcov)')(r_obj)[0])
-                else:
-                    total = float(ro.r('sigma')(r_obj)[0]) ** 2
-                d = (est - null) / np.sqrt(total)
-            except Exception:
-                pass
+        d = (est - null) / self._total_sd()
         n_obs = self.n_obs_fit or len(data_to_use)
         F = t ** 2
         self.intercept_test = dict(mean=mean, ci_low=lo, ci_high=hi, null=null,
@@ -1695,6 +1689,32 @@ class Kbstat:
     #: The constant one-level column an intercept-only model is plotted against,
     #: so the single group goes through the same violin/EMM code as any factor.
     _ALL_COL, _ALL_LEVEL = '_all', 'all'
+
+    def _total_sd(self):
+        """The SD of y the model implies, for standardising a mean difference;
+        NaN where there is none (a GLMM, whose link scale has no residual SD).
+
+        Every variance component plus the residual, so a contrast is measured
+        against the whole spread of y and not against the part the random
+        effects leave over: the same difference then gives the same d whether
+        it was observed paired or unpaired, and only its precision differs. On
+        Student's sleep data that is 0.832 both ways, Cohen's d with the pooled
+        SD. The marginal variance is averaged over the observations rather than
+        summed from VarCorr, because with a random slope it differs between
+        cells and the covariance terms count too; for random intercepts alone
+        the two agree.
+        """
+        if self._family() != 'gaussian':
+            return float('nan')
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        try:
+            if isinstance(self.model, Lmer):
+                v = ro.r('function(m) mean(sigma(m)^2 * (1 + Matrix::rowSums('
+                         '(lme4::getME(m, "Z") %*% lme4::getME(m, "Lambda"))^2)))')(r_obj)[0]
+                return float(np.sqrt(v))
+            return float(ro.r('sigma')(r_obj)[0])
+        except Exception:
+            return float('nan')
 
     def _variance_components(self):
         """Variance components of a Gaussian LMM, or None.
@@ -1850,13 +1870,20 @@ class Kbstat:
         adj = self.options.posthoc_correction
         ct_adj = ct_raw = emm_df = None
         posthoc_df = pd.DataFrame()
+        # The unadjusted contrasts carry their 95% CI, which becomes diffCI. It
+        # is unadjusted on purpose: the default correction, Holm, has no
+        # compatible interval (emmeans silently substitutes Bonferroni), and
+        # posthoc_family re-corrects the p-values here, past anything emmeans'
+        # own adjusted interval would know about.
+        _raw_pairs = lambda e: ro.r('as.data.frame')(ro.r('summary')(
+            ro.r('pairs')(e, adjust='none'), infer=ro.BoolVector([True, True])))
         try:
             ro.globalenv['kbstat_cmp_model'] = r_obj
             if not by_factors:
                 # Marginal comparison of var (averaged over any other factors).
                 _emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var})')
                 ct_adj = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust=adj)))
-                ct_raw = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust='none')))
+                ct_raw = p2ri.rpy2py(_raw_pairs(_emm))
                 _emm_resp = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, type="response")')
                 ro.r.assign('._emm_df_tmp', ro.r('as.data.frame')(_emm_resp))
                 ro.r(f'._emm_df_tmp[["{var}"]] <- as.character(._emm_df_tmp[["{var}"]])')
@@ -1876,7 +1903,7 @@ class Kbstat:
                     at_str = ', '.join(f'{b} = "{lvl}"' for b, lvl in zip(by_factors, combo))
                     _emm = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, at = list({at_str}))')
                     ca = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust=adj)))
-                    cr = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm, adjust='none')))
+                    cr = p2ri.rpy2py(_raw_pairs(_emm))
                     for dfc in (ca, cr):
                         for b, lvl in zip(by_factors, combo):
                             dfc[b] = lvl  # supply the cell labels ourselves
@@ -1896,7 +1923,7 @@ class Kbstat:
                 # leading block with every conditioning column set to 'any'.
                 _emm_m = ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var})')
                 cma = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm_m, adjust=adj)))
-                cmr = p2ri.rpy2py(ro.r('as.data.frame')(ro.r('pairs')(_emm_m, adjust='none')))
+                cmr = p2ri.rpy2py(_raw_pairs(_emm_m))
                 ro.r.assign('._emm_m_tmp', ro.r('as.data.frame')(
                     ro.r(f'emmeans::emmeans(kbstat_cmp_model, ~ {var}, type="response")')))
                 ro.r(f'._emm_m_tmp[["{var}"]] <- as.character(._emm_m_tmp[["{var}"]])')
@@ -2027,6 +2054,22 @@ class Kbstat:
         _p = self._n_fixed_params(_rm)
         df_resid = float(_n_obs - _p) if (_n_obs and _p and _n_obs > _p) else float('nan')
 
+        # Cohen's d against the total SD of y (see _total_sd); NaN for a GLMM,
+        # which keeps the F-based fallback below.
+        total_sd = self._total_sd()
+        # The contrast CI is on the model scale. It goes beside `diff` only when
+        # that is the response scale too; under a log or logit link it becomes
+        # a ratio (rate, mean or odds ratio); otherwise there is no interval of
+        # the response-scale difference to give, and none is shown.
+        link = self._fitted_link() or 'identity'
+        ci_kind = ('' if self.options.y_transform else
+                   'diff' if link == 'identity' else
+                   'ratio' if link in ('log', 'logit') else '')
+        ci_lo = next((c for c in ('lower.CL', 'asymp.LCL') if c in ct_raw.columns), None)
+        ci_hi = next((c for c in ('upper.CL', 'asymp.UCL') if c in ct_raw.columns), None)
+        if not (ci_lo and ci_hi):
+            ci_kind = ''
+
         levels = emm_df[factor_col].astype(str).unique().tolist()
         rows = []
         for (_, cadj), (_, craw) in zip(ct_adj.iterrows(), ct_raw.iterrows()):
@@ -2044,7 +2087,12 @@ class Kbstat:
             # MATLAB kbstat / Paper 2 reported rather than 0 / undefined.
             _F = t_val ** 2
             etasqp = _f2eta_sq_p(_F, 1.0, df_val, n_obs=df_resid)
-            smd = _f2smd(_F, 1.0, df_val, n_obs=df_resid)
+            if np.isfinite(total_sd) and total_sd > 0:
+                smd = abs(float(craw['estimate'])) / total_sd
+                label = _d_label(smd)
+            else:
+                smd = _f2smd(_F, 1.0, df_val, n_obs=df_resid)
+                label = _effect_label_eta(etasqp)
             p_raw = float(craw['p.value'])
             p_corr = float(cadj['p.value'])
             diff = _emm_val(lev1, cell) - _emm_val(lev2, cell)
@@ -2054,11 +2102,22 @@ class Kbstat:
                 f'{factor_col}_2': str(lev2),
                 'emm_1': _emm_ci_str(lev1, cell),
                 'emm_2': _emm_ci_str(lev2, cell),
-                'diff': diff, 't': t_val, 'df': df_val,
+                'diff': diff,
+            })
+            if ci_kind:
+                lo, hi = float(craw[ci_lo]), float(craw[ci_hi])
+                if ci_kind == 'diff':
+                    row['diffCI'] = f'({lo:.3f}, {hi:.3f})'
+                else:
+                    row['ratio'] = float(np.exp(float(craw['estimate'])))
+                    row['ratioCI'] = f'({np.exp(lo):.3f}, {np.exp(hi):.3f})'
+            row.update({
+                't': t_val, 'df': df_val,
                 'p': p_raw, 'pCorr': p_corr, 'SMD': smd, 'etaSqp': etasqp,
-                # Label from partial eta-squared (7-bin), mirroring the MATLAB
-                # kbstat emm post-hoc; SMD and etaSqp are both reported as numbers.
-                'effectSize': _effect_label_eta(etasqp), 'significance': _sig_stars(p_corr),
+                # Labelled from d where there is one; a GLMM's fallback d is
+                # liberal, so its label comes from partial eta-squared, as the
+                # MATLAB kbstat emm post-hoc did.
+                'effectSize': label, 'significance': _sig_stars(p_corr),
             })
             rows.append(row)
         return pd.DataFrame(rows)
@@ -5590,6 +5649,34 @@ class Kbstat:
             out.append('  opposite sign to diff throughout. The p-values are unaffected.')
         return out
 
+    def _posthoc_effect_lines(self, ph):
+        """Say what SMD is standardised by and which p-value diffCI goes with.
+
+        Both were silent before 1.41.0, when SMD was 2·|t|/sqrt(df) -- d for two
+        independent groups, and near twice d_z for a paired one -- and there
+        was no interval of the difference at all.
+        """
+        out = []
+        if 'SMD' in ph.columns:
+            if not np.isfinite(self._total_sd()):
+                out.append('  SMD is approximated from the contrast F (no residual SD on the link scale).')
+            elif isinstance(self.model, Lmer):
+                out.append('  SMD is Cohen\'s d: |difference| / SD of y around the fixed effects (every')
+                out.append('  variance component plus the residual); pairing narrows the CI, not d.')
+            else:
+                out.append('  SMD is Cohen\'s d: |difference| / residual SD.')
+        ci = next((c for c in ('diffCI', 'ratioCI') if c in ph.columns), None)
+        if ci == 'diffCI':
+            what = 'difference'
+        elif ci:
+            what = ('odds ratio of emm_1 to emm_2' if self._fitted_link() == 'logit'
+                    else 'ratio emm_1 / emm_2')
+        if ci:
+            out.append(f'  {ci} is the unadjusted 95% CI of the {what}; it matches p, not pCorr.')
+        elif self.options.y_transform:
+            out.append('  No CI of diff: the contrast is on the y_transform scale, diff is not.')
+        return out
+
     def _link_label(self) -> str:
         """The link the fit actually used, not the option that asked for it.
 
@@ -6132,6 +6219,7 @@ class Kbstat:
                 self._posthoc_family_info.get(_primary))
             lines += [f'  Denominator df method: {self._df_method_label()}']
             lines += self._posthoc_scale_lines()
+            lines += self._posthoc_effect_lines(ph)
             lines += ['']
             _ph_show, _n_blanked = _blank_repeated_contrasts(ph, self.options.x[0]
                                                             if self.options.x else '')
@@ -6155,11 +6243,15 @@ class Kbstat:
                 _ph_inf = bool(np.any(np.isinf(
                     pd.to_numeric(ph['df'], errors='coerce').to_numpy(dtype=float))))
             if _ph_inf:
+                _smd_too = not np.isfinite(self._total_sd())
                 lines += [
-                    'NOTE: effect sizes for asymptotic contrasts (SMD, etaSqp)',
+                    'NOTE: effect sizes for asymptotic contrasts (SMD, etaSqp)' if _smd_too
+                    else 'NOTE: effect size for asymptotic contrasts (etaSqp)',
                     '---------------------------------------------------------',
                     'The pairwise tests above are asymptotic (df = Inf), so the standardized',
-                    'effect sizes — SMD (Cohen\'s d) and partial eta-squared (etaSqp) — cannot',
+                    ('effect sizes — SMD (Cohen\'s d) and partial eta-squared (etaSqp) — cannot'
+                     if _smd_too else
+                     'effect size partial eta-squared (etaSqp) cannot'),
                     'be derived from the test df. They are computed from the contrast F = t^2',
                     'with the residual df n - p as the denominator (n observations, p fixed-',
                     'effect columns), matching the MATLAB kbstat / Paper 2 convention so they',
@@ -6620,7 +6712,8 @@ def _blank_repeated_contrasts(df, factor_col):
     """
     out = df.copy()
     pair_cols = [c for c in (f'{factor_col}_1', f'{factor_col}_2') if c in out.columns]
-    value_cols = [c for c in ('diff', 't', 'df', 'p', 'pCorr', 'pSplit', 'SMD', 'etaSqp',
+    value_cols = [c for c in ('diff', 'diffCI', 'ratio', 'ratioCI', 't', 'df', 'p', 'pCorr',
+                              'pSplit', 'SMD', 'etaSqp',
                               'effectSize', 'significance') if c in out.columns]
     test_cols = [c for c in ('t', 'df', 'p') if c in out.columns]
     if not pair_cols or not value_cols or not test_cols or len(out) < 2:

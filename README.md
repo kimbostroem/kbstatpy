@@ -534,8 +534,8 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 
 | File | Contents |
 |---|---|
-| `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², SMD, effect size label. For an intercept-only model, one row: the test of the mean (F = t²) |
-| `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference, t/z, SMD, p (raw + corrected) |
+| `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², effect size label. For an intercept-only model, one row: the test of the mean (F = t²) with its Cohen's d |
+| `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference with its 95% CI (`diffCI`; a ratio with `ratioCI` under a log or logit link), t/z, p (raw + corrected), SMD (Cohen's d against the total SD of y) |
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, EMM, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered. With `scale_covariates` on, each scaled covariate appears beside its original as `<name>_scaled` |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes. For a normal mixed model also the variance components and, where the random part is intercepts only, the ICC |
@@ -682,6 +682,7 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 - **Kenward-Roger / Satterthwaite df vs. df = Inf** — the `df_method` option, why GLMMs yield asymptotic tests, and how large fits are handled
 - **Post-hoc comparisons with emmeans** — marginal means and Holm correction, over a family scope you choose (`posthoc_family`)
 - **Which scale the post-hoc columns are on** — `emm_1`, `emm_2` and `diff` are on the response scale; `t`, `df` and `p` come from the contrast on the link scale, so under a non-identity link `t` is not `diff` over its standard error, and under a decreasing link the two carry opposite signs. `Summary.txt` states this whenever the link is not the identity
+- **Effect size and CI of the difference** — SMD is Cohen's d against the total SD of y, so pairing changes the CI, not d; `diffCI` is unadjusted and goes with `p`, not `pCorr`
 - **VIF and multicollinearity** — what VIF measures and when it matters
 
 ---

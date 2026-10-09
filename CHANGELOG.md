@@ -1,5 +1,20 @@
 # Changes
 
+## [1.41.0] - 2026-10-09
+
+### Features
+
+- The post-hoc table gives the 95% CI of the difference (`diffCI`), or, under a log or logit link, the ratio of the two means (the odds ratio for logit) with its CI. The interval is unadjusted, so it goes with `p`, not `pCorr`.
+
+### Bugs
+
+- The post-hoc SMD was far too large for within-subject comparisons: 2.71 ("very large") on the paired sleep data, where Cohen's d is 0.83. It is now Cohen's d against the total SD of y, so pairing changes the CI, not d. SMDs from mixed models reported with earlier versions must be recomputed.
+- Between-group SMDs were slightly too large as well (0.88 instead of 0.83 on the unpaired sleep data). Effect-size labels in the post-hoc table now come from d and can change.
+
+### Changes
+
+- The ANOVA table no longer has an SMD column; a term with several levels is not one difference. Partial η² and its label are unchanged. GLMM SMDs keep the earlier, flagged approximation.
+
 ## [1.40.0] - 2026-10-07
 
 ### Features
