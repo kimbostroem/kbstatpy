@@ -1,5 +1,11 @@
 # Changes
 
+## [1.41.1] - 2026-10-13
+
+### Changes
+
+- A random slope that the data cannot carry, such as one value per subject and condition, now stops with a plain message saying what is missing, instead of a raw R error. kbstatpy no longer tries the uncorrelated fallback first, which cannot help there.
+
 ## [1.41.0] - 2026-10-09
 
 ### Features

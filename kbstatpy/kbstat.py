@@ -79,6 +79,18 @@ _BRACKET_MIN_GAP_PT = 5.0
 _EMM_LINE_DEFAULT = ':'
 
 
+class UnidentifiableRandomEffects(ValueError):
+    """The random part asks for at least as many random effects as there are
+    observations, so lme4 cannot tell them apart from the residual."""
+
+
+# lme4's own check for that case. It fires before any fitting, so the numbers
+# in it are exact; kbstatpy turns them into a plain message.
+_LME4_RE_COUNT = re.compile(
+    r'number of observations \(=(\d+)\) <= number of random effects \(=(\d+)\) '
+    r'for term \((.+?)\);')
+
+
 @dataclass
 class ModelResult:
     """Results of fitting one dependent variable (for one level of options.split)."""
@@ -1200,6 +1212,11 @@ class Kbstat:
                 self._construct_and_fit(formula, data_to_use, family, link,
                                         dispformula, has_random)
                 singular = self._fit_is_singular()
+            except UnidentifiableRandomEffects:
+                # The diagonal structure has at least as many random effects
+                # as the correlated one, so the 'auto' refit would fail the
+                # same check and only add a misleading warning first.
+                raise
             except Exception:
                 if mode != 'auto':
                     warnings.warn(
@@ -1254,7 +1271,17 @@ class Kbstat:
             self.model = GlmmTMB(formula, data=data_to_use, family=family, link=link,
                                  max_iterations=self.options.max_iterations,
                                  dispformula=dispformula)
-        self.model.fit(summarize=False)
+        try:
+            self.model.fit(summarize=False)
+        except Exception as e:
+            m = _LME4_RE_COUNT.search(str(e))
+            if m is None:
+                raise
+            # A raw R error inside a Python traceback (on a German system it
+            # even starts with "Fehler:") tells a student nothing; say what the
+            # data lack instead. `from None` keeps the R chain out of the trace.
+            raise UnidentifiableRandomEffects(self._unidentifiable_re_message(
+                int(m.group(1)), int(m.group(2)), m.group(3), data_to_use)) from None
 
         _asked_link = str(self.options.link)
         _subst = self._SUBSTITUTED_LINKS.get(family, {}).get(_asked_link)
@@ -4894,6 +4921,34 @@ class Kbstat:
         if problems:
             msg = "options fields are inconsistent with the explicit formula:\n" + "\n".join(problems)
             raise ValueError(msg)
+
+    def _unidentifiable_re_message(self, n_obs, n_re, term, data):
+        """Plain explanation of lme4's "number of observations <= number of
+        random effects" refusal, naming what the data would need."""
+        slopes = [v for v in (self.options.slope or []) if v]
+        groups = self._id_groups()
+        group = groups[0] if groups else 'id'
+        msg = (f"The random part cannot be estimated with these data: the model "
+               f"needs {n_re} random effects for ({term}) but there are only "
+               f"{n_obs} observations, so they cannot be told apart from the "
+               f"residual noise.")
+        if slopes:
+            s_txt = ', '.join(repr(v) for v in slopes)
+            detail = ''
+            try:
+                cols = [group] + slopes
+                if all(c in data.columns for c in cols) and \
+                        int(data.groupby(cols).size().max()) == 1:
+                    detail = (f" Here each {group!r} has only one value per level "
+                              f"of {s_txt}.")
+            except Exception:
+                pass
+            msg += (f" A random slope for {s_txt} (an own effect per {group!r}) "
+                    f"needs several values per {group!r} and level of {s_txt}."
+                    f"{detail} Remove options.slope, or use data with repeated "
+                    f"measurements per {group!r} and condition (for example the "
+                    f"single trials instead of their means).")
+        return msg + f" (lme4: number of observations (={n_obs}) <= number of random effects (={n_re}))"
 
     def _validate_slopes(self):
         """Raise a clear error if any slope variable is not among the fixed-effect factors."""
