@@ -693,24 +693,33 @@ class Kbstat:
         # x_order was never applied and levels came out in data order.
         if o.formula:
             self._backfill_options_from_formula(o.formula)
+        self._normalize_per_y_options()
         # Enumerated options: one lower-casing and one validation for all of them.
         # An empty value is left alone, since several read it as "use the
         # default"; anything else must be a value the option actually takes,
         # because silently ignoring it is how a typo becomes a different model.
+        # A per-y distribution is a list, and each entry is checked the same way.
+        def _enum(name, raw, allowed):
+            val = str(raw if raw is not None else '').strip().lower()
+            if not val:
+                return raw
+            if val not in allowed:
+                raise ValueError(
+                    f"{name} must be one of: {', '.join(allowed)} "
+                    f"(got {raw!r})")
+            return val
         for _name, _allowed in _ENUM_OPTIONS.items():
             _raw = getattr(o, _name)
-            _val = str(_raw if _raw is not None else '').strip().lower()
-            if not _val:
-                continue
-            if _val not in _allowed:
-                raise ValueError(
-                    f"{_name} must be one of: {', '.join(_allowed)} "
-                    f"(got {_raw!r})")
-            setattr(o, _name, _val)
+            if isinstance(_raw, list):
+                setattr(o, _name, [_enum(_name, v, _allowed) for v in _raw])
+            else:
+                setattr(o, _name, _enum(_name, _raw, _allowed))
         # link goes to R as a name; lower-case it, but do not enumerate -- the
         # set depends on the family and R has the authoritative list.
         if isinstance(o.link, str):
             o.link = o.link.strip().lower()
+        elif isinstance(o.link, list):
+            o.link = [v.lower() for v in o.link]
         # y_correction: normalize to lowercase, validate against the allowed set.
         yc = o.y_correction
         o.y_correction = (yc or 'none').strip().lower()
@@ -889,6 +898,52 @@ class Kbstat:
                 "data_outliers must be one of: text, plot, none ('hide' and "
                 f"'off' also mean none) (got {o.data_outliers!r})")
 
+    def _normalize_per_y_options(self):
+        """Resolve the options that may take one value per dependent variable.
+
+        A list is matched to y by position, as y_units is; a single value
+        applies to every y. A list whose entries all agree is a single value,
+        so after this a list means the values really differ, and has one entry
+        per y. These three are what changes between the outcomes of one study
+        in practice: a count, a binary and a continuous outcome side by side,
+        the count analysed on its own subset of trials. The MATLAB kbstat took
+        them the same way.
+        """
+        o = self.options
+        n_y = len(self._split_csv(o.y)) if o.y else 0
+        for name in _PER_Y_OPTIONS:
+            val = getattr(o, name)
+            if isinstance(val, tuple):
+                val = list(val)
+            # A comma never belongs to a distribution or link name, so a
+            # comma-separated string is a per-y list there. A constraint can
+            # contain one (`limb in ["sl", "wl"]`), so for it only a list is.
+            if isinstance(val, str) and name != 'constraints' and ',' in val:
+                val = val.split(',')
+            if not isinstance(val, list):
+                continue
+            val = ['' if v is None else str(v).strip() for v in val]
+            if len(val) not in (1, n_y):
+                raise ValueError(
+                    f"options.{name} has {len(val)} entries but options.y has "
+                    f"{n_y}. Give one entry per dependent variable, matched by "
+                    "position, or a single value for all of them.")
+            setattr(o, name, val[0] if len(set(val)) == 1 else val)
+        # The correlation analysis runs once, on one set of rows, so it has no
+        # way to choose between per-y constraints.
+        if isinstance(o.constraints, list) and o.correlation:
+            raise ValueError(
+                "options.constraints differs between the dependent variables, "
+                "so it does not say which rows the correlation analysis should "
+                "use. Run the correlation analysis in a separate Kbstat with a "
+                "single constraint.")
+
+    def _per_y(self, i):
+        """The per-y options for the i-th dependent variable, as {name: value}."""
+        return {name: (val[i] if isinstance(val, list) else val)
+                for name in _PER_Y_OPTIONS
+                for val in [getattr(self.options, name)]}
+
     def run(self):
         """Compute the full analysis and gather the results into ``self.output``.
 
@@ -911,12 +966,15 @@ class Kbstat:
 
         for i, y_var in enumerate(y_list):
             if self.options.split:
-                self._run_split(y_var, units_list[i] if i < len(units_list) else '')
+                self._run_split(y_var, units_list[i] if i < len(units_list) else '',
+                                self._per_y(i))
                 continue
             if multi:
                 opts = copy.deepcopy(self.options)
                 opts.y = y_var
                 opts.y_units = units_list[i] if i < len(units_list) else ''
+                for name, val in self._per_y(i).items():
+                    setattr(opts, name, val)
                 worker = Kbstat(opts)
                 worker._display_names = self._display_names.copy()
             else:
@@ -961,10 +1019,11 @@ class Kbstat:
 
         return self.output
 
-    def _split_levels(self):
+    def _split_levels(self, options=None):
         """Levels of options.split in x_order[split] order if given, else in the
-        order of first appearance in the data (constraints applied)."""
-        probe = Kbstat(copy.deepcopy(self.options))
+        order of first appearance in the data (constraints applied). `options`
+        are those of one dependent variable, whose constraints may be its own."""
+        probe = Kbstat(copy.deepcopy(options or self.options))
         probe._load_data()
         probe._apply_constraints()
         col = self.options.split
@@ -975,15 +1034,18 @@ class Kbstat:
         order = [str(v) for v in xo.get(col, [])] if isinstance(xo, dict) else []
         return [v for v in order if v in present] + [v for v in present if v not in order]
 
-    def _run_split(self, y_var, y_units):
+    def _run_split(self, y_var, y_units, per_y):
         """Fit y_var once per level of options.split, correct every post-hoc contrast
         across the levels (options.split_correction), then draw the data plots so
         their brackets use the corrected values, and collect the results."""
-        levels = self._split_levels()
+        y_opts = copy.deepcopy(self.options)
+        y_opts.y, y_opts.y_units = y_var, y_units
+        for name, val in per_y.items():
+            setattr(y_opts, name, val)
+        levels = self._split_levels(y_opts)
         workers = []
         for lvl in levels:
-            opts = copy.deepcopy(self.options)
-            opts.y, opts.y_units = y_var, y_units
+            opts = copy.deepcopy(y_opts)
             worker = Kbstat(opts)
             worker._display_names = self._display_names.copy()
             worker._split_level = lvl
@@ -7063,6 +7125,10 @@ def _vif_verdict(vif):
 # method names are case-sensitive ('BH', 'BY'); `df_method`, which has its own
 # alias table and warns; and the free-text options (`fit_method`, `font`,
 # `color_scheme`, `title`), which have no fixed set.
+# Options that may take one value per dependent variable, matched to y by
+# position like y_units; see Kbstat._normalize_per_y_options.
+_PER_Y_OPTIONS = ('distribution', 'link', 'constraints')
+
 _ENUM_OPTIONS = {
     'distribution':       ('normal', 'gaussian', 'binomial', 'poisson', 'gamma',
                            'inverse_gaussian', 'tweedie'),

@@ -241,9 +241,9 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `correlation` | list / str | Numeric variables for pairwise correlation, see [Correlation analysis](#correlation-analysis). Also spelled `correlate` |
 | `correlation_method` | str | Default `'pearson'`. Or `'spearman'`, rank-based and robust to outliers. Applies to the raw and partial tables |
 | `correlation_control` | list / str | Variable(s) partialled out of every correlation. They are not shown in the matrix |
-| `constraints` | str | Row filter applied before analysis, e.g. `'Year > 1950 & group != "control"'`. Also spelled `constraint` |
-| `distribution` | str | Default `'normal'`. Response distribution, see [Supported distributions](#supported-distributions) |
-| `link` | str | Link function. `'auto'` (default) is identity for normal, logit for binomial, log for the rest. That is kbstatpy's choice, not R's canonical link, for gamma and inverse Gaussian (see [Supported distributions](#supported-distributions)) |
+| `constraints` | str or list | Row filter applied before analysis, e.g. `'Year > 1950 & group != "control"'`. A list gives one filter per `y`, matched by position (see [Multi-y](#multi-y)). Also spelled `constraint` |
+| `distribution` | str or list | Default `'normal'`. Response distribution, see [Supported distributions](#supported-distributions). One per `y` for multi-y, matched by position, e.g. `'poisson, binomial, normal'` |
+| `link` | str or list | Link function, one per `y` for multi-y like `distribution`. `'auto'` (default) is identity for normal, logit for binomial, log for the rest. That is kbstatpy's choice, not R's canonical link, for gamma and inverse Gaussian (see [Supported distributions](#supported-distributions)) |
 | `dispersion` | str | Dispersion model for the glmmTMB families. A factor name gives that factor its own dispersion |
 | `fit_method` | str | Default `'MPL'`. Label for the estimator named in `Summary.txt`; nothing is passed to the fitting engine |
 | `max_iterations` | int | Default `10000`. Optimizer cap for glmmTMB fits. Raise it if a large model reports an iteration limit at the optimum |
@@ -377,6 +377,16 @@ Set `options.y` to a list (or comma-separated string) to run the full pipeline i
 options.y       = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'
 options.y_units = 'cm'   # single entry expands to all variables
 ```
+
+`distribution`, `link` and `constraints` also take one entry per dependent variable, matched by position like `y_units`, so outcomes of different types can share one run. A single value applies to all of them, an empty entry means the default, and any other number of entries is an error. `distribution` and `link` accept a comma-separated string; `constraints` needs a list, since a filter can itself contain a comma:
+
+```python
+options.y            = 'Nb_errors, Stable, Sway'
+options.distribution = 'poisson, binomial, normal'
+options.constraints  = ['duration > 59', '', '']   # the count on full-length trials only
+```
+
+Per-y constraints cannot be combined with `correlation`, which uses one set of rows for all variables.
 
 Results are saved into per-variable subdirectories under `out_dir`. A shared correlation analysis (if `options.correlation` is set) runs once after all models have been fitted.
 

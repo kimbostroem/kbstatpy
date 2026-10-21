@@ -231,7 +231,7 @@ Capabilities that run alongside the core modelling pipeline, and the statistical
 
 ### Multiple dependent variables (Demo 12)
 
-Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically.
+Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically. The variables need not share a model family: `distribution`, `link` and `constraints` take one entry per variable.
 
 One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy can apply a cross-variable correction across the family of dependent variables via `options.y_correction` (see the next section); the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 
@@ -697,6 +697,8 @@ options.constraints = 'Year > 1950 & GNP < 500'      # combined condition
 ```
 
 Supported operators: `==` `!=` `<` `>` `<=` `>=`; combine with `&` (and) / `|` (or).
+
+In a multi-y run a list gives each dependent variable its own filter, matched by position; `''` means no filter. Each model is then fitted to its own rows, and `y_correction` combines p-values from samples that differ in size.
 
 When a categorical column is filtered, kbstatpy removes the excluded level from the column's `Categorical` dtype (via `cat.remove_unused_categories()`). This prevents the excluded level from appearing as a phantom tick on plot axes or as a spurious empty group in post-hoc tables.
 

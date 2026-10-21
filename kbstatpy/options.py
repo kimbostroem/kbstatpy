@@ -97,8 +97,9 @@ class KbstatOptions:
     # current working directory, so out_dir='results/my_run' already lands there.)
     demo_dir: str = field(default_factory=lambda: _DEMO_DIR)
 
-    # constraints
-    constraints: str = ''
+    # constraints: a pandas query string applied to every y, or a list with
+    # one per y (matched by position, like y_units; '' = no filter)
+    constraints: object = ''
 
     # Model specification
     formula: str = ''
@@ -180,13 +181,16 @@ class KbstatOptions:
     interaction: object = 'auto'
 
     # GLM settings
-    distribution: str = 'normal'
+    # distribution and link apply to every y, or take one entry per y, matched
+    # by position like y_units: a list or a comma-separated string, e.g.
+    # 'poisson, binomial, normal'. An empty entry means the default.
+    distribution: object = 'normal'
     # 'auto' is the link kbstatpy recommends, not R's canonical one: identity
     # for normal, logit for binomial, log for the rest. The two differ only for
     # gamma and inverse Gaussian, where R's canonical links (inverse and
     # 1/mu^2) decrease in the mean, so every coefficient reads backwards.
     # Kbstat._DEFAULT_LINKS holds the departures; name a link to override.
-    link: str = 'auto'
+    link: object = 'auto'
     # Dispersion model for the glmmTMB families (Gamma, inverse Gaussian, etc.):
     # the right-hand side of glmmTMB's dispformula. '' (default) = constant
     # dispersion (~1). Give a factor name, e.g. 'JointGroup', to let the

@@ -1,5 +1,11 @@
 # Changes
 
+## [1.42.0] - 2026-10-21
+
+### Features
+
+- `distribution`, `link` and `constraints` take one entry per dependent variable, matched by position like `y_units`, so a count, a binary and a continuous outcome can share one multi-y run, each on its own rows. A single value still applies to all.
+
 ## [1.41.1] - 2026-10-13
 
 ### Changes
