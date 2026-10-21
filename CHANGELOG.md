@@ -1,5 +1,11 @@
 # Changes
 
+## [1.44.0] - 2026-10-21
+
+### Features
+
+- `posthoc_compare` takes emmeans' `factor | by` form: `'group | limb'` compares group within each level of limb, averaged over the other factors, in the same model. The plot has one panel per limb. Files are named `Posthoc_group_by_limb.xlsx` and `DataPlots_group_by_limb.*`.
+
 ## [1.43.0] - 2026-10-21
 
 ### Features

@@ -473,6 +473,10 @@ class KbstatOptions:
     # x-variable. Output files are suffixed with the (original) variable name, e.g.
     # DataPlots_condition.* and Posthoc_condition.xlsx. 'auto' and 'none' are
     # reserved — a factor may not be named either.
+    # 'group | limb' (emmeans' `~ group | limb`) compares group within each level
+    # of limb only, averaged over the other factors, and plots it that way, with
+    # the data of the averaged factors pooled in each panel; several factors after
+    # '|' are joined by '*'. Files: Posthoc_group_by_limb.xlsx, DataPlots_group_by_limb.*.
     posthoc_compare: str = 'auto'
 
     # Level-wise profile analysis across an ordered factor. Set to the name of one

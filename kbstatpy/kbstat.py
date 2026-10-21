@@ -1966,16 +1966,20 @@ class Kbstat:
         self.contrasts_by_var = {}
         self.posthoc_by_var = {}
         self._posthoc_family_info = {}
+        # EMM grid over the compared and conditioning factors only, for an
+        # entry like 'group | limb' that averages over the rest; keyed by entry.
+        self._emm_grid_by_entry = {}
         primary_emm = None
-        for var in compare_vars:
+        for entry in compare_vars:
             if r_obj is None:
                 break
-            by_factors = [f for f in factors if f != var]
-            ct_adj, ph_df, var_emm = self._pairwise_for(r_obj, var, by_factors)
+            var, by = _compare_parts(entry)
+            by_factors = [f for f in factors if f != var] if by is None else by
+            ct_adj, ph_df, var_emm = self._pairwise_for(r_obj, var, by_factors, key=entry)
             if ct_adj is not None:
-                self.contrasts_by_var[var] = ct_adj
+                self.contrasts_by_var[entry] = ct_adj
             if ph_df is not None:
-                self.posthoc_by_var[var] = ph_df
+                self.posthoc_by_var[entry] = ph_df
             if primary_emm is None:
                 primary_emm = var_emm
 
@@ -1993,11 +1997,27 @@ class Kbstat:
         self.statistics_table = self._build_statistics_table(factors)
         return self.posthoc_table
 
+    def _posthoc_averaging_lines(self, entry):
+        """Say which factors a 'factor | by' comparison averages over, since
+        the table has no column for them."""
+        if not entry:
+            return []
+        var, by = _compare_parts(entry)
+        if by is None:
+            return []
+        averaged = [f for f in (self.options.x or []) if f != var and f not in by]
+        if not averaged:
+            return []
+        disp = lambda fs: ', '.join(self._disp(f) for f in fs)
+        return [f"  {self._disp(var)} compared within each cell of {disp(by)}, averaged over "
+                f"{disp(averaged)} (posthoc_compare = '{entry}')."]
+
     def _compare_vars(self):
         """Resolve options.posthoc_compare into the list of factors to compare.
 
         '' / 'none' -> [] (comparisons off); 'auto' -> [first factor]; otherwise
-        the listed factors. Raises if a factor is named with a reserved word
+        the listed entries, each a factor or 'factor | conditioning factors' (see
+        _compare_parts). Raises if a factor is named with a reserved word
         ('auto'/'none') or if a listed name is not a fixed-effect factor.
         """
         factors = list(self.options.x or [])
@@ -2012,15 +2032,24 @@ class Kbstat:
             return []
         if low == 'auto':
             return factors[:1]
-        requested = [v.strip() for v in spec.split(',') if v.strip()]
-        bad = [v for v in requested if v not in factors]
-        if bad:
-            raise ValueError(
-                f"options.posthoc_compare lists {bad}, which are not fixed-effect "
-                f"factors (x = {factors}).")
-        return requested
+        requested = []
+        for entry in (v.strip() for v in spec.split(',') if v.strip()):
+            var, by = _compare_parts(entry)
+            bad = [v for v in [var] + (by or []) if v not in factors]
+            if bad:
+                raise ValueError(
+                    f"options.posthoc_compare entry {entry!r} names {bad}, which "
+                    f"are not fixed-effect factors (x = {factors}).")
+            if by is not None and (not by or var in by or len(set(by)) < len(by)):
+                raise ValueError(
+                    f"options.posthoc_compare entry {entry!r}: after '|' name the "
+                    f"factor(s) to compare {var} within, each once and other than "
+                    f"{var}, e.g. '{var} | {next((f for f in factors if f != var), 'B')}'.")
+            # Canonical spelling, so 'group|limb' and 'group | limb' are one entry.
+            requested.append(var if by is None else f"{var} | {' * '.join(by)}")
+        return list(dict.fromkeys(requested))
 
-    def _pairwise_for(self, r_obj, var, by_factors=None):
+    def _pairwise_for(self, r_obj, var, by_factors=None, key=None):
         """Pairwise contrasts + rich posthoc table for factor ``var``, conditional
         on ``by_factors``: ``var``'s levels are compared within each cell of those
         factors. With no by_factors the comparison is marginal. Returns
@@ -2032,10 +2061,18 @@ class Kbstat:
         emmeans drop the factor labels (contrast/by columns come back as integer
         codes), whereas the ``at=`` form keeps proper labels. The cell labels are
         supplied here, and EMM display values come from the labelled full grid.
+
+        When ``by_factors`` leaves some factors out ('group | limb'), the at= form
+        averages over them, as emmeans does for any factor it is not given; the
+        EMM display values then come from the grid over var and by_factors
+        alone. ``key`` is the posthoc_compare entry the result is filed under.
         """
         import rpy2.robjects.pandas2ri as p2ri
         import itertools
         by_factors = [b for b in (by_factors or []) if b]
+        key = key or var
+        others = [f for f in (self.options.x or []) if f != var]
+        averaged = [f for f in others if f not in by_factors]
         adj = self.options.posthoc_correction
         ct_adj = ct_raw = emm_df = None
         posthoc_df = pd.DataFrame()
@@ -2083,9 +2120,18 @@ class Kbstat:
                 # Widen the family beyond the single cell if asked to. Done on the
                 # concatenated contrasts, so the plot brackets (ct_adj) and the
                 # exported table stay in agreement automatically.
-                ct_adj = self._apply_posthoc_family(var, ct_adj, ct_raw, cell_sizes)
-                # EMM display values come from the labelled full interaction grid.
+                ct_adj = self._apply_posthoc_family(key, ct_adj, ct_raw, cell_sizes)
+                # EMM display values come from the labelled full interaction grid,
+                # or, when factors are averaged over, from the grid without them.
                 emm_df = self._emm_df_full
+                if averaged:
+                    grid = [var] + by_factors
+                    ro.r.assign('._emm_by_tmp', ro.r('as.data.frame')(ro.r(
+                        f'emmeans::emmeans(kbstat_cmp_model, ~ {" * ".join(grid)}, type="response")')))
+                    for _fc in grid:
+                        ro.r(f'._emm_by_tmp[["{_fc}"]] <- as.character(._emm_by_tmp[["{_fc}"]])')
+                    emm_df = p2ri.rpy2py(ro.r('._emm_by_tmp'))
+                    self._emm_grid_by_entry[key] = emm_df
                 cond_tbl = self._build_posthoc_table(var, by_factors, emm_df, ct_adj, ct_raw)
                 # Marginal comparison (averaged over the conditioning factors),
                 # added to the TABLE only — NOT to ct_adj (the plot brackets) — as a
@@ -3335,7 +3381,7 @@ class Kbstat:
                 # variable); write each as Posthoc_<variable>.xlsx.
                 if isinstance(res.posthoc, dict):
                     for var, ph in res.posthoc.items():
-                        stem = f'Posthoc_{self._safe_name(var)}'
+                        stem = f'Posthoc_{self._safe_name(_compare_label(var))}'
                         self._write_posthoc_xlsx(ph, os.path.join(d, f'{stem}.xlsx'))
                         print(f'Saved {stem}.xlsx to {d}')
                 else:
@@ -3722,14 +3768,18 @@ class Kbstat:
         # One comparison plot per requested variable, each with that variable on
         # the x-axis (as if it were first) and the others as facet panels. Files
         # are keyed by the original variable name -> DataPlots_<var>.*.
+        # An entry 'group | limb' plots group within limb only: the data of the
+        # averaged factors are pooled in each panel, as the comparison pools them.
         figs = {}
-        for var in compare_vars:
+        for entry in compare_vars:
+            var, by = _compare_parts(entry)
             if _is_continuous(var):
                 print(f"Skipping posthoc_compare='{var}': continuous variable, no level comparison.")
                 continue
-            x_ordered = [var] + [v for v in x_all if v != var]
-            figs.update(self._compare_figures(base, var, x_ordered,
-                                               self.contrasts_by_var.get(var)))
+            x_ordered = [var] + ([v for v in x_all if v != var] if by is None else by)
+            figs.update(self._compare_figures(
+                base, _compare_label(entry), x_ordered, self.contrasts_by_var.get(entry),
+                emm_grid=getattr(self, '_emm_grid_by_entry', {}).get(entry)))
         self.fig_data = figs if figs else None
 
     def _intercept_figure(self, base):
@@ -3750,7 +3800,7 @@ class Kbstat:
                         va='bottom', fontsize=9, color='0.35')
         return fig
 
-    def _compare_figures(self, base, var, x_ordered, contrasts):
+    def _compare_figures(self, base, var, x_ordered, contrasts, emm_grid=None):
         """Build the data figure(s) for one comparison variable, keyed by the
         original variable name (plus a level suffix when a 4th+ factor splits it).
 
@@ -3758,7 +3808,8 @@ class Kbstat:
         facets); a further factor produces one figure per level-combination.
         """
         if len(x_ordered) <= 3:
-            return {var: self._build_data_figure(base, x_ordered, {}, contrasts=contrasts)}
+            return {var: self._build_data_figure(base, x_ordered, {}, contrasts=contrasts,
+                                                 emm_grid=emm_grid)}
         import itertools
         split_vars = x_ordered[3:]
         base_x = x_ordered[:3]
@@ -3776,10 +3827,12 @@ class Kbstat:
                 continue
             suffix = '_'.join(str(lev) for lev in combo)
             out[f'{var}_{suffix}'] = self._build_data_figure(
-                sub, base_x, dict(zip(split_vars, combo)), contrasts=contrasts)
+                sub, base_x, dict(zip(split_vars, combo)), contrasts=contrasts,
+                emm_grid=emm_grid)
         return out
 
-    def _build_data_figure(self, plot_data, x_list, emm_extra, contrasts=None):
+    def _build_data_figure(self, plot_data, x_list, emm_extra, contrasts=None,
+                           emm_grid=None):
         """Build one data-plot figure from ``plot_data`` using up to three factors
         in ``x_list`` (x-axis, column facets, row facets). ``emm_extra`` maps any
         further factors held fixed for this figure to their level, used to pick the
@@ -4028,7 +4081,8 @@ class Kbstat:
 
             # --- LAYER 4: EMM marker + 95 % CI bar ---
             # Prefer full interaction grid for multi-factor models (correct per-panel values)
-            _full = getattr(self, '_emm_df_full', None)
+            # emm_grid: the grid of a comparison that averages over some factors.
+            _full = emm_grid if emm_grid is not None else getattr(self, '_emm_df_full', None)
             emm_df_plot = _full if (_full is not None and not _full.empty) else getattr(self, '_emm_df', None)
             inv = getattr(self, '_inverse_fn', None)
 
@@ -6423,6 +6477,7 @@ class Kbstat:
                 ph = ph.to_pandas()
             lines += ['POST-HOC PAIRWISE COMPARISONS', '-----------------------------']
             _primary = (self._compare_vars() or [None])[0]
+            lines += self._posthoc_averaging_lines(_primary)
             lines += self._posthoc_family_lines(
                 self._posthoc_family_info.get(_primary))
             lines += [f'  Denominator df method: {self._df_method_label()}']
@@ -7216,6 +7271,26 @@ def _vif_verdict(vif):
 # method names are case-sensitive ('BH', 'BY'); `df_method`, which has its own
 # alias table and warns; and the free-text options (`fit_method`, `font`,
 # `color_scheme`, `title`), which have no fixed set.
+def _compare_parts(entry):
+    """(factor, conditioning factors or None) of a posthoc_compare entry.
+
+    'group' compares group within every cell of all other factors (None);
+    'group | limb' within each level of limb, averaged over the rest, which is
+    emmeans' `~ group | limb`. Several conditioning factors are joined by '*'
+    or '+', as in emmeans.
+    """
+    var, bar, by = str(entry).partition('|')
+    if not bar:
+        return var.strip(), None
+    return var.strip(), [b for b in re.split(r'[\s*+:]+', by) if b]
+
+
+def _compare_label(entry):
+    """File-name stem of a posthoc_compare entry: 'group_by_limb'."""
+    var, by = _compare_parts(entry)
+    return var if by is None else f"{var}_by_{'_'.join(by) or 'none'}"
+
+
 # R functions an offset expression may call; any other name in it must be a column.
 _R_MATH_FUNCTIONS = ('log', 'log2', 'log10', 'log1p', 'exp', 'sqrt', 'abs',
                      'pmax', 'pmin', 'I')
@@ -7328,9 +7403,11 @@ def _split_correction_table(workers, split_col, method):
     recs = []
     for w in workers:
         for var, ph in (w.posthoc_by_var or {}).items():
-            if ph is None or len(ph) == 0 or f'{var}_1' not in ph.columns:
+            fac = _compare_parts(var)[0]
+            if ph is None or len(ph) == 0 or f'{fac}_1' not in ph.columns:
                 continue
-            key_cols = list(ph.columns[:list(ph.columns).index(f'{var}_1')]) + [f'{var}_1', f'{var}_2']
+            key_cols = (list(ph.columns[:list(ph.columns).index(f'{fac}_1')])
+                        + [f'{fac}_1', f'{fac}_2'])
             for i, row in ph.iterrows():
                 recs.append({'kind': 'posthoc', 'factor': var, split_col: w._split_level,
                              'key': tuple(str(row[c]) for c in key_cols), '_w': w, '_i': i,
@@ -7361,7 +7438,7 @@ def _split_correction_table(workers, split_col, method):
             ph['significance'] = ph['pSplit'].apply(_sig_stars)
             ct = (w.contrasts_by_var or {}).get(var)
             if ct is not None and len(ct):
-                by = list(ph.columns[:list(ph.columns).index(f'{var}_1')])
+                by = list(ph.columns[:list(ph.columns).index(f'{_compare_parts(var)[0]}_1')])
                 # The table leads with a marginal block ('any' in every conditioning
                 # column) that the plot contrasts do not have; the remaining rows
                 # are the plot contrasts in the same order.
