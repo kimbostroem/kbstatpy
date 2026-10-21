@@ -24,6 +24,7 @@
   - [Comparing any factor, per cell (Demo 15)](#comparing-any-factor-per-cell-demo-15)
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
   - [Per-group dispersion: `dispformula` (Demo 17)](#per-group-dispersion-dispformula-demo-17)
+  - [Rates: counts over unequal exposures (`offset`)](#rates-counts-over-unequal-exposures-offset)
   - [Model structure, and why kbstatpy will not pick one for you](#model-structure-and-why-kbstatpy-will-not-pick-one-for-you)
     - [Describing the structure instead of listing the terms](#describing-the-structure-instead-of-listing-the-terms)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
@@ -284,6 +285,14 @@ The continuous-dispersion families (Gamma, inverse Gaussian) carry a single disp
 `options.dispersion` sets the right-hand side of `glmmTMB`'s **`dispformula`**, so the dispersion may vary by a factor (e.g. `dispersion = 'JointGroup'` → `dispformula = ~ JointGroup`) instead of the default constant `~ 1`. `glmmTMB` then estimates a separate dispersion per level of that factor, and the standard errors, confidence intervals and p-values are scaled correctly per group. Crucially the **mean structure is unchanged** — the fixed-effect estimates and the estimated marginal means are identical; only the dispersion model, and therefore the inference, differs.
 
 Whether the richer dispersion model is warranted is an ordinary model-comparison question. Demo 17 fits a Gamma model (`ToothGrowth`, `len ~ supp * dose`) with constant vs by-dose dispersion and compares AIC: the by-dose fit is clearly preferred (AIC drops by ~14) because the doses differ markedly in relative scatter. The option is ignored for Gaussian LM/LMM models, which estimate their own residual variance directly, and it composes with the `glmmTMB` engine described below — the same explicit-dispersion machinery that fixes the SEs simply gains structure.
+
+### Rates: counts over unequal exposures (`offset`)
+
+A count depends on how long, or over how much, it was observed: five balance losses in 30 s are not five in 60 s. What is compared is then the rate, count per unit of exposure. Dividing the count by the exposure and fitting the quotient loses the count distribution (the quotient is not Poisson) and gives a short trial the same weight as a long one, which carries more information.
+
+The standard model keeps the count as the outcome and moves the exposure into the linear predictor. Since log E[count] = log(rate) + log(duration), a Poisson model with `offset = 'log(duration)'` adds log(duration) with its coefficient fixed at 1, and every estimated coefficient describes the log rate. Under the log link the offset needs the log; a bare `offset = 'duration'` would multiply the count by e^duration, and kbstatpy warns about it. An `offset(...)` term in `formula` is the same thing.
+
+Rate ratios, z and p do not depend on any choice of exposure. The estimated means and their difference do: they are expected counts at a reference exposure, which emmeans takes as the mean of the exposure, or, when it has only two values, as their geometric mean. `Summary.txt` states the value used. The offset also lets trials that ended early stay in the analysis. Excluding them biases the comparison when trials end early *because* of the events counted.
 
 ### Contrast coding: effects coding (`contr.sum`)
 

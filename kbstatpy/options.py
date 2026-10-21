@@ -191,6 +191,14 @@ class KbstatOptions:
     # 1/mu^2) decrease in the mean, so every coefficient reads backwards.
     # Kbstat._DEFAULT_LINKS holds the departures; name a link to override.
     link: object = 'auto'
+    # Offset: an expression added to the linear predictor with its coefficient
+    # fixed at 1, in R's sense (glmmTMB's offset()). For counts observed over
+    # different exposures -- trials of different length, areas of different
+    # size -- 'log(duration)' makes the model one of the rate, count/duration.
+    # It is on the link scale, so under a log link the exposure needs its log.
+    # '' (default) = none. One per y as a list, like constraints. An
+    # offset(...) term in options.formula is read into this option.
+    offset: object = ''
     # Dispersion model for the glmmTMB families (Gamma, inverse Gaussian, etc.):
     # the right-hand side of glmmTMB's dispformula. '' (default) = constant
     # dispersion (~1). Give a factor name, e.g. 'JointGroup', to let the

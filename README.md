@@ -244,6 +244,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `constraints` | str or list | Row filter applied before analysis, e.g. `'Year > 1950 & group != "control"'`. A list gives one filter per `y`, matched by position (see [Multi-y](#multi-y)). Also spelled `constraint` |
 | `distribution` | str or list | Default `'normal'`. Response distribution, see [Supported distributions](#supported-distributions). One per `y` for multi-y, matched by position, e.g. `'poisson, binomial, normal'` |
 | `link` | str or list | Link function, one per `y` for multi-y like `distribution`. `'auto'` (default) is identity for normal, logit for binomial, log for the rest. That is kbstatpy's choice, not R's canonical link, for gamma and inverse Gaussian (see [Supported distributions](#supported-distributions)) |
+| `offset` | str or list | Default `''`. Term added with its coefficient fixed at 1, as R's `offset()`. For counts over unequal exposures, `'log(duration)'` models the rate per unit of `duration` (see [Rates](STATISTICAL_NOTES.md#rates-counts-over-unequal-exposures-offset)). A list gives one per `y`. An `offset(...)` term in `formula` is read into it |
 | `dispersion` | str | Dispersion model for the glmmTMB families. A factor name gives that factor its own dispersion |
 | `fit_method` | str | Default `'MPL'`. Label for the estimator named in `Summary.txt`; nothing is passed to the fitting engine |
 | `max_iterations` | int | Default `10000`. Optimizer cap for glmmTMB fits. Raise it if a large model reports an iteration limit at the optimum |
@@ -378,12 +379,13 @@ options.y       = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'
 options.y_units = 'cm'   # single entry expands to all variables
 ```
 
-`distribution`, `link` and `constraints` also take one entry per dependent variable, matched by position like `y_units`, so outcomes of different types can share one run. A single value applies to all of them, an empty entry means the default, and any other number of entries is an error. `distribution` and `link` accept a comma-separated string; `constraints` needs a list, since a filter can itself contain a comma:
+`distribution`, `link`, `constraints` and `offset` also take one entry per dependent variable, matched by position like `y_units`, so outcomes of different types can share one run. A single value applies to all of them, an empty entry means the default, and any other number of entries is an error. `distribution` and `link` accept a comma-separated string; `constraints` and `offset` need a list, since they can themselves contain a comma:
 
 ```python
 options.y            = 'Nb_errors, Stable, Sway'
 options.distribution = 'poisson, binomial, normal'
 options.constraints  = ['duration > 59', '', '']   # the count on full-length trials only
+options.offset       = ['log(duration)', '', '']    # or keep all trials and model the rate
 ```
 
 Per-y constraints cannot be combined with `correlation`, which uses one set of rows for all variables.

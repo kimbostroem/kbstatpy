@@ -686,6 +686,7 @@ class Kbstat:
         # in the data; see _terms.py for what each expression means. Before
         # the formula backfill, so the base variables of a formula's powers are
         # known to be covariates and are not cast to factors.
+        self._lift_formula_offset()
         self._resolve_covariate_terms()
         # A formula names the factors and grouping variables too. Fill them in
         # here, not first in fit(): the categorical cast runs before fit(), and
@@ -904,10 +905,10 @@ class Kbstat:
         A list is matched to y by position, as y_units is; a single value
         applies to every y. A list whose entries all agree is a single value,
         so after this a list means the values really differ, and has one entry
-        per y. These three are what changes between the outcomes of one study
-        in practice: a count, a binary and a continuous outcome side by side,
-        the count analysed on its own subset of trials. The MATLAB kbstat took
-        them the same way.
+        per y. These are what changes between the outcomes of one study in
+        practice: a count, a binary and a continuous outcome side by side, the
+        count analysed on its own subset of trials, with its exposure as an
+        offset. The MATLAB kbstat took the first three the same way.
         """
         o = self.options
         n_y = len(self._split_csv(o.y)) if o.y else 0
@@ -916,9 +917,10 @@ class Kbstat:
             if isinstance(val, tuple):
                 val = list(val)
             # A comma never belongs to a distribution or link name, so a
-            # comma-separated string is a per-y list there. A constraint can
-            # contain one (`limb in ["sl", "wl"]`), so for it only a list is.
-            if isinstance(val, str) and name != 'constraints' and ',' in val:
+            # comma-separated string is a per-y list there. A constraint or an
+            # offset can contain one (`limb in ["sl", "wl"]`, `pmax(t, 1)`), so
+            # for them only a list is.
+            if isinstance(val, str) and name in ('distribution', 'link') and ',' in val:
                 val = val.split(',')
             if not isinstance(val, list):
                 continue
@@ -937,6 +939,83 @@ class Kbstat:
                 "so it does not say which rows the correlation analysis should "
                 "use. Run the correlation analysis in a separate Kbstat with a "
                 "single constraint.")
+
+    def _lift_formula_offset(self):
+        """Move offset() terms of options.formula into options.offset."""
+        from ._terms import split_offsets
+        o = self.options
+        if not o.formula:
+            return
+        formula, lifted = split_offsets(o.formula)
+        if not lifted:
+            return
+        if getattr(o, '_formula_written', None) is None:
+            object.__setattr__(o, '_formula_written', o.formula)
+        if o.offset not in ('', None) and o.offset != lifted:
+            raise ValueError(
+                f"options.formula has the offset {lifted!r} and options.offset "
+                f"is {o.offset!r}. Set the offset in one place only.")
+        o.formula, o.offset = formula, lifted
+
+    def _check_offset(self, family, link):
+        """Refuse an offset that cannot mean what was intended."""
+        off = self.options.offset
+        if not isinstance(off, str) or not off.strip():
+            return
+        off = off.strip()
+        missing = [n for n in re.findall(r'[A-Za-z_.][A-Za-z0-9_.]*', off)
+                   if n not in self.data.columns and n not in _R_MATH_FUNCTIONS]
+        if missing:
+            raise ValueError(
+                f"options.offset = {off!r} reads {missing}, which are not "
+                "columns of the data.")
+        # Scaling would hand the offset z-scores, whose log is undefined for
+        # half of them and which in any case are no longer the exposure.
+        scaled = [v for v in self._offset_vars() if v in (self.options.covariate or [])]
+        if scaled and self.options.scale_covariates:
+            raise ValueError(
+                f"{scaled} is both a covariate and in options.offset, and "
+                "covariates are scaled to z-scores, which the offset would then "
+                "read. Set scale_covariates = False to use it in both.")
+        # The offset is on the link scale, so under a log link a bare exposure
+        # column multiplies the count by e^duration rather than by duration.
+        log_link = link == 'log' or (link in ('', 'default')
+                                     and family in ('poisson', 'tweedie'))
+        if log_link and re.fullmatch(r'[A-Za-z_.][A-Za-z0-9_.]*', off):
+            warnings.warn(
+                f"options.offset = {off!r} is added on the log scale. For a rate "
+                f"per unit of {off}, write offset = 'log({off})'.", stacklevel=3)
+
+    def _offset_note(self):
+        """Summary lines on the offset: what it does, and the exposure the
+        estimated means refer to, which emmeans chooses and the table omits."""
+        off = self.options.offset
+        if not isinstance(off, str) or not off.strip() or self.model is None:
+            return []
+        off = off.strip()
+        lines = [f'  Offset {off}: added with its coefficient fixed at 1, so the',
+                 '  model is one of y per unit of exposure. Ratios, t and p do not',
+                 '  depend on the exposure; the estimated means and their difference',
+                 '  are for the reference value below.']
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        try:
+            ref = float(ro.r('function(m) mean(emmeans::ref_grid(m)@grid[[".offset."]])')(r_obj)[0])
+        except Exception:
+            return lines
+        if not np.isfinite(ref):
+            return lines
+        m = re.fullmatch(r'log\s*\(\s*([A-Za-z_.][A-Za-z0-9_.]*)\s*\)', off)
+        lines.append(f'  Reference offset: {ref:.4g}'
+                     + (f', i.e. {self._disp(m.group(1))} = {np.exp(ref):.4g}' if m else ''))
+        return lines
+
+    def _offset_vars(self):
+        """The data columns the offset expression reads."""
+        off = self.options.offset
+        if not isinstance(off, str) or not off.strip() or self.data is None:
+            return []
+        names = re.findall(r'[A-Za-z_.][A-Za-z0-9_.]*', off)
+        return [n for n in dict.fromkeys(names) if n in self.data.columns]
 
     def _per_y(self, i):
         """The per-y options for the i-th dependent variable, as {name: value}."""
@@ -1246,6 +1325,7 @@ class Kbstat:
         family = self._family()
         link = (self.options.link if self.options.link not in ('auto', '')
                 else self._default_link(family) or 'default')
+        self._check_offset(family, link)
         has_random = bool(self._parse_formula(formula)['id'])
         has_slopes = bool(self._parse_formula(formula)['slopes'])
         # Dispersion model (glmmTMB dispformula): normalise the option to a formula.
@@ -4577,7 +4657,7 @@ class Kbstat:
             if 'is_outlier' in self.data.columns else self.data
         _model_vars = []
         for _grp in (self.options.y, self.options.x, self.options.covariate,
-                     self.options.slope, self._id_vars()):
+                     self.options.slope, self._id_vars(), self._offset_vars()):
             if isinstance(_grp, list):
                 _model_vars.extend(_grp)
             elif _grp:
@@ -5406,6 +5486,14 @@ class Kbstat:
             stacklevel=2)
 
     def _build_formula(self) -> str:
+        """The model formula, with options.offset as an offset() term."""
+        formula = self._formula_without_offset()
+        off = self.options.offset
+        if isinstance(off, str) and off.strip():
+            formula = f'{formula} + offset({off.strip()})'
+        return formula
+
+    def _formula_without_offset(self) -> str:
         """Compose a Wilkinson formula from options, or return the explicit one.
 
         With an explicit formula, its left-hand side is a placeholder whenever
@@ -5551,7 +5639,9 @@ class Kbstat:
         options.id, and slopes collects the slope variables of all terms.
         """
         import re
+        from ._terms import split_offsets
 
+        formula, _ = split_offsets(formula)
         formula = formula.replace(' ', '')
 
         # Split on ~
@@ -6106,6 +6196,7 @@ class Kbstat:
         _written = getattr(self.options, '_formula_written', None)
         if _written and self._formula_with_y(_written, self.options.y) != formula:
             lines.append(f'  as written: {self._formula_with_y(_written, self.options.y)}')
+        lines += self._offset_note()
         lines.append('')
 
         # --- Model information ---
@@ -7125,9 +7216,13 @@ def _vif_verdict(vif):
 # method names are case-sensitive ('BH', 'BY'); `df_method`, which has its own
 # alias table and warns; and the free-text options (`fit_method`, `font`,
 # `color_scheme`, `title`), which have no fixed set.
+# R functions an offset expression may call; any other name in it must be a column.
+_R_MATH_FUNCTIONS = ('log', 'log2', 'log10', 'log1p', 'exp', 'sqrt', 'abs',
+                     'pmax', 'pmin', 'I')
+
 # Options that may take one value per dependent variable, matched to y by
 # position like y_units; see Kbstat._normalize_per_y_options.
-_PER_Y_OPTIONS = ('distribution', 'link', 'constraints')
+_PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset')
 
 _ENUM_OPTIONS = {
     'distribution':       ('normal', 'gaussian', 'binomial', 'poisson', 'gamma',

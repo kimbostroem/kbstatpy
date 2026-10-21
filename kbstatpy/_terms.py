@@ -196,6 +196,34 @@ def _split_top(s, seps):
     return out
 
 
+_OFFSET = re.compile(r'^offset\s*\((.*)\)$', re.S)
+
+
+def split_offsets(formula):
+    """(formula without its offset() terms, their expressions joined by ' + ').
+
+    An offset is not a term with a coefficient, so none of the formula's
+    readers should see one: the term parser cuts `offset(log(t))` at its
+    first ')' and reads the rest as a factor, and the expression rewriter
+    would turn `log(t)` into a covariate. kbstatpy carries it as
+    options.offset instead and adds it back when it builds the formula.
+    """
+    lhs, sep, rhs = formula.partition('~')
+    if not sep:
+        return formula, ''
+    keep, offsets = [], []
+    for summand in _split_top(rhs, '+'):
+        m = _OFFSET.match(summand.strip())
+        if m:
+            offsets.append(m.group(1).strip())
+        else:
+            keep.append(summand)
+    if not offsets:
+        return formula, ''
+    rhs = ' '.join('+'.join(keep).split()).strip('+ ') or '1'
+    return f'{lhs.rstrip()} ~ {rhs}', ' + '.join(offsets)
+
+
 def rewrite_formula(formula, registry):
     """Replace the expression terms of a formula's fixed part by columns.
 

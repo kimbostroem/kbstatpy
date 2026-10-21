@@ -1,5 +1,15 @@
 # Changes
 
+## [1.43.0] - 2026-10-21
+
+### Features
+
+- New option `offset`, R's `offset()` term. With `offset = 'log(duration)'` a Poisson model compares rates, counts per unit of duration, so trials of unequal length can be analysed together. `Summary.txt` states the exposure the estimated means refer to. One per `y` as a list.
+
+### Bugs
+
+- An `offset(...)` term in `formula` failed with an unrelated R error. It now works, as the same model as `options.offset`.
+
 ## [1.42.0] - 2026-10-21
 
 ### Features
