@@ -83,6 +83,27 @@ MAMBA_NO_PROGRESS_BARS=1 "$SOLVER" "$ACTION" -y -p "$ENV" -c conda-forge $PKGS 2
     | grep --line-buffered -v '━'
 kill "$HEARTBEAT" 2>/dev/null; wait "$HEARTBEAT" 2>/dev/null
 
+# glmmTMB is compiled against one TMB version, but conda-forge's r-glmmtmb
+# asks only for r-tmb >= 1.9.0, so the solver pairs it with the newest TMB.
+# glmmTMB then warns on every load ("package version mismatch") and does not
+# guarantee its results. Install the TMB it was built with. Checked on every
+# run, so running the installer again also repairs an existing environment.
+tmb_versions() {
+    "$ENV/bin/Rscript" -e 'cat(as.character(suppressWarnings(glmmTMB:::.TMB.build.version)),
+                               as.character(packageVersion("TMB")))' 2>/dev/null
+}
+read -r TMB_BUILT TMB_HAVE <<< "$(tmb_versions)"
+if [ -n "$TMB_HAVE" ] && [ "$TMB_BUILT" != "$TMB_HAVE" ]; then
+    echo "    glmmTMB was built with TMB $TMB_BUILT, found $TMB_HAVE: installing TMB $TMB_BUILT"
+    MAMBA_NO_PROGRESS_BARS=1 "$SOLVER" install -y -p "$ENV" -c conda-forge "r-tmb=$TMB_BUILT" 2>&1 \
+        | grep --line-buffered -v '━' | tail -3
+    read -r TMB_BUILT TMB_HAVE <<< "$(tmb_versions)"
+    if [ "$TMB_BUILT" != "$TMB_HAVE" ]; then
+        echo "    TMB $TMB_BUILT is not available; glmmTMB will warn about the version"
+        echo "    mismatch. Results are usually unaffected, but not guaranteed."
+    fi
+fi
+
 # 3. kbstatpy itself, always the newest from GitHub. The first call brings the
 #    Python dependencies; the second replaces kbstatpy even when the version
 #    number has not changed since the last run.

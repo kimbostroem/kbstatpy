@@ -150,11 +150,11 @@ A cell is finished when `[*]` to its left has turned into a number.
 - **Start afresh:** `rm -rf ~/envs/kbstat`, then step 3 again.
 - **Remove:** `rm -rf ~/envs/kbstat ~/.local/share/jupyter/kernels/kbstat`.
 
-What the installer sets up: a conda environment in `~/envs/kbstat` with Python, R and the R packages, all from conda-forge as matching binaries (nothing is compiled); kbstatpy from GitHub; and the Jupyter kernel *kbstatpy*, which points `R_HOME` at that environment's R. Another location: `KBSTATPY_ENV=~/somewhere bash install_jupyterhub.sh`.
+What the installer sets up: a conda environment in `~/envs/kbstat` with Python, R and the R packages, all from conda-forge as binaries (nothing is compiled), with `TMB` pinned to the version `glmmTMB` was built with; kbstatpy from GitHub; and the Jupyter kernel *kbstatpy*, which points `R_HOME` at that environment's R. Another location: `KBSTATPY_ENV=~/somewhere bash install_jupyterhub.sh`.
 
 ### If something goes wrong on the hub
 
-The installer avoids the first three. They are listed for anyone installing by hand, and to recognise them.
+The installer avoids the first four. They are listed for anyone installing by hand, and to recognise them.
 
 > **`CondaValueError: You have chosen a non-default solver backend (libmamba) but it was not recognized`**
 > The hub's conda asks for a solver it does not have. Use `mamba` instead of `conda`; where there is no mamba, the installer fetches `micromamba` into `~/bin`.
@@ -168,6 +168,9 @@ The installer avoids the first three. They are listed for anyone installing by h
 > ~/envs/kbstat/bin/python -m ipykernel install --user --name kbstat --display-name "kbstatpy" --env R_HOME ~/envs/kbstat/lib/R
 > ```
 > To check which R runs: `import rpy2.robjects as ro; print(ro.r('R.home()')[0])` should end in `envs/kbstat/lib/R`.
+
+> **`package version mismatch: glmmTMB was built with TMB package version 1.9.19, Current TMB package version is 1.9.23`**
+> conda-forge pairs `glmmTMB` with the newest `TMB` rather than the one it was compiled against. Results are usually unaffected, but not guaranteed. Installations from kbstatpy 1.44.1 on install the matching `TMB`; an older one is repaired by running the command of step 3 again, then *Kernel → Restart Kernel*. By hand, with the version from the message: `mamba install -y -p ~/envs/kbstat -c conda-forge r-tmb=1.9.19`.
 
 > **`ModuleNotFoundError: No module named 'kbstatpy'`**
 > The notebook runs a different kernel. Switch to *kbstatpy* (top right, or *Kernel → Change Kernel*).

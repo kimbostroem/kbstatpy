@@ -1,5 +1,11 @@
 # Changes
 
+## [1.44.1] - 2026-10-21
+
+### Bugs
+
+- On a JupyterHub, glmmTMB warned on every non-Gaussian fit that it was built with a different TMB version, because conda-forge installs the newest TMB. The installer now installs the matching TMB. Existing installations: run the install line again, then restart the kernel. Results are usually unaffected, but were not guaranteed.
+
 ## [1.44.0] - 2026-10-21
 
 ### Features
