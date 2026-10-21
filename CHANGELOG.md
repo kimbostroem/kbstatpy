@@ -1,5 +1,12 @@
 # Changes
 
+## [1.45.0] - 2026-10-21
+
+### Changes
+
+- A numeric variable in `x` with more than ten values, most of them distinct, now stops with `ContinuousFactor`, a plain message pointing to `covariate`. As a factor it cost one parameter per value; three such variables crossed could exhaust memory and kill a Jupyter kernel without explanation.
+- `interaction = 'all'` and an order such as `2` now cross the covariates too; before, covariates stayed additive without a word. **Analyses with covariates and one of these settings fit a different model from this version on.** `'auto'`, the default, still leaves covariates additive.
+
 ## [1.44.1] - 2026-10-21
 
 ### Bugs

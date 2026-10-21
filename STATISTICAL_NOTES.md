@@ -328,7 +328,7 @@ The cost of the richer default is degrees of freedom, and it grows quickly with 
 
 #### Describing the structure instead of listing the terms
 
-`options.interaction` also accepts a description of the structure, which kbstatpy expands into terms: an integer `n` for every factor in `x` up to that order (R's `(A+B+C)^n`), `'all'` for the full factorial, `'auto'` for every interaction the design can support. The number of terms grows quickly, which is why the order is a number rather than a set of words:
+`options.interaction` also accepts a description of the structure, which kbstatpy expands into terms: an integer `n` for every interaction up to that order (R's `(A+B+C)^n`), `'all'` for the full factorial, `'auto'` for every interaction the design can support. `'all'` and an order cross the covariates with the factors, since asking for them is asking for the full structure. `'auto'` crosses the factors only: a covariate is often a nuisance adjustment, and the ANCOVA convention keeps it additive unless an interaction is asked for. Generated terms such as the z² of `z^2` stay additive under every keyword; the plain z is crossed. Covariates are centred by default (`scale_covariates`), so their main effects in such a model are slopes at the mean of the others. The number of terms grows quickly, which is why the order is a number rather than a set of words:
 
 | factors | additive | ≤ 2-way | ≤ 3-way | ≤ 4-way | full factorial |
 |---|---|---|---|---|---|

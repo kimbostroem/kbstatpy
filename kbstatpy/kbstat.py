@@ -84,6 +84,11 @@ class UnidentifiableRandomEffects(ValueError):
     observations, so lme4 cannot tell them apart from the residual."""
 
 
+class ContinuousFactor(ValueError):
+    """A numeric variable in options.x has so many distinct values that it is
+    a measurement, not a factor: as a factor it costs one parameter per value."""
+
+
 # lme4's own check for that case. It fires before any fitting, so the numbers
 # in it are exact; kbstatpy turns them into a plain message.
 _LME4_RE_COUNT = re.compile(
@@ -5313,12 +5318,31 @@ class Kbstat:
         cols = [c for c in term if c in d.columns]
         if len(cols) != len(term):
             return []
+        if not all(hasattr(d[c], 'cat') for c in cols):
+            return []          # a covariate has no cells; listing its values would explode
         levels = [[str(v) for v in (d[c].cat.categories if hasattr(d[c], 'cat')
                                     else sorted(d[c].dropna().unique()))]
                   for c in cols]
         seen = {tuple(str(v) for v in row)
                 for row in d[cols].dropna().itertuples(index=False)}
         return [c for c in itertools.product(*levels) if c not in seen]
+
+    def _crossed_variables(self):
+        """The variables options.interaction's structure keywords cross.
+
+        'all' and an order cross the covariates with the factors: asked for
+        explicitly, a covariate left additive was a silent surprise. 'auto', the
+        default, crosses the factors only, so a nuisance covariate stays
+        additive (the ANCOVA convention) unless an interaction is asked for.
+        Generated terms such as z^2 stay additive under every keyword, as they
+        are refused in an interaction written out.
+        """
+        crossed = list(self.options.x or [])
+        if self.options.interaction != 'auto':
+            generated = getattr(self.options, '_cov_terms', {}) or {}
+            crossed += [c for c in (self.options.covariate or [])
+                        if c not in generated and c not in crossed]
+        return crossed
 
     def _resolve_interaction(self):
         """The interaction terms to fit, and what was dropped getting there.
@@ -5335,11 +5359,11 @@ class Kbstat:
         if cached is not None:
             return cached
         ia = self.options.interaction
-        factors = list(self.options.x or [])
         mode = ia if isinstance(ia, str) and ia in ('auto', 'all') else None
         order = ia if isinstance(ia, int) and not isinstance(ia, bool) else None
         if mode is None and order is None:
             return None, []
+        factors = self._crossed_variables()
         if len(factors) < 2:
             self._interaction_cache = ([], [])
             return self._interaction_cache
@@ -6311,7 +6335,7 @@ class Kbstat:
         # ANOVA row. Different dependent variables can legitimately differ here,
         # since their missing-value patterns differ.
         _ia_terms, _ia_dropped = self._resolve_interaction()
-        if _ia_terms is not None and len(self.options.x or []) > 1:
+        if _ia_terms is not None and len(self._crossed_variables()) > 1:
             _spec = self.options.interaction
             _asked = ("every estimable interaction" if _spec == 'auto'
                       else "the full factorial" if _spec == 'all'
@@ -6907,7 +6931,37 @@ class Kbstat:
                 self.data[col] = self.data[col].astype(str).map(
                     lambda v, m=mapping: m.get(v, v))
 
+    def _check_continuous_factors(self):
+        """Stop on a numeric options.x variable that looks like a measurement.
+
+        Every x variable becomes a factor with one level per distinct value. For
+        a coded factor (speed 13/25, dose 1/2/3) that is meant; for a continuous
+        measurement it is one parameter per value, and crossed in an interaction
+        the product of them: three measurements on 72 rows asked for 280 000
+        cells, and the Jupyter kernel died of memory before R could object.
+        A coded factor repeats its levels; a measurement mostly does not, so
+        more than half the values distinct (and more than ten) is the sign.
+        """
+        if self.data is None:
+            return
+        for var in self.options.x:
+            if var not in self.data.columns:
+                continue
+            col = self.data[var].dropna()
+            if not pd.api.types.is_numeric_dtype(col):
+                continue
+            n_lev, n = col.nunique(), len(col)
+            if n_lev > 10 and 2 * n_lev > n:
+                raise ContinuousFactor(
+                    f"'{var}' is numeric with {n_lev} different values in {n} rows. "
+                    f"options.x makes it a factor with {n_lev} levels, one parameter "
+                    "per value, and an interaction multiplies the levels of its "
+                    "factors. A measurement belongs in options.covariate, which fits "
+                    "one slope; interaction='all' crosses covariates too. If it is a coded factor, store its "
+                    "levels as text.")
+
     def _apply_categorical(self):
+        self._check_continuous_factors()
         categorical_vars = self.options.x.copy()
         categorical_vars.extend(v for v in self._id_vars()
                                 if v not in categorical_vars)
