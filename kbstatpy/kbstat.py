@@ -985,7 +985,7 @@ class Kbstat:
         # The offset is on the link scale, so under a log link a bare exposure
         # column multiplies the count by e^duration rather than by duration.
         log_link = link == 'log' or (link in ('', 'default')
-                                     and family in ('poisson', 'tweedie'))
+                                     and family in ('poisson', 'nbinom2', 'tweedie'))
         if log_link and re.fullmatch(r'[A-Za-z_.][A-Za-z0-9_.]*', off):
             warnings.warn(
                 f"options.offset = {off!r} is added on the log scale. For a rate "
@@ -5815,6 +5815,11 @@ class Kbstat:
             'normal':           'gaussian',
             'binomial':         'binomial',
             'poisson':          'poisson',
+            # Counts whose variance exceeds the mean: Var = mu + mu^2/theta,
+            # theta estimated, Poisson as theta -> infinity. glmmTMB's nbinom2
+            # is the parametrisation of MASS::glm.nb and of most of the
+            # literature; nbinom1 (Var = mu(1 + phi)) is the less common one.
+            'negative_binomial': 'nbinom2',
             'gamma':            'Gamma',
             'inverse_gaussian': 'inverse.gaussian',
             # Tweedie fills the gap between Poisson and gamma: its variance is
@@ -5827,6 +5832,24 @@ class Kbstat:
             'tweedie':          'tweedie',
         }
         return mapping.get(self.options.distribution.lower(), 'gaussian')
+
+    def _nbinom_theta(self):
+        """The negative binomial theta that glmmTMB estimated, or None.
+
+        The one number that says how far the counts are from Poisson, which is
+        the reason to have chosen this family: Var = mu + mu^2/theta, so the
+        extra variance is mu^2/theta, and a large theta is Poisson again.
+        """
+        if self._family() != 'nbinom2':
+            return None
+        r_obj = getattr(self.model, 'r_model', getattr(self.model, 'model_obj', None))
+        if r_obj is None:
+            return None
+        try:
+            theta = float(ro.r('sigma')(r_obj)[0])
+        except Exception:
+            return None
+        return theta if np.isfinite(theta) else None
 
     def _tweedie_power(self):
         """The Tweedie variance power p that glmmTMB estimated, or None.
@@ -6292,6 +6315,10 @@ class Kbstat:
             f'  Fit method             : {fit_method}',
             f'  Model structure        : {self._model_structure_label()}',
         ]
+        _nb = self._nbinom_theta()
+        if _nb is not None:
+            lines.append(f'  Negative binomial theta: {_nb:.4g} '
+                         '(variance = mean + mean^2/theta; large theta = Poisson)')
         _tw = self._tweedie_power()
         if _tw is not None:
             lines.append(f'  Tweedie power          : {_tw:.3f} '
@@ -7354,8 +7381,9 @@ _R_MATH_FUNCTIONS = ('log', 'log2', 'log10', 'log1p', 'exp', 'sqrt', 'abs',
 _PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset')
 
 _ENUM_OPTIONS = {
-    'distribution':       ('normal', 'gaussian', 'binomial', 'poisson', 'gamma',
-                           'inverse_gaussian', 'tweedie'),
+    'distribution':       ('normal', 'gaussian', 'binomial', 'poisson',
+                           'negative_binomial', 'gamma', 'inverse_gaussian',
+                           'tweedie'),
     'plot_style':         ('violin', 'bar', 'auto'),
     'figure_display':     ('save_only', 'show_close', 'show_keep'),
     'x_label':            ('variable_below_levels', 'variable_equals_level',

@@ -359,6 +359,7 @@ To make a hand-built matplotlib figure match kbstatpy's plots, call the public `
 | `'gamma'` | `Gamma` | Positive, right-skewed outcomes (reaction times, distances). Uses a **log** link, not R's canonical inverse (see below) |
 | `'binomial'` | `binomial` | Binary / proportion outcomes |
 | `'poisson'` | `poisson` | Count data |
+| `'negative_binomial'` | `nbinom2` | Counts whose variance exceeds the mean (overdispersion), Var = μ + μ²/θ. `Summary.txt` reports the estimated θ; a large θ means Poisson would do |
 | `'inverse_gaussian'` | `inverse.gaussian` | Positive, heavy right tail. Uses a **log** link, not R's canonical `1/mu^2` (see below) |
 | `'tweedie'` | `tweedie` | Positive continuous, variance between Poisson and gamma. The others fix the variance power at 0, 1, 2 and 3; tweedie estimates it, and `Summary.txt` reports the estimate |
 

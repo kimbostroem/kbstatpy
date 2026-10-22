@@ -1,5 +1,11 @@
 # Changes
 
+## [1.46.0] - 2026-10-22
+
+### Features
+
+- New distribution `'negative_binomial'` (glmmTMB's `nbinom2`) for counts that vary more than Poisson allows. Poisson understates the standard errors of such counts. `Summary.txt` reports the estimated θ; a large θ means Poisson would do.
+
 ## [1.45.0] - 2026-10-21
 
 ### Changes

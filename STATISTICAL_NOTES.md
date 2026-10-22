@@ -25,6 +25,7 @@
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
   - [Per-group dispersion: `dispformula` (Demo 17)](#per-group-dispersion-dispformula-demo-17)
   - [Rates: counts over unequal exposures (`offset`)](#rates-counts-over-unequal-exposures-offset)
+  - [Overdispersed counts: negative binomial](#overdispersed-counts-negative-binomial)
   - [Model structure, and why kbstatpy will not pick one for you](#model-structure-and-why-kbstatpy-will-not-pick-one-for-you)
     - [Describing the structure instead of listing the terms](#describing-the-structure-instead-of-listing-the-terms)
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
@@ -295,6 +296,12 @@ A count depends on how long, or over how much, it was observed: five balance los
 The standard model keeps the count as the outcome and moves the exposure into the linear predictor. Since log E[count] = log(rate) + log(duration), a Poisson model with `offset = 'log(duration)'` adds log(duration) with its coefficient fixed at 1, and every estimated coefficient describes the log rate. Under the log link the offset needs the log; a bare `offset = 'duration'` would multiply the count by e^duration, and kbstatpy warns about it. An `offset(...)` term in `formula` is the same thing.
 
 Rate ratios, z and p do not depend on any choice of exposure. The estimated means and their difference do: they are expected counts at a reference exposure, which emmeans takes as the mean of the exposure, or, when it has only two values, as their geometric mean. `Summary.txt` states the value used. The offset also lets trials that ended early stay in the analysis. Excluding them biases the comparison when trials end early *because* of the events counted.
+
+### Overdispersed counts: negative binomial
+
+A Poisson model ties the variance of a count to its mean. Counts often vary more than that, because the rate itself differs between trials beyond what the predictors explain, and then Poisson standard errors are too small and its p-values with them. The negative binomial (glmmTMB's `nbinom2`, the parametrisation of `MASS::glm.nb`) adds one parameter: Var = μ + μ²/θ. The extra variance μ²/θ is estimated rather than assumed, and as θ grows the model becomes Poisson again, so `Summary.txt` reports θ. The mean model, the link and the meaning of the post-hoc ratios are those of Poisson, and the two fits are comparable by AIC.
+
+The diagnostics show the need for it. Overdispersion makes the DHARMa histogram wider than its reference curve and bends the Q-Q plot into an S. Excess zeros are a related symptom: many more zero counts than a Poisson with the fitted means allows are often the same heterogeneity, and the negative binomial absorbs much of it.
 
 ### Contrast coding: effects coding (`contr.sum`)
 
