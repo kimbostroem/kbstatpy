@@ -113,7 +113,9 @@ class KbstatOptions:
     correlation: object = ''  # variables for pairwise correlation analysis (list or comma-separated)
     correlation_method: str = 'pearson'  # 'pearson' | 'spearman' — for the raw and partial correlations
     correlation_control: object = ''  # variable(s) to partial out of every correlation, e.g. 'Age' (list or comma-separated); adjusts both the raw and partial tables and is not shown in the matrix
-    y_transform: str = ''     # optional transform expression using 'y' as placeholder, e.g. 'log(y)'
+    # optional transform expression using 'y' as placeholder, e.g. 'log(y)'; one
+    # per y as a list, like constraints ('' = none). Plots stay in original units.
+    y_transform: object = ''
     x: object = ''           # fixed-effect factor(s) (list or comma-separated)
     x_order: object = None   # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column

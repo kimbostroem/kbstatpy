@@ -228,7 +228,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `y` | str or list | Dependent variable(s). Several run one analysis each, see [Multi-y](#multi-y) |
 | `y_units` | str or list | Default `''` (no units). Unit label(s) for the y-axis, e.g. `'ms'`, or `'kg, N, m'` for multi-y, matched to `y` by position. An empty entry, or `'1'`, means that variable has no unit |
 | `x` | list / str | Fixed-effect factor column names. Each becomes a factor with one level per value, so a numeric measurement belongs in `covariate`: a numeric `x` with more than ten values, most of them distinct, stops with `ContinuousFactor` |
-| `x_order` | str or dict | Level order, e.g. `'dose: low, medium, high; supp: OJ, VC'`. With `rename`, use the renamed names |
+| `x_order` | str or dict | Level order, e.g. `'dose: low, medium, high; supp: OJ, VC'`. Levels not named follow in data order. With `rename`, use the renamed names |
 | `rename` | str or dict | Display labels for variables and levels, e.g. `'cyl -> Cylinders; cyl: 4 -> 4 cyl'`. Variable renames affect labels and headers, level renames affect the data before fitting |
 | `x_units` | list / str | Default `''` (no units). Unit label(s) for x-axis tick groups, matched to `x` by position. An empty entry, or `'1'`, means that factor has no unit, e.g. `', mg'` labels the second factor only |
 | `id` | str | Random grouping factor(s). Several, comma-separated, are crossed; lme4's `/` and `:` nest. Several trials per subject and condition: `'subject/session'`, or the condition effect is tested against the trial scatter. See [Crossed and nested grouping factors](STATISTICAL_NOTES.md#crossed-and-nested-grouping-factors) and [pseudo-replication](STATISTICAL_NOTES.md#several-trials-per-condition-pseudo-replication) |
@@ -237,7 +237,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `interaction` | list / str / int | Default `'auto'`, every interaction the design can support. `''` is additive, an integer caps the order, `'all'` is the full factorial, or name the terms. `'all'` and an order cross the covariates with the factors; `'auto'` leaves covariates additive. Generated terms such as `z^2` stay additive. See [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
 | `covariate` | list / str | Numeric covariates: in the model, out of the plots and post-hoc. An entry may be a power or function of one column: `'z^2'` fits the polynomial z + z² from centred z, `'log(w)'`, `'sqrt(t)'` or `'z^0.5'` transform the raw values, `'I(z^2)'` is exactly z². See [Curved covariates](#curved-covariates-powers-and-functions) |
 | `scale_covariates` | bool | Default `True`. Centre and scale the numeric covariates to z-scores before fitting. It changes no result — a covariate not in an interaction has its coefficient and its standard error divided by the same number, so every t, F and p is identical, and estimated marginal means are evaluated at the covariate means either way — but it conditions the optimisation, which matters where covariates span very different magnitudes. `Data.csv` keeps each covariate in its own units and adds the fitted values beside it as `<name>_scaled`, and `Summary.txt` names what was scaled. Categorical and constant covariates are left alone |
-| `y_transform` | str | Transform with `y` as placeholder, e.g. `'log(y)'`, `'sqrt(y)'`, `'y**0.4'`. `^` is accepted for exponentiation. EMMs and CIs are back-transformed |
+| `y_transform` | str or list | Transform with `y` as placeholder, e.g. `'log(y)'`, `'sqrt(y)'`, `'y**0.4'`. `^` is accepted for exponentiation. EMMs and CIs are back-transformed, data plots stay in original units. A list gives one per `y` (`''` = none) |
 | `correlation` | list / str | Numeric variables for pairwise correlation, see [Correlation analysis](#correlation-analysis). Also spelled `correlate` |
 | `correlation_method` | str | Default `'pearson'`. Or `'spearman'`, rank-based and robust to outliers. Applies to the raw and partial tables |
 | `correlation_control` | list / str | Variable(s) partialled out of every correlation. They are not shown in the matrix |
@@ -380,7 +380,7 @@ options.y       = 'Sepal.Length, Sepal.Width, Petal.Length, Petal.Width'
 options.y_units = 'cm'   # single entry expands to all variables
 ```
 
-`distribution`, `link`, `constraints` and `offset` also take one entry per dependent variable, matched by position like `y_units`, so outcomes of different types can share one run. A single value applies to all of them, an empty entry means the default, and any other number of entries is an error. `distribution` and `link` accept a comma-separated string; `constraints` and `offset` need a list, since they can themselves contain a comma:
+`distribution`, `link`, `constraints`, `offset` and `y_transform` also take one entry per dependent variable, matched by position like `y_units`, so outcomes of different types can share one run. A single value applies to all of them, an empty entry means the default, and any other number of entries is an error. `distribution` and `link` accept a comma-separated string; `constraints`, `offset` and `y_transform` need a list, since they can themselves contain a comma:
 
 ```python
 options.y            = 'Nb_errors, Stable, Sway'

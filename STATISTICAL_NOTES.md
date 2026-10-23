@@ -233,7 +233,7 @@ Capabilities that run alongside the core modelling pipeline, and the statistical
 
 ### Multiple dependent variables (Demo 12)
 
-Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically. The variables need not share a model family: `distribution`, `link` and `constraints` take one entry per variable.
+Running the same model independently for each of k dependent variables is a common workflow in multivariate research (e.g. analysing all limb segments, all biomarkers, or all performance metrics in one call). kbstatpy handles this via `options.y` as a list, saving results into per-variable subdirectories automatically. The variables need not share a model family: `distribution`, `link`, `constraints`, `offset` and `y_transform` take one entry per variable.
 
 One caveat: testing k outcomes multiplies the family-wise type I error rate. kbstatpy can apply a cross-variable correction across the family of dependent variables via `options.y_correction` (see the next section); the appropriate strategy depends on the research question — confirmatory analyses with pre-registered hypotheses call for stricter correction than exploratory screening. Within each model, post-hoc p-values are Holm-corrected across pairwise comparisons.
 

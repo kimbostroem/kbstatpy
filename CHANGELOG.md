@@ -1,5 +1,16 @@
 # Changes
 
+## [1.47.0] - 2026-10-23
+
+### Features
+
+- `y_transform` takes one entry per dependent variable as a list, like `constraints`. `Summary.txt` names the transform.
+
+### Bugs
+
+- With `y_transform`, data plots showed rows excluded by `constraints`, each excluded level with its own marker, and ignored `x_order` and `rename`. Statistics were unaffected; plots made with `y_transform` and any of these options must be regenerated.
+- An `x_order` naming only some levels dropped the others from the analysis without a word, or failed with an R error under a constraint. Unnamed levels now follow the named ones. Results from such runs must be recomputed.
+
 ## [1.46.0] - 2026-10-22
 
 ### Features

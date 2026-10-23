@@ -205,7 +205,6 @@ class Kbstat:
         self.fig_data = None
         self.fig_correlation = None
         self.correlation_table: pd.DataFrame = None
-        self._data_raw: pd.DataFrame = None   # untransformed data, for plotting
         self._transform_fn = None             # forward transform: array → array
         self._inverse_fn   = None             # inverse transform: array → array
         self._emm_df       = None             # raw emmeans DataFrame, stored after posthoc()
@@ -913,7 +912,7 @@ class Kbstat:
         per y. These are what changes between the outcomes of one study in
         practice: a count, a binary and a continuous outcome side by side, the
         count analysed on its own subset of trials, with its exposure as an
-        offset. The MATLAB kbstat took the first three the same way.
+        offset, a correlation on Fisher's z scale. The MATLAB kbstat took the first three the same way.
         """
         o = self.options
         n_y = len(self._split_csv(o.y)) if o.y else 0
@@ -922,9 +921,9 @@ class Kbstat:
             if isinstance(val, tuple):
                 val = list(val)
             # A comma never belongs to a distribution or link name, so a
-            # comma-separated string is a per-y list there. A constraint or an
-            # offset can contain one (`limb in ["sl", "wl"]`, `pmax(t, 1)`), so
-            # for them only a list is.
+            # comma-separated string is a per-y list there. A constraint, an
+            # offset or a transform can contain one (`limb in ["sl", "wl"]`,
+            # `pmax(t, 1)`), so for them only a list is.
             if isinstance(val, str) and name in ('distribution', 'link') and ',' in val:
                 val = val.split(',')
             if not isinstance(val, list):
@@ -3737,13 +3736,15 @@ class Kbstat:
         if not self.options.x and not self._intercept_only():
             print("No independent variables to plot.")
             return
-        # Use raw (untransformed) data for plotting so the y-axis is in original units
-        base = self._data_raw if self._data_raw is not None else self.data
-        # Ensure the outlier column exists (mirror from self.data if needed)
+        # Plot y in original units: under y_transform the analysed rows carry
+        # the untransformed values alongside, filtered with everything else.
+        base = self.data
+        if base is not None and _Y_UNTRANSFORMED in base.columns:
+            base = base.copy()
+            base[self.options.y] = base.pop(_Y_UNTRANSFORMED)
         if base is not None and 'is_outlier' not in base.columns:
             base = base.copy()
-            base['is_outlier'] = (self.data['is_outlier'].values
-                                  if 'is_outlier' in self.data.columns else False)
+            base['is_outlier'] = False
         if not self.options.x:
             self.fig_data = self._intercept_figure(base)
             return
@@ -5069,11 +5070,15 @@ class Kbstat:
                 raise ValueError(f"options.split = {col!r} is not a column of the data")
             self.data = self.data[self.data[col].astype(str) == split_level].reset_index(drop=True)
 
-        # Apply y_transform: keep raw data for plotting, transform y for fitting
+        # Apply y_transform: transform y for fitting, and keep the untransformed
+        # values for plotting as a column of the same frame. A separate copy of
+        # the frame, as this used to be, was taken here, before the rename, the
+        # categorical cast and the constraints, and so plotted rows and levels
+        # the model never saw.
         self._build_transform()
         if self._transform_fn is not None:
             y_col = self.options.y
-            self._data_raw = self.data.copy()
+            self.data[_Y_UNTRANSFORMED] = self.data[y_col].values
             self.data[y_col] = self._transform_fn(self.data[y_col].values)
 
     def _validate_options_vs_formula(self, formula: str):
@@ -5441,6 +5446,8 @@ class Kbstat:
         lossy nor misleading.
         """
         d = self.data if data is None else data
+        if d is not None and _Y_UNTRANSFORMED in d.columns:
+            d = d.drop(columns=_Y_UNTRANSFORMED)
         if d is None or not getattr(self, '_covariate_originals', None):
             return d
         out = d.copy()
@@ -6311,6 +6318,8 @@ class Kbstat:
             f'  {"Software":<22} : kbstatpy {_kbstatpy_version}',
             f'  Number of observations : {n_obs}',
             f'  Distribution           : {self.options.distribution}',
+        ] + ([f'  Transform of y         : {self.options.y_transform}']
+             if self.options.y_transform else []) + [
             f'  Link function          : {link}',
             f'  Fit method             : {fit_method}',
             f'  Model structure        : {self._model_structure_label()}',
@@ -7010,7 +7019,21 @@ class Kbstat:
                     else:
                         order = None
                     if order is not None:
+                        # x_order sets the order of the levels it names; the
+                        # others follow in data order. Categories from the named
+                        # levels alone turned every other level into NaN, which
+                        # R then dropped from the fit without a word, and which
+                        # a constraint such as `grp != "B"` kept, since NaN is
+                        # not "B", so emmeans met rows the model never had.
                         categories = [str(v) for v in order]
+                        present = [str(v) for v in col.dropna().unique()]
+                        absent = [v for v in categories if v not in present]
+                        if absent:
+                            warnings.warn(
+                                f"x_order for {var!r} names {absent}, which do not "
+                                f"occur in the data (levels: {present}).", stacklevel=2)
+                        categories += [v for v in present if v not in categories]
+                        col = col.astype(str).where(col.notna(), None)
                     else:
                         categories = col.unique().tolist()
                     self.data[var] = pd.Categorical(
@@ -7376,9 +7399,13 @@ def _compare_label(entry):
 _R_MATH_FUNCTIONS = ('log', 'log2', 'log10', 'log1p', 'exp', 'sqrt', 'abs',
                      'pmax', 'pmin', 'I')
 
+# Column of the analysed data that holds y before options.y_transform, for the
+# data plots, which show original units.
+_Y_UNTRANSFORMED = '_y_untransformed'
+
 # Options that may take one value per dependent variable, matched to y by
 # position like y_units; see Kbstat._normalize_per_y_options.
-_PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset')
+_PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset', 'y_transform')
 
 _ENUM_OPTIONS = {
     'distribution':       ('normal', 'gaussian', 'binomial', 'poisson',
