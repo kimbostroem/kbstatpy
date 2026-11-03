@@ -133,6 +133,38 @@ try:
 except ValueError:
     check('non-numeric test_value raises', True)
 
+# --- the three Shrout & Fleiss forms: one-way, rater fixed, rater random ---
+# Two raters, rater 2 about 2 cm high; references from the ANOVA mean squares
+# (McGraw & Wong 1996), which REML reproduces for balanced data.
+rng = np.random.default_rng(23)
+true = 92 + 3.0 * rng.standard_normal(10)
+r1 = np.round((true + rng.normal(0, 0.6, 10)) * 2) / 2
+r2 = np.round((true + 2.0 + rng.normal(0, 0.6, 10)) * 2) / 2
+Y = np.column_stack([r1, r2])
+n, k = Y.shape
+grand = Y.mean()
+msr = k * ((Y.mean(axis=1) - grand) ** 2).sum() / (n - 1)
+msc = n * ((Y.mean(axis=0) - grand) ** 2).sum() / (k - 1)
+mse = ((Y - Y.mean(axis=1, keepdims=True) - Y.mean(axis=0) + grand) ** 2).sum() / ((n - 1) * (k - 1))
+msw = ((Y - Y.mean(axis=1, keepdims=True)) ** 2).sum() / (n * (k - 1))
+ref = {'oneway': (msr - msw) / (msr + (k - 1) * msw),
+       'consistency': (msr - mse) / (msr + (k - 1) * mse),
+       'agreement': (msr - mse) / (msr + (k - 1) * mse + k / n * (msc - mse))}
+rater_path = os.path.join(OUT, 'raters.csv')
+pd.DataFrame({'subject': np.tile([f's{i}' for i in range(n)], 2), 'rater': np.repeat(['r1', 'r2'], n),
+              'y': np.r_[r1, r2]}).to_csv(rater_path, index=False)
+for name, formula, label in [('oneway', 'y ~ 1 + (1 | subject)', 'ICC(1)'),
+                             ('consistency', 'y ~ rater + (1 | subject)', 'ICC(3,1)'),
+                             ('agreement', 'y ~ 1 + (1 | subject) + (1 | rater)', 'ICC(2,1)')]:
+    kb_r = fit(rater_path, formula=formula)
+    vc = kb_r._variance_components()
+    icc = dict((g, v) for g, _, v in vc)['subject'] / sum(v for _, _, v in vc)
+    text = kb_r._summary_text()
+    check(f'{name} ICC matches the ANOVA form', np.isclose(icc, ref[name], atol=2e-3),
+          f'{icc:.4f} vs {ref[name]:.4f}')
+    check(f'{name} ICC labelled {label}', label in text and
+          all(other not in text for other in {'ICC(1)', 'ICC(3,1)', 'ICC(2,1)'} - {label}))
+
 if FAILED:
     print(f'\n{len(FAILED)} FAILED: {FAILED}')
     sys.exit(1)

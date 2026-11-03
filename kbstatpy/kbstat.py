@@ -6880,10 +6880,22 @@ class Kbstat:
                     lines.append(f'  ICC ({self._disp(g)})'
                                  + (' adjusted' if adjusted else '')
                                  + f' : {v / total:.3f}')
+            n_groups = sum(1 for g, _, _ in vc if g != 'Residual')
             lines += ['  The ICC is the share of the variance that lies between the units',
                       '  of the grouping factor: 0 means they do not differ, 1 means all',
-                      '  values within a unit are equal. With one grouping factor it is',
-                      '  the reliability of a single measurement, ICC(1).']
+                      '  values within a unit are equal.']
+            if n_groups > 1:
+                lines += ['  With crossed grouping factors, e.g. subjects and raters, the',
+                          "  subjects' ICC is the agreement ICC, ICC(2,1): a rater's constant",
+                          '  offset counts as error.']
+            elif adjusted:
+                lines += ['  With the rater (or occasion) as a fixed factor, this is the',
+                          '  consistency ICC, ICC(3,1): a constant offset of a rater does',
+                          '  not count as error.']
+            else:
+                lines += ['  With one grouping factor and no fixed effects it is the one-way',
+                          '  ICC, ICC(1): the reliability of a single measurement, with any',
+                          '  rater or occasion differences counted as error.']
             if adjusted:
                 lines += ['  "adjusted": computed after the fixed effects, so it describes',
                           '  the variance they leave unexplained.']
