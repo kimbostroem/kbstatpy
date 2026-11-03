@@ -165,6 +165,29 @@ for name, formula, label in [('oneway', 'y ~ 1 + (1 | subject)', 'ICC(1,1)'),
     check(f'{name} ICC labelled {label}', label in text and
           all(other not in text for other in {'ICC(1,1)', 'ICC(3,1)', 'ICC(2,1)'} - {label}))
 
+# --- nested rater within subject: inter-rater and test-retest ICC in one model ---
+rng = np.random.default_rng(5)
+rows = []
+for i in range(16):
+    u = rng.normal(0, 3.0)
+    for r in (1, 2):
+        o = rng.normal(0, 0.8)
+        for k in range(3):
+            rows.append({'subject': f's{i}', 'rater': r, 'y': 100 + u + o + rng.normal(0, 0.6)})
+nested_path = os.path.join(OUT, 'nested.csv')
+pd.DataFrame(rows).to_csv(nested_path, index=False)
+for formula in ('y ~ 1 + (1 | subject) + (1 | subject:rater)', 'y ~ 1 + (1 | subject/rater)'):
+    kb_n = fit(nested_path, formula=formula)
+    vc = kb_n._variance_components()
+    var = dict((g, v) for g, _, v in vc)
+    tot = sum(var.values())
+    sr = next(g for g in var if ':' in g)
+    text = kb_n._summary_text()
+    check(f'{formula}: inter-rater ICC (subject)', f'ICC (subject) : {var["subject"] / tot:.3f}' in text)
+    check(f'{formula}: test-retest ICC incl. subject',
+          f'incl. subject) : {(var["subject"] + var[sr]) / tot:.3f}' in text, f'{(var["subject"] + var[sr]) / tot:.3f}')
+    check(f'{formula}: nested, not called crossed', 'test-retest' in text and 'ICC(2,1)' not in text)
+
 if FAILED:
     print(f'\n{len(FAILED)} FAILED: {FAILED}')
     sys.exit(1)

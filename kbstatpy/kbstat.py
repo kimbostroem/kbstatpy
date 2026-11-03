@@ -6875,16 +6875,29 @@ class Kbstat:
         intercepts_only = all(t in ('(Intercept)', '') for _, t, _ in vc)
         if intercepts_only and total > 0:
             adjusted = not self._intercept_only()
-            for g, term, v in vc:
-                if g != 'Residual':
-                    lines.append(f'  ICC ({self._disp(g)})'
-                                 + (' adjusted' if adjusted else '')
-                                 + f' : {v / total:.3f}')
-            n_groups = sum(1 for g, _, _ in vc if g != 'Residual')
+            var = {g: v for g, _, v in vc if g != 'Residual'}
+            # nested terms (subject:rater, from subject/rater): two values of the same
+            # rater within a subject share the subject's variance as well
+            parents = {g: [p for p in g.split(':') if p in var] for g in var if ':' in g}
+            nested = {g: ps for g, ps in parents.items() if ps}
+            for g, v in var.items():
+                label = self._disp(g)
+                if g in nested:
+                    v += sum(var[p] for p in nested[g])
+                    label += ', incl. ' + ', '.join(self._disp(p) for p in nested[g])
+                lines.append(f'  ICC ({label})' + (' adjusted' if adjusted else '')
+                             + f' : {v / total:.3f}')
+            n_groups = len(var)
             lines += ['  The ICC is the share of the variance that lies between the units',
                       '  of the grouping factor: 0 means they do not differ, 1 means all',
                       '  values within a unit are equal.']
-            if n_groups > 1:
+            if nested:
+                lines += ['  With a nested factor, e.g. subject:rater (each rater measures',
+                          '  within a subject), ICC (subject) is the similarity of values',
+                          '  from different raters of the same subject (inter-rater); the',
+                          '  ICC incl. subject is that of values from the same rater of the',
+                          '  same subject (test-retest).']
+            elif n_groups > 1:
                 lines += ['  With crossed grouping factors, e.g. subjects and raters, the',
                           "  subjects' ICC is the agreement ICC, ICC(2,1): a rater's constant",
                           '  offset counts as error.']
