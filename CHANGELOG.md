@@ -1,5 +1,11 @@
 # Changes
 
+## [1.47.3] - 2026-11-03
+
+### Bugs
+
+- With a nested random term such as `(1|subject/rater)`, `Summary.txt` called the subjects' ICC the agreement ICC(2,1), which holds only for crossed factors. It now names nested models as such and adds the test-retest ICC (incl. subject). Values were already correct.
+
 ## [1.47.2] - 2026-11-03
 
 ### Changes
