@@ -6894,7 +6894,7 @@ class Kbstat:
                           '  not count as error.']
             else:
                 lines += ['  With one grouping factor and no fixed effects it is the one-way',
-                          '  ICC, ICC(1): the reliability of a single measurement, with any',
+                          '  ICC, ICC(1,1): the reliability of a single measurement, with any',
                           '  rater or occasion differences counted as error.']
             if adjusted:
                 lines += ['  "adjusted": computed after the fixed effects, so it describes',

@@ -153,7 +153,7 @@ ref = {'oneway': (msr - msw) / (msr + (k - 1) * msw),
 rater_path = os.path.join(OUT, 'raters.csv')
 pd.DataFrame({'subject': np.tile([f's{i}' for i in range(n)], 2), 'rater': np.repeat(['r1', 'r2'], n),
               'y': np.r_[r1, r2]}).to_csv(rater_path, index=False)
-for name, formula, label in [('oneway', 'y ~ 1 + (1 | subject)', 'ICC(1)'),
+for name, formula, label in [('oneway', 'y ~ 1 + (1 | subject)', 'ICC(1,1)'),
                              ('consistency', 'y ~ rater + (1 | subject)', 'ICC(3,1)'),
                              ('agreement', 'y ~ 1 + (1 | subject) + (1 | rater)', 'ICC(2,1)')]:
     kb_r = fit(rater_path, formula=formula)
@@ -163,7 +163,7 @@ for name, formula, label in [('oneway', 'y ~ 1 + (1 | subject)', 'ICC(1)'),
     check(f'{name} ICC matches the ANOVA form', np.isclose(icc, ref[name], atol=2e-3),
           f'{icc:.4f} vs {ref[name]:.4f}')
     check(f'{name} ICC labelled {label}', label in text and
-          all(other not in text for other in {'ICC(1)', 'ICC(3,1)', 'ICC(2,1)'} - {label}))
+          all(other not in text for other in {'ICC(1,1)', 'ICC(3,1)', 'ICC(2,1)'} - {label}))
 
 if FAILED:
     print(f'\n{len(FAILED)} FAILED: {FAILED}')
