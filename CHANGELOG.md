@@ -1,5 +1,11 @@
 # Changes
 
+## [1.47.1] - 2026-11-03
+
+### Bugs
+
+- `Summary.txt` called every ICC "ICC(1)". It now names the form the model fits: ICC(1) one-way, ICC(2,1) agreement with a random rater, ICC(3,1) consistency with a fixed rater. Values were already correct. See STATISTICAL_NOTES for the three models.
+
 ## [1.47.0] - 2026-10-23
 
 ### Features
