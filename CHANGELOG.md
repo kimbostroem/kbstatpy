@@ -1,5 +1,11 @@
 # Changes
 
+## [1.47.2] - 2026-11-03
+
+### Changes
+
+- `Summary.txt` and the docs call the one-way ICC ICC(1,1), as ICC(2,1) and ICC(3,1). It was ICC(1), the shorthand for the same form. Values unchanged.
+
 ## [1.47.1] - 2026-11-03
 
 ### Bugs
