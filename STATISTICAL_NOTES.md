@@ -101,6 +101,16 @@ With several values per unit, `y ~ 1 + (1 | id)` adds a random intercept, y = β
 
 The same model splits the variance of y into the part between units (σ²_id) and the part within them (σ²_ε). Their ratio is the **intraclass correlation**, ICC = σ²_id / (σ²_id + σ²_ε), the share of the variance that lies between units. With persons as units and repeated measurements of the same quantity, it is the reliability of a single measurement, ICC(1) in the Shrout and Fleiss scheme (one-way random effects, single measure; Koo and Li 2016). kbstatpy reports the variance components of every normal mixed model in `Summary.txt`, and the ICC wherever the random part has intercepts only. In a model with fixed effects the ICC is labelled *adjusted*: it is computed from the variance the fixed effects leave unexplained, so it answers a different question from the intercept-only ICC and is typically larger. With random slopes no ICC is given, since a unit's share of the variance then depends on the value of the slope variable.
 
+The other Shrout and Fleiss forms follow from where the rater (or occasion) goes in the model, with each subject measured by every rater:
+
+| Model | ICC (subject) | Shrout & Fleiss | A rater's constant offset |
+|---|---|---|---|
+| <code>y ~ 1 + (1&#124;subject)</code> | σ²_subject / (σ²_subject + σ²_ε) | ICC(1), one-way | counts as error, inside σ²_ε |
+| <code>y ~ 1 + (1&#124;subject) + (1&#124;rater)</code> | σ²_subject / (σ²_subject + σ²_rater + σ²_ε) | ICC(2,1), agreement | counts as error, as σ²_rater |
+| <code>y ~ rater + (1&#124;subject)</code> | σ²_subject / (σ²_subject + σ²_ε), adjusted | ICC(3,1), consistency | removed as a fixed effect |
+
+For balanced data REML reproduces the ANOVA forms of McGraw and Wong (1996) exactly. Agreement asks whether the next rater would give the same value, consistency only whether the raters rank the subjects alike. The residual SD of the two two-way models is the pure measurement noise; that of the one-way model also contains the rater offsets. With only two or three raters σ²_rater rests on very few levels and is imprecise. `Summary.txt` names the form that fits the model.
+
 Cohen's d for the test of the mean is (mean − μ₀) / SD, with SD the total standard deviation of y: every variance component plus the residual. Dividing by the residual SD alone would make the same distance look larger the more of the variance the random intercept absorbs. The post-hoc SMD uses the same SD (see [Effect size and CI of the difference](#effect-size-and-ci-of-the-difference)). For a GLMM the test is on the link scale against the linked value of `test_value`, and no d is given.
 
 ### Independent-samples t-test (Demo 1)
