@@ -39,7 +39,8 @@ Cutting a release is one unit — do not stop after the commit. In order:
 
 3. **Update `CITATION.cff`** — `version` and `date-released`. Nothing imports this
    file, so only `tests/test_citation_metadata.py` catches a stale one.
-4. **Run the tests** — `for f in tests/test_*.py; do python3 "$f"; done`. Two of
+4. **Run the tests** — `python3 run_tests.py`, which must end without a FAILED
+   file; nothing is released on a failure. Two of
    them guard the steps above: `test_citation_metadata.py` fails if
    `__version__`, the newest changelog heading, and `CITATION.cff` disagree.
 5. **Commit on `develop`** — subject `Release X.Y.Z: <headline>`, then a short
@@ -59,8 +60,18 @@ test, exiting non-zero on failure.
 
 ```bash
 python3 -m pip install -e ".[test]"      # once: PyYAML, for the CITATION check
-for f in tests/test_*.py; do echo "== $f"; python3 "$f"; done
+python3 run_tests.py                     # all files, half the CPU cores at a time
+python3 run_tests.py offset per_y        # only files whose name contains these
+python3 tests/test_offset.py             # one file, with its full output
 ```
+
+`run_tests.py` runs the files as parallel processes, each with its own R; the
+time goes into starting R and fitting models, so this cuts a full run several-
+fold. It is safe because every file writes to a folder of its own (its own
+`/tmp/kbstatpy_*` or a temporary directory) and binds no fixed port. **A new
+test must keep it so**: a name of its own for any output folder, port 0 for any
+server. A file counts as failed if it exits non-zero or prints a FAIL or ERROR
+line; its full output is shown at the end.
 
 Every test needs R with `glmmTMB` and `emmeans`, like the package itself --
 including the metadata and layout-only ones. There is no R-free test and there

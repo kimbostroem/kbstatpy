@@ -1,5 +1,11 @@
 # Changes
 
+## [1.49.1] - 2026-11-06
+
+### Changes
+
+- For contributors: `python3 run_tests.py` runs the test files in parallel, a full run in about 5 minutes instead of 30. `run_tests.py offset` runs only the matching files.
+
 ## [1.49.0] - 2026-11-06
 
 ### Features
