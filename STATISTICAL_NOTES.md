@@ -439,9 +439,18 @@ There is one place the `df = Inf` cannot be used directly: the **standardized ef
 
 #### Effect-size labels
 
-The **verbal effect-size labels** (`very small` … `very large`) use a single seven-bin scheme for partial η², Cohen's d, and the correlation coefficients (Pearson r and Spearman rho), reproducing the MATLAB kbstat `effprint` bins: the three Cohen anchors (η² 0.01/0.06/0.14, d 0.2/0.5/0.8, r and rho 0.1/0.3/0.5) plus the midpoint "X to Y" categories between them. The ANOVA table is labelled from partial η², the post-hoc table from d (from η² for a GLMM, whose d is the liberal approximation above). The two can disagree for a within-subject factor: its partial η² leaves the between-subject variance out of the denominator, so it runs higher than for the same difference between groups (0.65, "very large", on the paired sleep data, against d = 0.83, "large").
+The **verbal effect-size labels** in the `effectSize` columns translate partial η², Cohen's d and the correlation coefficients (Pearson r, Spearman ρ) into words, against Cohen's small / medium / large values: η² 0.01 / 0.06 / 0.14, d 0.2 / 0.5 / 0.8, r and ρ 0.1 / 0.3 / 0.5. The ANOVA table is labelled from partial η², the post-hoc table from d (from η² for a GLMM, whose d is the liberal approximation above). The two can disagree for a within-subject factor: its partial η² leaves the between-subject variance out of the denominator, so it runs higher than for the same difference between groups (0.65 on the paired sleep data, against d = 0.83). Labels apply to the absolute value, a range includes its lower bound, and `Summary.txt` repeats the ranges for the measures it uses. `options.effect_labels` chooses between two readings of Cohen's values.
 
-Cohen's three values are the **centres** of the "small", "medium" and "large" bins, not their lower cutoffs; "small to medium" and "medium to large" sit at the midpoints between them, each edge lies halfway between neighbouring centres, and the last halfway between "large" and 1. A range includes its lower bound, and the label applies to the absolute value:
+**`effect_labels = 'cohen'`** (default). The values are lower thresholds, as in most of the literature and in R's `effectsize` and `effsize` packages:
+
+| Label | partial η² | Cohen's d | r, ρ |
+|---|---|---|---|
+| negligible | < 0.01 | < 0.2 | < 0.1 |
+| small | 0.01 to 0.06 | 0.2 to 0.5 | 0.1 to 0.3 |
+| medium | 0.06 to 0.14 | 0.5 to 0.8 | 0.3 to 0.5 |
+| large | ≥ 0.14 | ≥ 0.8 | ≥ 0.5 |
+
+**`effect_labels = 'centred'`**. Seven bins centred on the values, reproducing the MATLAB kbstat `effprint` scheme, and kbstatpy's only scheme up to version 1.48. "Small to medium" and "medium to large" sit at the midpoints between the values, each edge lies halfway between neighbouring centres, and the last halfway between "large" and 1:
 
 | Label | partial η² | Cohen's d | r, ρ |
 |---|---|---|---|
@@ -453,7 +462,7 @@ Cohen's three values are the **centres** of the "small", "medium" and "large" bi
 | large | 0.12 to 0.57 | 0.725 to 0.9 | 0.45 to 0.75 |
 | very large | ≥ 0.57 | ≥ 0.9 | ≥ 0.75 |
 
-Many papers use Cohen's values as lower cutoffs instead, so that d ≥ 0.5 is "medium". Here d = 0.45 is already "medium" and d = 0.55 still is, so a report that quotes the labels should name the scheme, or quote the numbers. The top bins are wide by construction: placing the last edge halfway to 1 suits η² and r, which cannot exceed 1, but makes "large" η² span 0.12 to 0.57; for d, which can exceed 1, the edge at 0.9 is a convention. `Summary.txt` repeats the ranges for the measures it uses.
+The centred scheme gives finer words, but they do not mean what a reader who knows Cohen's thresholds expects: d = 0.45 is already "medium" and d = 0.55 still is. Its top bins are also wide by construction: placing the last edge halfway to 1 suits η² and r, which cannot exceed 1, but makes "large" η² span 0.12 to 0.57; for d, which can exceed 1, the edge at 0.9 is a convention. Either way, a report that quotes the labels should name the scheme, or quote the numbers.
 
 ### GLMM engine: `glmmTMB` (not `glmer`)
 

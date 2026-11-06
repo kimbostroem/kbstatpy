@@ -206,7 +206,7 @@ With neither given, the dependent variable is taken from the formula. The cost o
 <details>
 <summary><b>Values are case-insensitive, and a wrong one raises</b></summary>
 
-The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `y_correction`, `split_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
+The options that take a fixed set of values (`distribution`, `plot_style`, `figure_display`, `x_label`, `y_label`, `correlation_method`, `posthoc_method`, `posthoc_family`, `effect_labels`, `y_correction`, `split_correction`, `y_scale`, `data_outliers`, `slope_correlated`) accept any capitalisation and reject anything outside their set, rather than falling back silently. `posthoc_correction` is the exception: its value goes to R, where method names such as `BH` and `BY` are case-sensitive.
 
 </details>
 
@@ -255,6 +255,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `remove_outliers_prefit` | bool | Default `False`. Exclude outliers before fitting, by the IQR rule per group |
 | `remove_outliers_postfit` | bool | Default `False`. Exclude outliers after fitting, by Pearson residual, then refit. Combines with the prefit rule |
 | `posthoc_method` | str | Default `'emm'` (emmeans) |
+| `effect_labels` | str | Default `'cohen'`. Verbal effect size labels: `'cohen'` uses Cohen's values as lower thresholds (negligible, small, medium, large); `'centred'` gives seven bins centred on them (very small … very large), the scheme up to 1.48. See [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels) |
 | `posthoc_correction` | str | Default `'holm'`. P-value correction within a model: `'bonferroni'`, `'fdr'`, `'tukey'`, … |
 | `posthoc_family` | str | Default `'cell'`. What the correction spans: `'cell'` each cell separately, `'pooled'` all cells as one family, `'cross'` within each cell then across. See [What counts as a family](STATISTICAL_NOTES.md#what-counts-as-a-family-posthoc_family) |
 | `posthoc_compare` | str | Default `'auto'` (the first x-variable). Which factor(s) get pairwise comparisons, comma-separated; `''` or `'none'` turns them off. Comparisons are per cell, see [Comparing any factor](STATISTICAL_NOTES.md#comparing-any-factor-per-cell-demo-15). `'group | limb'` compares group within each level of limb only, averaged over the other factors, written to `Posthoc_group_by_limb.xlsx` |
@@ -568,7 +569,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
 | `SplitCorrection.xlsx` | Across-level correction (when `split_correction` is set): per dependent variable, every post-hoc contrast and ANOVA term in every level of `split`, with `p`, `pCorr` and `pSplit`. Written to `<out_dir>/<y>/` |
 
-The effect size labels (`very small` to `very large`) are bins centred on Cohen's small, medium and large values, not cutoffs at them. `Summary.txt` lists the ranges for the measures it uses; the full table is in [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels).
+The effect size labels use Cohen's small, medium and large values as lower thresholds (`negligible`, `small`, `medium`, `large`); `effect_labels = 'centred'` gives the seven bins centred on them that kbstatpy used up to 1.48. `Summary.txt` lists the ranges for the measures it uses; both tables are in [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels).
 
 `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike; with `split`, into one further subdirectory per level (`<out_dir>/<y>/<level>/`). Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
 

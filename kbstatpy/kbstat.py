@@ -699,6 +699,10 @@ class Kbstat:
         if o.formula:
             self._backfill_options_from_formula(o.formula)
         self._normalize_per_y_options()
+        # The US spelling of effect_labels' 'centred', resolved before the
+        # validation below, whose table holds the canonical values only.
+        if str(o.effect_labels or '').strip().lower() == 'centered':
+            o.effect_labels = 'centred'
         # Enumerated options: one lower-casing and one validation for all of them.
         # An empty value is left alone, since several read it as "use the
         # default"; anything else must be a value the option actually takes,
@@ -719,6 +723,8 @@ class Kbstat:
                 setattr(o, _name, [_enum(_name, v, _allowed) for v in _raw])
             else:
                 setattr(o, _name, _enum(_name, _raw, _allowed))
+        if o.effect_labels in ('', None):
+            o.effect_labels = 'cohen'
         # link goes to R as a name; lower-case it, but do not enumerate -- the
         # set depends on the family and R has the authoritative list.
         if isinstance(o.link, str):
@@ -1738,7 +1744,8 @@ class Kbstat:
         # 2·sqrt(F/df) it used to show is d only for two independent groups. On
         # a within-subject factor it came out near twice d_z (2.71 on the paired
         # sleep data, where d = 0.83). The pairwise d is in the post-hoc table.
-        raw['effectSize'] = raw['etaSqp'].apply(_effect_label_eta)
+        raw['effectSize'] = raw['etaSqp'].apply(
+            lambda v: _effect_label_eta(v, self.options.effect_labels))
         raw['significance'] = raw['p'].apply(_sig_stars)
         self.anova_table = raw
         return self.anova_table
@@ -1841,7 +1848,8 @@ class Kbstat:
         table = pd.DataFrame([{'Term': '(Intercept)', 'DF1': 1.0, 'DF2': df, 'F': F, 'p': p}])
         table['etaSqp'] = _f2eta_sq_p(table['F'], table['DF1'], table['DF2'], n_obs)
         table['SMD'] = abs(d)
-        table['effectSize'] = table['etaSqp'].apply(_effect_label_eta)
+        table['effectSize'] = table['etaSqp'].apply(
+            lambda v: _effect_label_eta(v, self.options.effect_labels))
         table['significance'] = table['p'].apply(_sig_stars)
         return table
 
@@ -2308,10 +2316,10 @@ class Kbstat:
             etasqp = _f2eta_sq_p(_F, 1.0, df_val, n_obs=df_resid)
             if np.isfinite(total_sd) and total_sd > 0:
                 smd = abs(float(craw['estimate'])) / total_sd
-                label = _d_label(smd)
+                label = _d_label(smd, self.options.effect_labels)
             else:
                 smd = _f2smd(_F, 1.0, df_val, n_obs=df_resid)
-                label = _effect_label_eta(etasqp)
+                label = _effect_label_eta(etasqp, self.options.effect_labels)
             p_raw = float(craw['p.value'])
             p_corr = float(cadj['p.value'])
             diff = _emm_val(lev1, cell) - _emm_val(lev2, cell)
@@ -3008,7 +3016,7 @@ class Kbstat:
                 'r':            round(float(r), 4),
                 'p':            round(float(p), 4),
                 'significance': _sig_stars(p),
-                'effectSize':   _r_label(r),
+                'effectSize':   _r_label(r, self.options.effect_labels),
             })
         self.correlation_table = pd.DataFrame(rows)
         # For the scatter grid: adjusted residuals when controlling, else raw values.
@@ -3045,7 +3053,7 @@ class Kbstat:
                     'r':            round(float(r), 4),
                     'p':            round(float(p), 4),
                     'significance': _sig_stars(p),
-                    'effectSize':   _r_label(r),
+                    'effectSize':   _r_label(r, self.options.effect_labels),
                 })
             partial_table = pd.DataFrame(part_rows)
 
@@ -6824,21 +6832,28 @@ class Kbstat:
             cols.append(("Cohen's d", _D_ANCHORS))
         if not cols:
             return []
+        scheme = self.options.effect_labels
         def ranges(anchors):
-            e = [f'{x:g}' for x in _cohen_edges(anchors)]
+            e = [f'{x:g}' for x in _cohen_edges(anchors, scheme)]
             return ([f'< {e[0]}'] + [f'{a} to {b}' for a, b in zip(e, e[1:])]
                     + [f'>= {e[-1]}'])
         table = [ranges(a) for _, a in cols]
         w = [max(len(h), *(len(r) for r in rs)) + 3 for (h, _), rs in zip(cols, table)]
         head = '  ' + ' ' * 17 + ''.join(h.ljust(wi) for (h, _), wi in zip(cols, w))
         rows = ['  ' + lab.ljust(17) + ''.join(rs[i].ljust(wi) for rs, wi in zip(table, w))
-                for i, lab in enumerate(_COHEN_LABELS)]
+                for i, lab in enumerate(_cohen_labels(scheme))]
         import textwrap
         anchors = '; '.join(f"{h} {' / '.join(f'{x:g}' for x in a)}" for h, a in cols)
+        if scheme == 'cohen':
+            how = ("are their lower thresholds (effect_labels = 'cohen'; "
+                   "'centred' gives seven bins centred on them).")
+        else:
+            how = ("are the centres of their bins, not lower thresholds "
+                   "(effect_labels = 'centred'; 'cohen' uses them as thresholds).")
         note = textwrap.wrap(
-            f"Cohen's small / medium / large values ({anchors}) are the "
-            'centres of their bins, not lower cutoffs. Ranges include the lower '
-            'bound and apply to the absolute value. See STATISTICAL_NOTES.md.',
+            f"Cohen's small / medium / large values ({anchors}) {how} Ranges "
+            'include the lower bound and apply to the absolute value. See '
+            'STATISTICAL_NOTES.md.',
             width=70, initial_indent='  ', subsequent_indent='  ')
         return (['EFFECT SIZE LABELS', '------------------', head.rstrip()]
                 + [r.rstrip() for r in rows] + note + [''])
@@ -6869,7 +6884,7 @@ class Kbstat:
                  f"  Test                : {stat}, {_p_text(it['p'])}"]
         if np.isfinite(it['d']):
             lines.append(f"  Cohen's d           : {it['d']:.3f} "
-                         f"({_cohen_label(abs(it['d']), (0.2, 0.5, 0.8))})")
+                         f"({_d_label(it['d'], self.options.effect_labels)})")
         lines += [f'  Denominator df method: {self._df_method_label()}', '']
         if not has_re and self._family() == 'gaussian' and not self.options.y_transform:
             lines += ['  The model has no predictor, so its only coefficient is the mean:',
@@ -7263,49 +7278,63 @@ def _f2smd(F, df1, df2, n_obs=None):
     return np.sqrt(4 * eta / (1 - eta))
 
 
-def _cohen_label(value, anchors):
-    """Seven-bin Cohen effect-size label, reproducing the MATLAB kbstat
-    ``effprint`` scheme. ``anchors`` = (small, medium, large) reference values
-    for the metric (partial eta-squared: 0.01/0.06/0.14; Cohen's d:
-    0.2/0.5/0.8). The bin edges are MATLAB's midpoint construction, giving
-    'very small', 'small', 'small to medium', 'medium', 'medium to large',
-    'large', 'very large' — so the eta-squared and the d labels use one
-    consistent scheme."""
+def _cohen_label(value, anchors, scheme='cohen'):
+    """Verbal label of an effect size, given Cohen's (small, medium, large)
+    values for the measure (partial eta-squared 0.01/0.06/0.14, Cohen's d
+    0.2/0.5/0.8, r 0.1/0.3/0.5) and options.effect_labels:
+      'cohen'   -- the values are lower thresholds: negligible / small /
+                   medium / large, as in most of the literature and in R's
+                   effectsize and effsize packages.
+      'centred' -- seven bins centred on the values, reproducing the MATLAB
+                   kbstat ``effprint`` scheme (see _cohen_edges).
+    Labels apply to the absolute value; NaN gives ''."""
     try:
         v = abs(float(value))
     except (TypeError, ValueError):
         return ''
     if v != v:  # NaN
         return ''
-    for edge, lab in zip(_cohen_edges(anchors), _COHEN_LABELS):
+    labels = _cohen_labels(scheme)
+    for edge, lab in zip(_cohen_edges(anchors, scheme), labels):
         if v < edge:
             return lab
-    return _COHEN_LABELS[-1]
+    return labels[-1]
 
 
 # Cohen's small / medium / large values per measure.
 _ETA_ANCHORS, _D_ANCHORS, _R_ANCHORS = (0.01, 0.06, 0.14), (0.2, 0.5, 0.8), (0.1, 0.3, 0.5)
 
-_COHEN_LABELS = ('very small', 'small', 'small to medium', 'medium',
-                 'medium to large', 'large', 'very large')
+_COHEN_LABELS = {
+    'cohen':   ('negligible', 'small', 'medium', 'large'),
+    'centred': ('very small', 'small', 'small to medium', 'medium',
+                'medium to large', 'large', 'very large'),
+}
 
 
-def _cohen_edges(anchors):
-    """The six edges between the seven labels of _cohen_label: Cohen's
-    small/medium/large values are the centres of their bins, the in-between
-    labels sit at the midpoints, each edge lies halfway between neighbouring
-    centres, and the last halfway between 'large' and 1. Also what Summary.txt
-    tabulates, so the key cannot drift from the labels."""
+def _cohen_labels(scheme='cohen'):
+    """The labels of an effect_labels scheme, smallest first."""
+    return _COHEN_LABELS[scheme]
+
+
+def _cohen_edges(anchors, scheme='cohen'):
+    """The edges between the labels of _cohen_label, also what Summary.txt
+    tabulates, so the key cannot drift from the labels. 'cohen': the three
+    values themselves. 'centred': six edges, Cohen's small/medium/large values
+    being the centres of their bins, the in-between labels at the midpoints,
+    each edge halfway between neighbouring centres, and the last halfway
+    between 'large' and 1."""
+    if scheme == 'cohen':
+        return list(anchors)
     p1, p2, p3 = anchors
     q2, q3 = (p1 + p2) / 2.0, (p2 + p3) / 2.0
     return [p1 / 2.0, (p1 + q2) / 2.0, (q2 + p2) / 2.0,
             (p2 + q3) / 2.0, (q3 + p3) / 2.0, (p3 + 1.0) / 2.0]
 
 
-def _effect_label_eta(eta):
-    """Seven-bin partial-eta-squared label (Cohen anchors 0.01/0.06/0.14),
-    matching the MATLAB kbstat ``effprint('eta2')`` scheme."""
-    return _cohen_label(eta, _ETA_ANCHORS)
+def _effect_label_eta(eta, scheme='cohen'):
+    """Partial-eta-squared label (Cohen's values 0.01/0.06/0.14) under the
+    effect_labels scheme; 'centred' matches MATLAB kbstat ``effprint('eta2')``."""
+    return _cohen_label(eta, _ETA_ANCHORS, scheme)
 
 
 def _partial_corr_p(e1, e2, n_cond):
@@ -7326,11 +7355,11 @@ def _partial_corr_p(e1, e2, n_cond):
     return r, float(2.0 * _tdist.sf(abs(tstat), df))
 
 
-def _r_label(r):
-    """Seven-bin label for a correlation coefficient (Pearson r or Spearman
-    rho), Cohen anchors 0.1/0.3/0.5, matching the MATLAB kbstat
-    ``effprint('r')`` / ``effprint('rho')`` scheme."""
-    return _cohen_label(r, _R_ANCHORS)
+def _r_label(r, scheme='cohen'):
+    """Label for a correlation coefficient (Pearson r or Spearman rho), Cohen's
+    values 0.1/0.3/0.5, under the effect_labels scheme; 'centred' matches MATLAB
+    kbstat ``effprint('r')`` / ``effprint('rho')``."""
+    return _cohen_label(r, _R_ANCHORS, scheme)
 
 
 def _sig_stars(p):
@@ -7489,6 +7518,7 @@ _ENUM_OPTIONS = {
     'y_label':            ('variable_with_units', 'variable_only', 'none'),
     'correlation_method': ('pearson', 'spearman'),
     'posthoc_method':     ('emm',),
+    'effect_labels':      ('cohen', 'centred'),
 }
 
 # Rank contributed by each candidate interaction term, given the terms already
@@ -7634,8 +7664,8 @@ def _split_correction_table(workers, split_col, method):
     return out[lead + [c for c in out.columns if c not in lead]]
 
 
-def _d_label(d):
-    """Seven-bin Cohen's d label (anchors 0.2/0.5/0.8), matching the MATLAB
-    kbstat ``effprint('d')`` scheme."""
-    return _cohen_label(d, _D_ANCHORS)
+def _d_label(d, scheme='cohen'):
+    """Cohen's d label (Cohen's values 0.2/0.5/0.8) under the effect_labels
+    scheme; 'centred' matches MATLAB kbstat ``effprint('d')``."""
+    return _cohen_label(d, _D_ANCHORS, scheme)
 

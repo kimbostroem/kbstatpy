@@ -431,6 +431,12 @@ class KbstatOptions:
     #            scale falls back to 'linear' with a warning. Diagnostic and
     #            correlation figures are never rescaled.
     y_scale: str = 'linear'
+    # Verbal effect-size labels (effectSize columns). 'cohen' (default): Cohen's
+    # small / medium / large values (d 0.2/0.5/0.8, partial eta^2 0.01/0.06/0.14,
+    # r 0.1/0.3/0.5) are lower thresholds -> negligible, small, medium, large.
+    # 'centred': seven bins centred on those values (very small ... very large),
+    # the MATLAB kbstat effprint scheme and kbstatpy's default up to 1.48.
+    effect_labels: str = 'cohen'
     figure_display: str = 'show_close'   # 'save_only' | 'show_close' | 'show_keep'; all save files.
     #                                      In notebooks show_close/show_keep both render inline once.
 

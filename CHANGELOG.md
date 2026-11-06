@@ -1,5 +1,15 @@
 # Changes
 
+## [1.49.0] - 2026-11-06
+
+### Features
+
+- New option `effect_labels`. `'cohen'` uses Cohen's values as lower thresholds (negligible, small, medium, large), as most readers expect; `'centred'` keeps the seven bins centred on them.
+
+### Changes
+
+- **The default is now `'cohen'`, so the `effectSize` labels in all tables change on rerun**: d = 0.45 was "medium", now "small". Numbers are unchanged. Set `effect_labels = 'centred'` for the previous labels.
+
 ## [1.48.0] - 2026-11-06
 
 ### Changes
