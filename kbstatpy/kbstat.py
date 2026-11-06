@@ -6796,6 +6796,8 @@ class Kbstat:
                 ]
             lines.append('')
 
+        lines += self._effect_label_key()
+
         # --- Significance key ---
         lines += [
             'SIGNIFICANCE',
@@ -6809,6 +6811,37 @@ class Kbstat:
         ]
 
         return '\n'.join(lines)
+
+    def _effect_label_key(self) -> list:
+        """The effectSize labels' ranges, for the measures this Summary uses:
+        partial eta^2 for the ANOVA (and the test of the mean), Cohen's d for
+        a Gaussian post-hoc table. A GLMM's post-hoc labels come from eta^2."""
+        cols = []
+        if self.anova_table is not None:
+            cols.append(('partial eta^2', _ETA_ANCHORS))
+        if (self.posthoc_table is not None and len(self.posthoc_table)
+                and self._family() == 'gaussian'):
+            cols.append(("Cohen's d", _D_ANCHORS))
+        if not cols:
+            return []
+        def ranges(anchors):
+            e = [f'{x:g}' for x in _cohen_edges(anchors)]
+            return ([f'< {e[0]}'] + [f'{a} to {b}' for a, b in zip(e, e[1:])]
+                    + [f'>= {e[-1]}'])
+        table = [ranges(a) for _, a in cols]
+        w = [max(len(h), *(len(r) for r in rs)) + 3 for (h, _), rs in zip(cols, table)]
+        head = '  ' + ' ' * 17 + ''.join(h.ljust(wi) for (h, _), wi in zip(cols, w))
+        rows = ['  ' + lab.ljust(17) + ''.join(rs[i].ljust(wi) for rs, wi in zip(table, w))
+                for i, lab in enumerate(_COHEN_LABELS)]
+        import textwrap
+        anchors = '; '.join(f"{h} {' / '.join(f'{x:g}' for x in a)}" for h, a in cols)
+        note = textwrap.wrap(
+            f"Cohen's small / medium / large values ({anchors}) are the "
+            'centres of their bins, not lower cutoffs. Ranges include the lower '
+            'bound and apply to the absolute value. See STATISTICAL_NOTES.md.',
+            width=70, initial_indent='  ', subsequent_indent='  ')
+        return (['EFFECT SIZE LABELS', '------------------', head.rstrip()]
+                + [r.rstrip() for r in rows] + note + [''])
 
     def _intercept_test_lines(self) -> list:
         """Summary section for an intercept-only model: the mean and its test."""
@@ -7244,22 +7277,35 @@ def _cohen_label(value, anchors):
         return ''
     if v != v:  # NaN
         return ''
-    p1, p2, p3 = anchors
-    q2, q3 = (p1 + p2) / 2.0, (p2 + p3) / 2.0
-    edges = [p1 / 2.0, (p1 + q2) / 2.0, (q2 + p2) / 2.0,
-             (p2 + q3) / 2.0, (q3 + p3) / 2.0, (p3 + 1.0) / 2.0]
-    labels = ['very small', 'small', 'small to medium', 'medium',
-              'medium to large', 'large', 'very large']
-    for edge, lab in zip(edges, labels):
+    for edge, lab in zip(_cohen_edges(anchors), _COHEN_LABELS):
         if v < edge:
             return lab
-    return labels[-1]
+    return _COHEN_LABELS[-1]
+
+
+# Cohen's small / medium / large values per measure.
+_ETA_ANCHORS, _D_ANCHORS, _R_ANCHORS = (0.01, 0.06, 0.14), (0.2, 0.5, 0.8), (0.1, 0.3, 0.5)
+
+_COHEN_LABELS = ('very small', 'small', 'small to medium', 'medium',
+                 'medium to large', 'large', 'very large')
+
+
+def _cohen_edges(anchors):
+    """The six edges between the seven labels of _cohen_label: Cohen's
+    small/medium/large values are the centres of their bins, the in-between
+    labels sit at the midpoints, each edge lies halfway between neighbouring
+    centres, and the last halfway between 'large' and 1. Also what Summary.txt
+    tabulates, so the key cannot drift from the labels."""
+    p1, p2, p3 = anchors
+    q2, q3 = (p1 + p2) / 2.0, (p2 + p3) / 2.0
+    return [p1 / 2.0, (p1 + q2) / 2.0, (q2 + p2) / 2.0,
+            (p2 + q3) / 2.0, (q3 + p3) / 2.0, (p3 + 1.0) / 2.0]
 
 
 def _effect_label_eta(eta):
     """Seven-bin partial-eta-squared label (Cohen anchors 0.01/0.06/0.14),
     matching the MATLAB kbstat ``effprint('eta2')`` scheme."""
-    return _cohen_label(eta, (0.01, 0.06, 0.14))
+    return _cohen_label(eta, _ETA_ANCHORS)
 
 
 def _partial_corr_p(e1, e2, n_cond):
@@ -7284,7 +7330,7 @@ def _r_label(r):
     """Seven-bin label for a correlation coefficient (Pearson r or Spearman
     rho), Cohen anchors 0.1/0.3/0.5, matching the MATLAB kbstat
     ``effprint('r')`` / ``effprint('rho')`` scheme."""
-    return _cohen_label(r, (0.1, 0.3, 0.5))
+    return _cohen_label(r, _R_ANCHORS)
 
 
 def _sig_stars(p):
@@ -7591,5 +7637,5 @@ def _split_correction_table(workers, split_col, method):
 def _d_label(d):
     """Seven-bin Cohen's d label (anchors 0.2/0.5/0.8), matching the MATLAB
     kbstat ``effprint('d')`` scheme."""
-    return _cohen_label(d, (0.2, 0.5, 0.8))
+    return _cohen_label(d, _D_ANCHORS)
 

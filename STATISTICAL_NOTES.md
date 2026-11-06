@@ -31,6 +31,7 @@
   - [Contrast coding: effects coding (`contr.sum`)](#contrast-coding-effects-coding-contrsum)
   - [Sums of squares: Type III](#sums-of-squares-type-iii)
   - [Degrees of freedom: Kenward-Roger and Satterthwaite](#degrees-of-freedom-kenward-roger-and-satterthwaite)
+    - [Effect-size labels](#effect-size-labels)
   - [Post-hoc comparisons: `emmeans`](#post-hoc-comparisons-emmeans)
     - [What counts as a family (`posthoc_family`)](#what-counts-as-a-family-posthoc_family)
     - [Effect size and CI of the difference](#effect-size-and-ci-of-the-difference)
@@ -436,7 +437,23 @@ For comparison: MATLAB's `fitglme` also does not support these small-sample meth
 
 There is one place the `df = Inf` cannot be used directly: the **standardized effect sizes** of a GLMM. On the link scale there is no residual SD to standardise by, so the pairwise SMD and the partial η² are derived from the contrast's `F = t²` via `d = 2·√(F/df)` and `η² = F/(F + df)`, and both need a *finite* df — at `df = Inf` they collapse (`d → 0`, `η²` undefined), which is uninformative. kbstatpy therefore computes the asymptotic post-hoc effect sizes with the residual df `n − p` in the denominator, exactly the `fitglme` convention above, so they are non-zero and comparable to the preceding MATLAB analyses (for a Gaussian model the SMD is Cohen's d proper, see [Effect size and CI of the difference](#effect-size-and-ci-of-the-difference), and only η² needs a df). This affects only the descriptive effect-size columns; the tests themselves still use the principled asymptotic `df = Inf`. Because `n − p` treats the repeated within-subject observations as independent it overstates the degrees of freedom, so these effect sizes are somewhat **liberal** (approximate upper bounds) and should be read as rough magnitudes. `Summary.txt` flags this beside the post-hoc table.
 
+#### Effect-size labels
+
 The **verbal effect-size labels** (`very small` … `very large`) use a single seven-bin scheme for partial η², Cohen's d, and the correlation coefficients (Pearson r and Spearman rho), reproducing the MATLAB kbstat `effprint` bins: the three Cohen anchors (η² 0.01/0.06/0.14, d 0.2/0.5/0.8, r and rho 0.1/0.3/0.5) plus the midpoint "X to Y" categories between them. The ANOVA table is labelled from partial η², the post-hoc table from d (from η² for a GLMM, whose d is the liberal approximation above). The two can disagree for a within-subject factor: its partial η² leaves the between-subject variance out of the denominator, so it runs higher than for the same difference between groups (0.65, "very large", on the paired sleep data, against d = 0.83, "large").
+
+Cohen's three values are the **centres** of the "small", "medium" and "large" bins, not their lower cutoffs; "small to medium" and "medium to large" sit at the midpoints between them, each edge lies halfway between neighbouring centres, and the last halfway between "large" and 1. A range includes its lower bound, and the label applies to the absolute value:
+
+| Label | partial η² | Cohen's d | r, ρ |
+|---|---|---|---|
+| very small | < 0.005 | < 0.1 | < 0.05 |
+| small | 0.005 to 0.0225 | 0.1 to 0.275 | 0.05 to 0.15 |
+| small to medium | 0.0225 to 0.0475 | 0.275 to 0.425 | 0.15 to 0.25 |
+| medium | 0.0475 to 0.08 | 0.425 to 0.575 | 0.25 to 0.35 |
+| medium to large | 0.08 to 0.12 | 0.575 to 0.725 | 0.35 to 0.45 |
+| large | 0.12 to 0.57 | 0.725 to 0.9 | 0.45 to 0.75 |
+| very large | ≥ 0.57 | ≥ 0.9 | ≥ 0.75 |
+
+Many papers use Cohen's values as lower cutoffs instead, so that d ≥ 0.5 is "medium". Here d = 0.45 is already "medium" and d = 0.55 still is, so a report that quotes the labels should name the scheme, or quote the numbers. The top bins are wide by construction: placing the last edge halfway to 1 suits η² and r, which cannot exceed 1, but makes "large" η² span 0.12 to 0.57; for d, which can exceed 1, the edge at 0.9 is a convention. `Summary.txt` repeats the ranges for the measures it uses.
 
 ### GLMM engine: `glmmTMB` (not `glmer`)
 

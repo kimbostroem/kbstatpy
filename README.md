@@ -548,7 +548,7 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | File | Contents |
 |---|---|
 | `Anova.xlsx` | Type III ANOVA table with F, df, p, partial η², effect size label. For an intercept-only model, one row: the test of the mean (F = t²) with its Cohen's d |
-| `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference with its 95% CI (`diffCI`; a ratio with `ratioCI` under a log or logit link), t/z, p (raw + corrected), SMD (Cohen's d against the total SD of y) |
+| `Posthoc.xlsx` | Pairwise EMM comparisons: response-scale means and CIs, difference with its 95% CI (`diffCI`; a ratio with `ratioCI` under a log or logit link), t/z, p (raw + corrected), SMD (Cohen's d against the total SD of y), effect size label |
 | `Statistics.xlsx` | Descriptive statistics per group (N, mean, SD, SE, median, IQR, EMM, 95% CI) |
 | `Data.csv` | Copy of the input data as loaded and filtered. With `scale_covariates` on, each scaled covariate appears beside its original as `<name>_scaled` |
 | `Summary.txt` | Human-readable summary: formula, fit stats, ANOVA, post-hoc, and explanatory notes. For a normal mixed model also the variance components and, where the random part is intercepts only, the ICC, named ICC(1,1), ICC(2,1) or ICC(3,1) to fit the model ([ICC forms](STATISTICAL_NOTES.md#intercept-only-models-the-mean-and-the-icc)) |
@@ -567,6 +567,8 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
 | `SplitCorrection.xlsx` | Across-level correction (when `split_correction` is set): per dependent variable, every post-hoc contrast and ANOVA term in every level of `split`, with `p`, `pCorr` and `pSplit`. Written to `<out_dir>/<y>/` |
+
+The effect size labels (`very small` to `very large`) are bins centred on Cohen's small, medium and large values, not cutoffs at them. `Summary.txt` lists the ranges for the measures it uses; the full table is in [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels).
 
 `Anova.xlsx`, `Posthoc.xlsx`, `Statistics.xlsx`, `Data.csv`, `Summary.txt`, `DataPlots`, and `Diagnostics` are written into a per-variable subdirectory of `out_dir` (named after the dependent variable), for single- and multi-y runs alike; with `split`, into one further subdirectory per level (`<out_dir>/<y>/<level>/`). Shared outputs that span all dependent variables — correlation results and `MultipleComparisons.xlsx` — are written to `out_dir` directly.
 

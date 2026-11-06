@@ -1,5 +1,11 @@
 # Changes
 
+## [1.48.0] - 2026-11-06
+
+### Changes
+
+- `Summary.txt` lists the ranges of the effect size labels (`very small` to `very large`) for the measures it uses, and STATISTICAL_NOTES tabulates them for partial η², Cohen's d and r. The labels are bins centred on Cohen's values, not cutoffs at them: d = 0.45 is already "medium".
+
 ## [1.47.3] - 2026-11-03
 
 ### Bugs
