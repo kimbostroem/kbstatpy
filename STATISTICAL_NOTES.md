@@ -537,6 +537,8 @@ An **estimated marginal mean (EMM)** is the group mean as predicted by the fitte
 
 **Visible in the data plots.** The white dot and CI bar in each panel show the EMM; the violin (or bar) shows the raw data distribution. A visible gap between the two is not an error — it signals that the model is adjusting for structure in the data that a simple group mean would ignore. See the [data plots section](#data-plots-violin-or-bar-plot) for the layer-by-layer description.
 
+**Two CIs in `Statistics.xlsx`.** The table gives both estimates, each followed by its own 95% CI: `mean`, `mean_CI95_lower`, `mean_CI95_upper` is the raw mean with the normal-theory interval mean ± 1.96·SE (descriptive: no covariates, no model, symmetric even for skewed data); `emm`, `emm_CI95_lower`, `emm_CI95_upper` is the EMM with the model's interval, back-transformed to the response scale and therefore usually asymmetric. Report an EMM with its own CI. Before 1.50.0 the table had a single `CI95_lower`/`CI95_upper` pair placed after `emm`, but it was the raw mean's CI; an EMM quoted with it could lie outside its "interval".
+
 ### VIF and multicollinearity
 
 **Variance Inflation Factor (VIF)** measures how much the variance of a regression coefficient is inflated due to collinearity with other predictors. For predictor *j*:

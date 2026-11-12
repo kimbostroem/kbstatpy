@@ -1,5 +1,15 @@
 # Changes
 
+## [1.50.0] - 2026-11-12
+
+### Bugs
+
+- **`Statistics.xlsx` paired the EMM with the wrong CI.** `CI95_lower`/`CI95_upper`, placed after `emm`, were the raw mean's CI (mean ± 1.96·SE), not the EMM's. An EMM reported with them can lie outside its interval. Regenerate any table built from these columns.
+
+### Changes
+
+- `Statistics.xlsx` columns: each estimate is followed by its own CI, `mean`, `mean_CI95_lower`, `mean_CI95_upper` and `emm`, `emm_CI95_lower`, `emm_CI95_upper`. `CI95_lower`/`CI95_upper` are gone, so scripts reading them must be updated.
+
 ## [1.49.1] - 2026-11-06
 
 ### Changes
