@@ -6988,21 +6988,33 @@ class Kbstat:
         emm_src = _full if (_full is not None and not _full.empty) else getattr(self, '_emm_df', None)
 
         def _lookup_emm(keys_dict):
+            """The cell's EMM and its 95% CI, on the response scale."""
+            none = (None, None, None)
             if emm_src is None or emm_src.empty:
-                return None
+                return none
             mask = pd.Series(True, index=emm_src.index)
             for col, val in keys_dict.items():
                 if col in emm_src.columns:
                     mask = mask & (emm_src[col].astype(str) == str(val))
             if not mask.any():
-                return None
+                return none
             row = emm_src[mask].iloc[0]
             emm_col = next((c for c in ('emmean', 'rate', 'response', 'prob')
                             if c in emm_src.columns), None)
             if emm_col is None:
-                return None
-            val = float(row[emm_col])
-            return float(inv(np.array([val]))[0]) if inv is not None else val
+                return none
+            lo_col = next((c for c in ('lower.CL', 'lower_CL', 'asymp.LCL')
+                           if c in emm_src.columns), None)
+            hi_col = next((c for c in ('upper.CL', 'upper_CL', 'asymp.UCL')
+                           if c in emm_src.columns), None)
+            vals = [float(row[emm_col]),
+                    float(row[lo_col]) if lo_col else np.nan,
+                    float(row[hi_col]) if hi_col else np.nan]
+            if inv is not None:
+                vals = [float(v) for v in inv(np.array(vals))]
+            # A decreasing back-transform (1/y) swaps the limits.
+            lo, hi = sorted(vals[1:]) if not np.isnan(vals[1:]).any() else vals[1:]
+            return vals[0], lo, hi
 
         rows = []
         # observed=True: report only factor-level combinations that actually
@@ -7017,16 +7029,24 @@ class Kbstat:
             row = dict(keys_dict)
             vals = group[y].dropna()
             row['N'] = len(vals)
+            # Each estimate is followed by its own CI, so neither can be read
+            # with the other's: the raw mean's normal-theory CI (descriptive,
+            # no covariates, no model) and the model's back-transformed EMM CI.
+            # The two used to share one CI95 pair next to the EMM, and the raw
+            # CI was published as the EMM's.
+            ci = 1.96 * vals.sem()
             row['mean'] = vals.mean()
+            row['mean_CI95_lower'] = vals.mean() - ci
+            row['mean_CI95_upper'] = vals.mean() + ci
             row['std'] = vals.std()
             row['SE'] = vals.sem()
             row['median'] = vals.median()
             row['q25'] = vals.quantile(0.25)
             row['q75'] = vals.quantile(0.75)
-            row['emm'] = _lookup_emm(keys_dict)
-            ci = 1.96 * vals.sem()
-            row['CI95_lower'] = vals.mean() - ci
-            row['CI95_upper'] = vals.mean() + ci
+            emm, emm_lo, emm_hi = _lookup_emm(keys_dict)
+            row['emm'] = emm
+            row['emm_CI95_lower'] = emm_lo
+            row['emm_CI95_upper'] = emm_hi
             rows.append(row)
         return pd.DataFrame(rows)
 
