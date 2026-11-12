@@ -96,6 +96,34 @@ _LME4_RE_COUNT = re.compile(
     r'for term \((.+?)\);')
 
 
+_KEEP_HOOKED = False
+
+
+def _keep_windows_at_exit():
+    """Keep 'show_keep' windows open when a plain script ends.
+
+    A script exits as soon as its last line has run, and its figure windows
+    close with it. So, once per process, register an exit hook that blocks in
+    plt.show() until the user has closed the windows. Not in an interactive
+    session (IPython, Spyder, a notebook, python -i): its own event loop keeps
+    the windows alive. Registered after pyplot's own hook, so it runs first.
+    """
+    global _KEEP_HOOKED
+    import sys
+    ipython = sys.modules.get('IPython')   # imported by some libraries, so ask
+    shell = ipython.get_ipython() if ipython else None   # whether one runs
+    if _KEEP_HOOKED or hasattr(sys, 'ps1') or sys.flags.interactive or shell:
+        return
+    import atexit
+    _KEEP_HOOKED = True
+
+    def _block():
+        if plt.get_fignums():
+            print('kbstatpy: close the figure windows to finish.', flush=True)
+            plt.show(block=True)
+    atexit.register(_block)
+
+
 @dataclass
 class ModelResult:
     """Results of fitting one dependent variable (for one level of options.split)."""
@@ -3665,8 +3693,14 @@ class Kbstat:
         mode = getattr(self.options, 'figure_display', 'show_close')
         if mode != 'save_only':
             plt.show(block=False)
-            if mode == 'show_close' and self._interactive_backend():
-                plt.pause(3)
+            if self._interactive_backend():
+                if mode == 'show_close':
+                    plt.pause(3)
+                elif mode == 'show_keep':
+                    # Draw the window now; a non-blocking show alone never
+                    # runs the GUI loop, so nothing would appear.
+                    plt.pause(0.1)
+                    _keep_windows_at_exit()
         if close and mode != 'show_keep':
             plt.close(fig)
 

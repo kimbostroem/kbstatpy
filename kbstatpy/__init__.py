@@ -31,11 +31,23 @@ prepare_r_dll_path()
 # import. The failure is already handled by rpy2; only the noise is new.
 silence_r_cmd_config()
 
+# rpy2 first tries its compiled "API mode" and, where that does not match the
+# installed R (seen with python.org builds on macOS), falls back to "ABI mode",
+# which works. It reports the fallback as two warnings that read like a
+# failure. Hide just those; a real failure of both modes still logs an error
+# and raises.
+import logging as _logging  # noqa: E402
+_openrlib_log = _logging.getLogger('rpy2.rinterface_lib.openrlib')
+_level = _openrlib_log.level
+_openrlib_log.setLevel(_logging.ERROR)
+
 from ._scriptdir import chdir, script_dir  # noqa: E402
 from .options import KbstatOptions   # noqa: E402
 from .kbstat import Kbstat           # noqa: E402
 
-__version__ = "1.50.0"
+_openrlib_log.setLevel(_level)
+
+__version__ = "1.50.1"
 __all__ = ["Kbstat", "KbstatOptions", "chdir", "script_dir",
            "__version__"]
 

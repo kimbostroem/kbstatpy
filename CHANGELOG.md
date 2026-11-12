@@ -1,5 +1,12 @@
 # Changes
 
+## [1.50.1] - 2026-11-12
+
+### Bugs
+
+- **`figure_display = 'show_keep'` showed nothing in a script.** The windows were never drawn and closed when the script ended. They now appear at once and stay open; the script finishes when you close them.
+- On some Macs, importing kbstatpy printed rpy2's "Error importing in API mode ... Trying to import in ABI mode." The fallback works, so the message is now hidden.
+
 ## [1.50.0] - 2026-11-12
 
 ### Bugs

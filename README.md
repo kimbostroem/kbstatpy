@@ -346,7 +346,7 @@ To make a hand-built matplotlib figure match kbstatpy's plots, call the public `
 
 #### Figures in notebooks
 
-`figure_display` pauses only on interactive GUI backends. In a notebook, `'show_close'` and `'show_keep'` both render inline once and `'save_only'` suppresses the inline display. Every mode writes the files.
+`figure_display` pauses only on interactive GUI backends. In a script, `'show_keep'` leaves the windows open at the end and the script finishes once you close them. In a notebook, `'show_close'` and `'show_keep'` both render inline once and `'save_only'` suppresses the inline display. Every mode writes the files.
 
 #### On/off options
 
