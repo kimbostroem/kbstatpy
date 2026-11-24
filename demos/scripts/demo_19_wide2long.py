@@ -31,18 +31,25 @@ mean, and the log link makes the treatment effect a ratio (demo 8).
 The wide file has a Rabbit column, used as `options.id`. Without one, kbstatpy
 would create `wide_row`, the row number of the wide file, and use that.
 
+The comparisons of the two treatments, one per dose, are corrected as one family
+(`posthoc_family = 'pooled'`, Holm). They answer a single question: at which
+doses does MDL change the response? The default, 'cell', makes each dose panel
+its own family, and a family of one comparison gets no correction at all. Six
+uncorrected tests at alpha = 0.05 give a 26 % chance of at least one false
+positive even if MDL did nothing.
+
 Result: the blood pressure rises steeply with dose (chi² = 559, 5 df), and MDL
 72222 damps that rise in the middle of the dose range: placebo over MDL is 2.5 at
-25 µg, 4.3 at 50 µg and 1.6 at 100 µg, while at 200 µg the two are equal. The
-Treatment × dose interaction (chi² = 43, 5 df) is this shift of the dose-response
-curve to the right, the antagonist's signature. The grey lines join each
-rabbit's two treatments.
+25 µg and 4.3 at 50 µg, both significant after correction, while at 200 µg the two
+are equal. The Treatment × dose interaction (chi² = 43, 5 df) is this shift of
+the dose-response curve to the right, the antagonist's signature. The grey lines
+join each rabbit's two treatments.
 
-Compared with a normal model, the gamma model also finds the difference at
-25 µg (3 mmHg, small in absolute terms but 2.5-fold) and weighs the large ones at
-100 µg less heavily, where the scatter is largest. At 6.25 µg it reports MDL
-above placebo (p = 0.03); a difference of 0.7 mmHg in one of six uncorrected
-cells is better read as noise (posthoc_family = 'pooled' corrects across them).
+The correction matters here. At 100 µg (ratio 1.6) and at 6.25 µg (MDL above
+placebo by 0.7 mmHg) the uncorrected p-values are 0.04 and 0.03. Corrected for
+the six doses, both are 0.12: no longer significant. Compared with a normal
+model, the gamma model finds the 2.5-fold difference at 25 µg (only 3 mmHg) and
+gives less weight to the differences at 100 µg, where the scatter is largest.
 """
 
 import os
@@ -59,6 +66,7 @@ options.distribution = 'gamma'           # positive, spread grows with the mean 
 options.x            = 'Treatment, dose'  # Treatment on the x-axis, one panel per dose
 options.x_units      = ', µg'
 options.interaction  = 'Treatment, dose'
+options.posthoc_family = 'pooled'      # the six dose comparisons are one question: one family
 options.id           = 'Rabbit'           # the unit of the wide rows
 options.rename       = 'deltaBP -> Blood pressure rise; dose -> Dose'
 

@@ -1,5 +1,11 @@
 # Changes
 
+## [1.52.4] - 2026-11-24
+
+### Changes
+
+- Demo 19 corrects its six per-dose comparisons as one family (`posthoc_family = 'pooled'`), with the reason given. MDL now differs from placebo at 25 and 50 µg only; the uncorrected differences at 6.25 and 100 µg are no longer significant.
+
 ## [1.52.3] - 2026-11-24
 
 ### Changes

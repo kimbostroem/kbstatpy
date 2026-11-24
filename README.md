@@ -608,7 +608,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_16_profile.py` | `toothgrowth.csv` | Level-wise profile analysis with `profile_across` — how the supp effect changes across the ordered dose levels: per-level contrast (Layer 1) + focused linear-trend interaction (Layer 2) |
 | `demo_17_dispersion.py` | `toothgrowth.csv` | Per-group dispersion with `dispersion` (glmmTMB `dispformula`) — a Gamma model fitted with constant vs by-dose dispersion; the by-dose fit lowers AIC when groups differ in relative scatter |
 | `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
-| `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as a gamma GLMM <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code> |
+| `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as a gamma GLMM <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code>, the per-dose comparisons corrected as one family (`posthoc_family = 'pooled'`) |
 
 **Equivalence to classical tests** (demos 0–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
