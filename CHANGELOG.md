@@ -1,5 +1,11 @@
 # Changes
 
+## [1.51.0] - 2026-11-24
+
+### Features
+
+- New option `wide2long` reshapes wide data on reading: `'time = (pre, post)'` stacks the columns pre and post into `y`, with a new factor `time`. `rename`, `x_order` and `constraints` then apply to the long data. Without `id`, a column `wide_row` (the wide row number) is created and used as `id`.
+
 ## [1.50.1] - 2026-11-12
 
 ### Bugs

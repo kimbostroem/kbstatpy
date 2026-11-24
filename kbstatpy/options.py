@@ -119,6 +119,16 @@ class KbstatOptions:
     x: object = ''           # fixed-effect factor(s) (list or comma-separated)
     x_order: object = None   # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column
+    # Wide data to long, right after reading: 'time = (pre, post)' stacks the
+    # columns pre and post into one column named after options.y, and a new
+    # factor time whose levels are the column names. Every other column is
+    # repeated on each new row. Runs before everything else, so rename,
+    # x_order, constraints and split all see the long data. Each wide row is
+    # one unit, so when options.id is empty it becomes 'wide_row', created as
+    # the row number of the wide file; a set options.id missing from the data
+    # is created the same way under its own name.
+    # One per y as a list, like constraints ('' = off).
+    wide2long: object = ''
     # Random grouping factor(s). One name, or several separated by commas, in
     # which case each gets its own random intercept and they are CROSSED:
     # 'subject, session' -> (1 | subject) + (1 | session). lme4's nesting

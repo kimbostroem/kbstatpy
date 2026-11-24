@@ -603,7 +603,7 @@ Implementation details and design decisions behind kbstatpy's data handling, vis
 
 ### Long vs. wide data format
 
-kbstatpy requires input data in **long format** (also called *tidy* format). Understanding the distinction is important because research data are often collected or stored in wide format, and importing wide-format data without reshaping it is a common source of errors.
+kbstatpy fits data in **long format** (also called *tidy* format); wide data can be reshaped on reading with `options.wide2long` (below). Understanding the distinction is important because research data are often collected or stored in wide format, and importing wide-format data without reshaping it is a common source of errors.
 
 **Wide format** encodes a categorical factor by spreading its levels across columns rather than storing them as values in a single column. This pattern appears in several common data collection scenarios:
 
@@ -662,6 +662,20 @@ df_long.to_csv('data_long.csv', index=False)
 ```
 
 In R the equivalent is `tidyr::pivot_longer()`.
+
+**Converting in kbstatpy: `wide2long`.** For the common case, kbstatpy does the reshape itself, right after reading the file:
+
+```python
+options.y         = 'score'
+options.x         = 'Week'
+options.wide2long = 'Week = (Week_0, Week_2, Week_4)'
+```
+
+The listed columns are stacked into one column named after `options.y`, and the new factor `Week` takes the column names as its levels, in the order listed. Every other column (group, covariates) is repeated on each new row. Since the reshape comes first, every later step refers to the long data: `rename` relabels the new levels (`'Week: Week_0 -> 0, …'`), `x_order` orders them by their renamed names, and `constraints` and `split` may filter on them.
+
+Each wide row is one unit measured several times, so the long rows of one unit are not independent. The unit must therefore enter the model as a random effect, or the repeated measurements would count as independent observations and the standard errors would be too small. When `options.id` is empty, kbstatpy creates a column `wide_row`, the row number of the wide file, and uses it as `options.id`. The name says where the grouping came from and does not presume the rows are subjects; a generic name such as `id` could also pick up an unrelated column of the same name. If the data already has a column `wide_row`, the run stops and asks for `options.id`. When `options.id` is set, that column is used, or created as the wide row number if the data does not have it. If the units are not the wide rows, e.g. one row per subject and session, set `options.id` to the column that identifies them (`'subject'`).
+
+In a multi-y run, give one spec per dependent variable as a list, e.g. `['time = (a_pre, a_post)', 'time = (b_pre, b_post)']`; a single spec would stack the same columns for every y and is refused. Layouts with two within-unit factors in the column names (`A1_pre`, `A1_post`, `A2_pre`, …) are not supported; reshape those with `pandas.melt()` as above.
 
 ### Wilkinson notation for model formulae
 

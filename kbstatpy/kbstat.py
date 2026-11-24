@@ -727,6 +727,7 @@ class Kbstat:
         if o.formula:
             self._backfill_options_from_formula(o.formula)
         self._normalize_per_y_options()
+        self._normalize_wide2long()
         # The US spelling of effect_labels' 'centred', resolved before the
         # validation below, whose table holds the canonical values only.
         if str(o.effect_labels or '').strip().lower() == 'centered':
@@ -5103,6 +5104,10 @@ class Kbstat:
         else:
             self.data = pd.read_excel(source)
 
+        # options.wide2long: first of all, so every later step (rename, split,
+        # y_transform, constraints) refers to the columns of the long data.
+        self._apply_wide2long()
+
         # options.split: this worker analyses one level's rows only. Filtered here,
         # before the raw copy for plotting, so model and plots see the same rows.
         split_level = getattr(self, '_split_level', None)
@@ -6360,7 +6365,9 @@ class Kbstat:
             f'  {"Software":<22} : kbstatpy {_kbstatpy_version}',
             f'  Number of observations : {n_obs}',
             f'  Distribution           : {self.options.distribution}',
-        ] + ([f'  Transform of y         : {self.options.y_transform}']
+        ] + ([f'  Wide to long           : {self.options.wide2long}']
+             if isinstance(self.options.wide2long, str) and self.options.wide2long.strip()
+             else []) + ([f'  Transform of y         : {self.options.y_transform}']
              if self.options.y_transform else []) + [
             f'  Link function          : {link}',
             f'  Fit method             : {fit_method}',
@@ -7084,6 +7091,117 @@ class Kbstat:
             rows.append(row)
         return pd.DataFrame(rows)
 
+    @staticmethod
+    def _parse_wide2long(spec):
+        """'time = (pre, post)' -> ('time', ['pre', 'post']); '' -> None."""
+        if not isinstance(spec, str) or not spec.strip():
+            return None
+        m = re.fullmatch(r'\s*([^=()]+?)\s*=\s*\(?([^()]*?)\)?\s*', spec)
+        cols = [c.strip() for c in m.group(2).split(',') if c.strip()] if m else []
+        if not m or len(cols) < 2:
+            raise ValueError(
+                f"options.wide2long must read 'newVar = (col1, col2, ...)' with at "
+                f"least two columns (got {spec!r})")
+        if len(set(cols)) < len(cols):
+            raise ValueError(f"options.wide2long lists a column twice: {spec!r}")
+        return m.group(1), cols
+
+    def _normalize_wide2long(self):
+        """Validate wide2long and give the long data a grouping variable.
+
+        After the reshape each unit (a wide row) has one row per level, so the
+        model needs the unit as a random effect; without one the levels would be
+        fitted as independent observations. options.id therefore defaults to
+        _WIDE_ROW, the wide row number. A generic name such as 'id' could pick
+        up an unrelated column of that name (a site, a device) and group by it
+        without a word; 'wide_row' says where the grouping came from.
+        """
+        o = self.options
+        specs = o.wide2long if isinstance(o.wide2long, list) else [o.wide2long]
+        parsed = [self._parse_wide2long(s) for s in specs]
+        if not any(parsed):
+            return
+        n_y = len(self._split_csv(o.y)) if o.y else 0
+        if n_y == 0:
+            raise ValueError(
+                "options.wide2long needs options.y: the stacked values go into a "
+                "column of that name.")
+        if n_y > 1 and not isinstance(o.wide2long, list):
+            raise ValueError(
+                "options.wide2long is a single spec but options.y has "
+                f"{n_y} entries, so every y would be the same stacked columns. "
+                "Give one spec per dependent variable, as a list.")
+        if not o.id:
+            o.id = _WIDE_ROW
+            # Marks the id as ours, so a column of that name in the data is a
+            # clash rather than the user's grouping. Deep copies to the per-y
+            # workers keep it.
+            o._wide_row_default = True
+
+    def _apply_wide2long(self):
+        """Reshape the wide columns of options.wide2long into long format."""
+        # Again here for a direct fit(), which reads the data before it
+        # normalises the options; idempotent, so harmless after run().
+        self._normalize_wide2long()
+        if isinstance(self.options.wide2long, list):
+            # Only the correlation analysis of a multi-y run gets here.
+            raise ValueError(
+                "options.wide2long differs between the dependent variables, so it "
+                "does not say which long data the correlation analysis should use. "
+                "Run the correlation analysis in a separate Kbstat.")
+        spec = self._parse_wide2long(self.options.wide2long)
+        if spec is None or self.data is None:
+            return
+        new_var, cols = spec
+        y_list = self._split_csv(self.options.y) if self.options.y else []
+        if len(y_list) != 1:
+            # Only the correlation analysis of a multi-y run gets here.
+            raise ValueError(
+                "options.wide2long needs a single options.y to name the stacked "
+                f"values (got {self.options.y!r}).")
+        y_col = y_list[0]
+        df = self.data
+        missing = [c for c in cols if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"options.wide2long: {missing} are not columns of the data "
+                f"(columns: {list(df.columns)})")
+        for name, what in ((new_var, 'the new factor'), (y_col, 'options.y')):
+            if name in df.columns:
+                raise ValueError(
+                    f"options.wide2long: {what} {name!r} is already a column of the "
+                    "data. Choose a name the wide data does not use.")
+        id_vars = self._id_vars()
+        id_col = id_vars[0] if len(id_vars) == 1 else None
+        default = getattr(self.options, '_wide_row_default', False)
+        if default and id_col in df.columns:
+            raise ValueError(
+                f"options.wide2long: the data already has a column {id_col!r}, which "
+                "kbstatpy would otherwise create as the wide row number. Set "
+                "options.id to the column that identifies the units.")
+        created = id_col is not None and id_col not in df.columns
+        if created:
+            # Strings, so the categorical cast treats it as a label, not a count.
+            df = df.copy()
+            df[id_col] = [str(i) for i in range(1, len(df) + 1)]
+        keep = [c for c in df.columns if c not in cols]
+        row = '_row_order'
+        long = df.assign(**{row: range(len(df))}).melt(
+            id_vars=[row] + keep, value_vars=cols,
+            var_name=new_var, value_name=y_col)
+        # Unit by unit, levels in the order listed, as a long file is written by
+        # hand; melt itself stacks level by level.
+        long[new_var] = pd.Categorical(long[new_var], categories=cols)
+        long = (long.sort_values([row, new_var], kind='stable')
+                    .drop(columns=row).reset_index(drop=True))
+        long[new_var] = long[new_var].astype(str)
+        self.data = long
+        print(f"wide2long: {len(cols)} columns -> {new_var!r} with the values in "
+              f"{y_col!r}; {len(df)} rows -> {len(long)}"
+              + (f"; created {id_col!r} = wide row number" if created else "")
+              + (" and used it as options.id (set options.id if another column "
+                 "identifies the units)" if default else ""))
+
     def _apply_rename(self):
         """Apply options.rename mappings to any column in the dataframe."""
         rename = self.options.rename
@@ -7559,7 +7677,9 @@ _Y_UNTRANSFORMED = '_y_untransformed'
 
 # Options that may take one value per dependent variable, matched to y by
 # position like y_units; see Kbstat._normalize_per_y_options.
-_PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset', 'y_transform')
+_WIDE_ROW = 'wide_row'   # options.id created by wide2long when none is set
+_PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset', 'y_transform',
+                  'wide2long')
 
 _ENUM_OPTIONS = {
     'distribution':       ('normal', 'gaussian', 'binomial', 'poisson',
