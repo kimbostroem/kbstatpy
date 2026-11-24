@@ -169,6 +169,23 @@ It replaces the usual `script_dir = os.path.dirname(os.path.abspath(__file__))` 
 
 Both take the path from the call stack, so nothing has to be passed in and `__file__` never appears in the script. In a REPL, a notebook cell or `exec()` there is no script to locate: they return `None`, and `chdir()` warns and leaves the working directory alone rather than guessing. Both are also importable on their own, as `chdir` and `script_dir`; the methods exist so a script needs no import beyond the `Kbstat` it already has.
 
+### Several input files
+
+`in_file` can name several files, which are stacked row by row into one data set:
+
+```python
+options.in_file = 'data/'                       # every .csv/.xlsx/.xls in the folder
+options.in_file = 'data/s*.csv'                 # a pattern; 'data/**/*.csv' includes subfolders
+options.in_file = 'pilot.csv; data/main/*.xlsx' # parts separated by ';' (or a Python list)
+```
+
+- Each row gets its source in a column `file`, the file name without extension (`s01` for `s01.csv`). Often the file name is the only record of the subject or session, so `file` can serve as `id`, as a factor, in `constraints`, or as `split` for one analysis per file. A data file that already has a column `file` stops the run.
+- Files are read in natural order (`s2` before `s10`), the same on every machine. Hidden files and Excel's lock files (`~$name.xlsx`) are skipped; a folder or pattern that finds nothing stops the run.
+- Files may differ in their columns: the result has all of them, empty where a file lacks one, and a warning names those files, since rows without `y` or a factor drop out of the fit.
+- Two files with the same name in different folders are told apart by their path (`a/s1`, `b/s1`).
+- The stacking comes first, before `wide2long`, so wide files are stacked and then reshaped, with `wide_row` counting across all of them. Summary.txt lists the files and their row counts.
+- A single plain path works as before, with no `file` column.
+
 
 ### Formulas and several outcomes
 
@@ -219,7 +236,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 
 | Option | Type | Description |
 |---|---|---|
-| `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint. A leading `~` is the home folder, as in `'~/sciebo/data.csv'` |
+| `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint. A leading `~` is the home folder, as in `'~/sciebo/data.csv'`. Several files: a folder, a pattern or a `;`-separated list, stacked with each row's source in a column `file`, see [Several input files](#several-input-files) |
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
 | `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |

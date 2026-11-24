@@ -1,5 +1,11 @@
 # Changes
 
+## [1.54.0] - 2026-11-24
+
+### Features
+
+- `in_file` reads several files: a folder, a pattern (`'data/s*.csv'`) or a `;`-separated list. They are stacked row by row, with each row's source in a new column `file`, usable as `id`, factor or `split`. Missing columns are reported. A single path works as before.
+
 ## [1.53.0] - 2026-11-24
 
 ### Features

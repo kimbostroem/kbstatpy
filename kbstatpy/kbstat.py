@@ -686,7 +686,16 @@ class Kbstat:
         """Normalize comma-separated string options to lists and resolve paths."""
         o = self.options
         self._resolve_synonyms()
-        o.in_file = self._resolve_path(o.in_file)
+        # Several inputs: a list, or parts separated by ';'. Each part is
+        # resolved on its own; a single path is left exactly as before.
+        if isinstance(o.in_file, (list, tuple)):
+            o.in_file = [self._resolve_path(str(p).strip()) for p in o.in_file
+                         if str(p).strip()]
+        elif isinstance(o.in_file, str) and ';' in o.in_file:
+            o.in_file = '; '.join(self._resolve_path(p.strip())
+                                  for p in o.in_file.split(';') if p.strip())
+        else:
+            o.in_file = self._resolve_path(o.in_file)
         o.out_dir = self._resolve_path(o.out_dir)
 
         # A formula already names its dependent variable, so options.y need not
@@ -5097,18 +5106,137 @@ class Kbstat:
                 'Specify the inverse manually or choose a simpler transform.'
             )
 
-    def _load_data(self):
-        """Read data from in_file into a DataFrame."""
-        path = self.options.in_file
-        if not path:
-            raise ValueError('options.in_file is required')
+    @staticmethod
+    def _read_table(path):
+        """One data file (or URL) as a DataFrame."""
         source, is_csv = (_fetch_url(path) if _is_url(path)
                           else (path, path.lower().endswith('.csv')))
         if is_csv:
-            self.data = pd.read_csv(source, sep=None, engine='python', encoding_errors='replace')
-            self.data.columns = self.data.columns.str.lstrip('﻿')
+            df = pd.read_csv(source, sep=None, engine='python', encoding_errors='replace')
+            df.columns = df.columns.str.lstrip('﻿')
+            return df
+        return pd.read_excel(source)
+
+    def _input_files(self):
+        """The files options.in_file names, and whether it names several.
+
+        A part may be a file, a URL, a folder (its .csv/.xlsx/.xls files, not
+        those in subfolders) or a glob pattern ('**' descends). Hidden files and
+        Excel's lock files (~$name.xlsx, present while the file is open) are
+        skipped in folders and patterns. Matches are sorted naturally
+        (s2 before s10), so the row order, and with it every first-appearance
+        level order, is the same on every machine. A file named twice is read
+        once. Returns (paths, multi): multi is True for anything but a single
+        plain path, so a folder that happens to hold one file still gets the
+        'file' column a script may rely on.
+        """
+        import glob
+        spec = self.options.in_file
+        parts = ([str(p).strip() for p in spec] if isinstance(spec, (list, tuple))
+                 else [p.strip() for p in str(spec or '').split(';')])
+        parts = [p for p in parts if p]
+        if not parts:
+            raise ValueError('options.in_file is required')
+
+        def natural(path):
+            return [int(t) if t.isdigit() else t.lower()
+                    for t in re.split(r'(\d+)', path)]
+
+        def wanted(path):
+            name = os.path.basename(path)
+            return (os.path.isfile(path) and not name.startswith(('.', '~$'))
+                    and os.path.splitext(name)[1].lower() in _DATA_EXTENSIONS)
+
+        multi = len(parts) > 1 or isinstance(spec, (list, tuple))
+        paths = []
+        for part in parts:
+            if _is_url(part):
+                paths.append(part)
+            elif os.path.isdir(part):
+                multi = True
+                found = sorted((os.path.join(part, f) for f in os.listdir(part)
+                                if wanted(os.path.join(part, f))), key=natural)
+                if not found:
+                    raise ValueError(
+                        f"options.in_file: the folder {part!r} holds no data file "
+                        f"({', '.join(_DATA_EXTENSIONS)}).")
+                paths += found
+            elif glob.has_magic(part):
+                multi = True
+                found = sorted((f for f in glob.glob(part, recursive=True) if wanted(f)),
+                               key=natural)
+                if not found:
+                    raise ValueError(
+                        f"options.in_file: no data file matches {part!r}.")
+                paths += found
+            else:
+                paths.append(part)
+        return list(dict.fromkeys(paths)), multi
+
+    @staticmethod
+    def _file_labels(paths):
+        """The value of the 'file' column for each path: the file name without
+        its extension, or, where two names agree (a/s1.csv, b/s1.csv), the path
+        below the folders they share."""
+        def stem(p):
+            name = p.rstrip('/').rsplit('/', 1)[-1].split('?')[0] if _is_url(p) \
+                else os.path.basename(p)
+            return os.path.splitext(name)[0]
+        labels = [stem(p) for p in paths]
+        if len(set(labels)) < len(labels):
+            local = [p for p in paths if not _is_url(p)]
+            root = os.path.commonpath(local) if len(local) > 1 else ''
+            labels = [os.path.splitext(os.path.relpath(p, root))[0].replace(os.sep, '/')
+                      if root and not _is_url(p) else stem(p) for p in paths]
+        seen = {}
+        for i, l in enumerate(labels):
+            seen[l] = seen.get(l, 0) + 1
+            if seen[l] > 1:
+                labels[i] = f'{l} ({seen[l]})'
+        return labels
+
+    def _load_data(self):
+        """Read data from in_file into a DataFrame.
+
+        Several files are stacked row by row, each row marked with its source
+        in a column 'file' (see _input_files), since the file name is often
+        the only record of the subject or session the rows belong to.
+        """
+        paths, multi = self._input_files()
+        if not multi:
+            self.data = self._read_table(paths[0])
+            self._input_file_rows = None
         else:
-            self.data = pd.read_excel(source)
+            labels = self._file_labels(paths)
+            frames = []
+            for path, label in zip(paths, labels):
+                df = self._read_table(path)
+                if _FILE_COL in df.columns:
+                    raise ValueError(
+                        f"options.in_file: {path} already has a column {_FILE_COL!r}, "
+                        "which kbstatpy creates to name the source file of each row "
+                        "when it reads several files. Rename that column.")
+                df.insert(0, _FILE_COL, label)
+                frames.append(df)
+            union = list(dict.fromkeys(c for df in frames for c in df.columns))
+            gaps = [(label, [c for c in union if c not in df.columns])
+                    for label, df in zip(labels, frames)]
+            gaps = [(label, cols) for label, cols in gaps if cols]
+            if gaps:
+                # A missing column becomes NaN, and rows missing y or a factor
+                # then leave the fit without a word, so the gap is named.
+                shown = '; '.join(f"{label}: {', '.join(cols)}" for label, cols in gaps[:10])
+                more = f' (and {len(gaps) - 10} more files)' if len(gaps) > 10 else ''
+                warnings.warn(
+                    f"options.in_file: not every file has every column, so the "
+                    f"missing values are empty. Files without: {shown}{more}.",
+                    stacklevel=2)
+            self.data = pd.concat(frames, ignore_index=True, sort=False)[union]
+            self._input_file_rows = [(label, len(df)) for label, df in zip(labels, frames)]
+            if not getattr(self, '_input_files_reported', False):
+                print(f"in_file: {len(paths)} files, {len(self.data)} rows, "
+                      f"source in column {_FILE_COL!r}")
+                self._input_files_reported = True
 
         # options.wide2long: first of all, so every later step (rename, split,
         # y_transform, constraints) refers to the columns of the long data.
@@ -6370,6 +6498,7 @@ class Kbstat:
             '-----------------',
             f'  {"Software":<22} : kbstatpy {_kbstatpy_version}',
             f'  Number of observations : {n_obs}',
+        ] + self._input_files_lines() + [
             f'  Distribution           : {self.options.distribution}',
         ] + ([f'  Wide to long           : {self.options.wide2long}']
              if isinstance(self.options.wide2long, str) and self.options.wide2long.strip()
@@ -7279,6 +7408,17 @@ class Kbstat:
               + (" and used it as options.id (set options.id if another column "
                  "identifies the units)" if default else ""))
 
+    def _input_files_lines(self):
+        """Summary lines naming the files read, when in_file named several, so
+        a results folder records which data went in."""
+        rows = getattr(self, '_input_file_rows', None)
+        if not rows:
+            return []
+        shown = ', '.join(f'{label} ({n})' for label, n in rows[:20])
+        more = f', ... ({len(rows) - 20} more)' if len(rows) > 20 else ''
+        return [f'  Input files            : {len(rows)}, rows read per file: {shown}{more}',
+                f"  Source file column     : '{_FILE_COL}'"]
+
     def _wide2long_order(self, var):
         """The levels of wide2long factor `var` in the order listed, renamed by
         options.rename; [] if var is not one."""
@@ -7771,6 +7911,8 @@ _Y_UNTRANSFORMED = '_y_untransformed'
 
 # Options that may take one value per dependent variable, matched to y by
 # position like y_units; see Kbstat._normalize_per_y_options.
+_FILE_COL = 'file'       # source file of each row when in_file names several
+_DATA_EXTENSIONS = ('.csv', '.xlsx', '.xls')   # read from folders and patterns
 _WIDE_ROW = 'wide_row'   # options.id created by wide2long when none is set
 _WIDE_VALUE = 'value'    # options.y for wide2long's stacked values when none is set
 _PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset', 'y_transform',

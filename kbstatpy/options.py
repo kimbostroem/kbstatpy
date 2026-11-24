@@ -20,7 +20,10 @@ class KbstatOptions:
     """
 
     # Data input / output
-    in_file: str = ''
+    # A file or URL, or several: a folder (its .csv/.xlsx/.xls files), a glob
+    # pattern ('data/**/*.csv'), parts separated by ';', or a list. Several
+    # files are stacked row by row, each row's source file in a column 'file'.
+    in_file: object = ''
     out_dir: str = ''
 
     # Directory that a relative `in_file` / `out_dir` is resolved against.
