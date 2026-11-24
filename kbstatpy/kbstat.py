@@ -7140,6 +7140,10 @@ class Kbstat:
         _WIDE_ROW, the wide row number. A generic name such as 'id' could pick
         up an unrelated column of that name (a site, a device) and group by it
         without a word; 'wide_row' says where the grouping came from.
+
+        options.y, the column the stacked values go into, defaults to
+        _WIDE_VALUE, the name pandas' melt and tidyr's pivot_longer use. The
+        log says so, since the name labels the y-axis and the results folder.
         """
         o = self.options
         specs = o.wide2long if isinstance(o.wide2long, list) else [o.wide2long]
@@ -7147,10 +7151,21 @@ class Kbstat:
         if not any(parsed):
             return
         n_y = len(self._split_csv(o.y)) if o.y else 0
-        if n_y == 0:
+        if n_y == 0 and o.correlation:
+            # An empty y with correlation set asks for the correlation analysis
+            # alone, and a default y would fit a model nobody asked for. Nor do
+            # correlations belong on the stacked data: each unit would count
+            # once per level, as if its rows were independent.
             raise ValueError(
-                "options.wide2long needs options.y: the stacked values go into a "
-                "column of that name.")
+                "options.wide2long with options.correlation and no options.y: "
+                "correlations are computed on the wide data, so leave out "
+                "wide2long for them (correlate the wide columns directly, e.g. "
+                "'pre, post'), or set options.y if you also want a model on the "
+                "long data.")
+        if n_y == 0:
+            o.y = _WIDE_VALUE
+            o._wide_value_default = True
+            n_y = 1
         if n_y > 1 and not isinstance(o.wide2long, list):
             raise ValueError(
                 "options.wide2long is a single spec but options.y has "
@@ -7213,11 +7228,16 @@ class Kbstat:
                   for i, f in enumerate(factors)}
         cells = [(c, combo) for c, combo in cells if c in df.columns]
         cols = [c for c, _ in cells]
-        for name, what in [(f, 'the new factor') for f in factors] + [(y_col, 'options.y')]:
+        value_default = getattr(self.options, '_wide_value_default', False)
+        y_what = ('the default value column (options.y is empty)' if value_default
+                  else 'options.y')
+        for name, what in [(f, 'the new factor') for f in factors] + [(y_col, y_what)]:
             if name in df.columns:
                 raise ValueError(
                     f"options.wide2long: {what} {name!r} is already a column of the "
-                    "data. Choose a name the wide data does not use.")
+                    "data. Choose a name the wide data does not use"
+                    + (", and set it with options.y." if name == y_col and value_default
+                       else "."))
         id_vars = self._id_vars()
         id_col = id_vars[0] if len(id_vars) == 1 else None
         default = getattr(self.options, '_wide_row_default', False)
@@ -7251,7 +7271,10 @@ class Kbstat:
         self._wide2long_levels = listed
         new_var = ', '.join(repr(f) for f in factors)
         print(f"wide2long: {len(cols)} columns -> {new_var} with the values in "
-              f"{y_col!r}; {len(df)} rows -> {len(long)}"
+              f"{y_col!r}"
+              + (" (default, since options.y is empty; set options.y to name the "
+                 "values)" if value_default else "")
+              + f"; {len(df)} rows -> {len(long)}"
               + (f"; created {id_col!r} = wide row number" if created else "")
               + (" and used it as options.id (set options.id if another column "
                  "identifies the units)" if default else ""))
@@ -7749,6 +7772,7 @@ _Y_UNTRANSFORMED = '_y_untransformed'
 # Options that may take one value per dependent variable, matched to y by
 # position like y_units; see Kbstat._normalize_per_y_options.
 _WIDE_ROW = 'wide_row'   # options.id created by wide2long when none is set
+_WIDE_VALUE = 'value'    # options.y for wide2long's stacked values when none is set
 _PER_Y_OPTIONS = ('distribution', 'link', 'constraints', 'offset', 'y_transform',
                   'wide2long')
 

@@ -1,5 +1,11 @@
 # Changes
 
+## [1.53.0] - 2026-11-24
+
+### Features
+
+- `wide2long` no longer requires `y`: without it, the stacked values go into a column `value`, and the log says that `y` sets the name. A correlation-only run (`correlation` set, no `y`) still fits no model and stops instead.
+
 ## [1.52.4] - 2026-11-24
 
 ### Changes

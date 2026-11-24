@@ -14,6 +14,11 @@ factor time. The ways this goes wrong quietly, and what guards each here:
   not exist yet and silently do nothing.
 - A single spec with several y stacks the same columns for every y, so each
   "dependent variable" is the same analysis under another name.
+- Without options.y the stacked values go into 'value' (pandas' and tidyr's
+  default), and the log must say so, since the name labels the plots and the
+  results folder; a 'value' column already in the wide data stops the run.
+  With correlation set and no y, though, the run means "no model", so the
+  default must not apply: it stops and points to the wide data instead.
 - With several factors, 'side = (L, R); time = (pre, post)' lists LEVELS and
   the columns are their combinations (L_pre, ...). Read as column lists, the
   spec finds nothing; that, and a missing combination, must be reported, and
@@ -25,6 +30,8 @@ Needs R + glmmTMB/emmeans.
 
 Run:  python3 tests/test_wide2long.py
 """
+import contextlib
+import io
 import os
 import shutil
 import sys
@@ -227,6 +234,27 @@ def test_listed_level_order_survives_a_missing_combination():
     # x_order still wins.
     k = run(opts(w, x='side, time', wide2long=spec, x_order='time: post, pre'))
     assert list(k.output.results[0].data['time'].cat.categories) == ['post', 'pre']
+
+
+def test_value_is_the_default_y():
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        k = run(opts(wide(), y=''))
+    assert k.options.y == 'value', k.options.y
+    d = k.output.results[0].data
+    assert 'value' in d.columns and len(d) == 36, list(d.columns)
+    assert "'value' (default" in buf.getvalue() and 'set options.y' in buf.getvalue(), \
+        buf.getvalue()[-600:]
+
+
+def test_default_value_clashing_with_a_column_stops_the_run():
+    raises(opts(wide().assign(value=1.0), y=''), 'options.y')
+
+
+def test_correlation_only_is_not_turned_into_a_model():
+    # An empty y with correlation set means "no model"; the value default
+    # would have fitted one on the stacked data.
+    raises(opts(wide(), y='', x='', correlation='pre, mid, post'), 'wide data')
 
 
 def test_errors():

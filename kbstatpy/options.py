@@ -120,7 +120,8 @@ class KbstatOptions:
     x_order: object = None   # dict {var: [level, ...]} or list (applied to x[0]) to reorder factor levels
     rename: object = None    # str 'var: old -> new, old -> new; var2: ...' or dict {var: {old: new}} — applies to any column
     # Wide data to long, right after reading: 'time = (pre, post)' stacks the
-    # columns pre and post into one column named after options.y, and a new
+    # columns pre and post into one column named after options.y ('value' if
+    # options.y is empty, which the log mentions), and a new
     # factor time whose levels are the column names. Every other column is
     # repeated on each new row. Several within-unit factors, separated by ';',
     # list their LEVELS: 'side = (L, R); time = (pre, post)' stacks the columns
