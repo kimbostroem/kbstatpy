@@ -1,5 +1,11 @@
 # Changes
 
+## [1.55.1] - 2026-11-24
+
+### Bugs
+
+- Summary.txt now applies `rename` in the fixed effects, the variance components (`Period1` → `Day1`) and the post-hoc column headers (`Period_1` → `Day_1`), as the ANOVA table already did.
+
 ## [1.55.0] - 2026-11-24
 
 ### Features

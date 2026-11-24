@@ -522,6 +522,37 @@ class Kbstat:
             names.get(p, p) for p in str(v).split(':'))) if isinstance(v, str) else v)
         return df
 
+    def _disp_term(self, term):
+        """A model term or grouping factor as R names it, with display names:
+        'Period1' (factor Period, effects-coded column 1) -> 'Day1',
+        'conda' (level a, dummy-coded) -> 'Conditiona', 'Days' -> 'Time',
+        'subj.1' (lme4's second term of subj) -> 'Subject.1', 'a1:b2' part
+        by part. A part is a variable name followed by nothing, digits, or
+        one of its levels; anything else is left alone."""
+        names = self._display_names
+        if not names or not isinstance(term, str):
+            return term
+        keys = sorted(names, key=len, reverse=True)
+        data = getattr(self, 'data', None)
+
+        def levels(k):
+            if data is None or k not in getattr(data, 'columns', ()):
+                return set()
+            return {str(v) for v in pd.unique(data[k].dropna())}
+
+        def part(p):
+            if p in names:
+                return names[p]
+            for k in keys:
+                if not k or not p.startswith(k):
+                    continue
+                rest = p[len(k):]
+                if (rest.isdigit() or (rest[:1] == '.' and rest[1:].isdigit())
+                        or rest in levels(k)):
+                    return names[k] + rest
+            return p
+        return ':'.join(part(p) for p in term.split(':'))
+
     def _log_scale_ok(self, ax, context=''):
         """True if a log y-axis is safe here, i.e. every plotted y value is > 0.
 
@@ -6707,6 +6738,11 @@ class Kbstat:
             coef_df = self.model.coefs
             if hasattr(coef_df, 'to_pandas'):
                 coef_df = coef_df.to_pandas()
+            coef_df = coef_df.copy()
+            if 'term' in coef_df.columns:
+                coef_df['term'] = coef_df['term'].map(self._disp_term)
+            else:
+                coef_df.index = [self._disp_term(t) for t in coef_df.index]
             lines += ['FIXED EFFECTS', '-------------', coef_df.to_string(), '']
 
         # --- ANOVA table ---
@@ -6827,10 +6863,10 @@ class Kbstat:
             lines += ['']
             _ph_show, _n_blanked = _blank_repeated_contrasts(ph, self.options.x[0]
                                                             if self.options.x else '')
-            lines += [_bounded_p_table(_ph_show).to_string(index=False), '']
+            lines += [self._disp_cols(_bounded_p_table(_ph_show)).to_string(index=False), '']
             if _n_blanked:
-                _f = self.options.x[0]
-                _by = [b for b in (self.options.x[1:] if self.options.x else [])
+                _f = self._disp(self.options.x[0])
+                _by = [self._disp(b) for b in (self.options.x[1:] if self.options.x else [])
                        if b in ph.columns]
                 lines += [
                     f'  Blank = same value as the row above it. The model has no interaction',
@@ -7187,11 +7223,12 @@ class Kbstat:
         if not vc:
             return []
         total = sum(v for _, _, v in vc)
-        w = max(8, *(len(self._disp(g)) for g, _, _ in vc))
+        w = max(8, *(len(self._disp_term(g)) for g, _, _ in vc))
+        tw = max(12, *(len(self._disp_term(t)) for _, t, _ in vc))
         lines = ['VARIANCE COMPONENTS', '-------------------',
-                 f'  {"group":<{w}}  {"term":<12} {"variance":>10} {"SD":>9} {"share":>7}']
+                 f'  {"group":<{w}}  {"term":<{tw}} {"variance":>10} {"SD":>9} {"share":>7}']
         for g, term, v in vc:
-            lines.append(f'  {self._disp(g):<{w}}  {term:<12} {v:10.4g} '
+            lines.append(f'  {self._disp_term(g):<{w}}  {self._disp_term(term):<{tw}} {v:10.4g} '
                          f'{np.sqrt(v):9.4g} {v / total:7.1%}')
         intercepts_only = all(t in ('(Intercept)', '') for _, t, _ in vc)
         if intercepts_only and total > 0:
