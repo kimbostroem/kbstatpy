@@ -83,4 +83,20 @@ bact <- bact[, c("ID", "trt", "week", "present")]
 write.csv(bact, "demos/data/bacteria.csv", row.names = FALSE)
 cat("Exported bacteria.csv\n")
 
+# --- Demo 19: PBG in wide format (wide2long with two within-rabbit factors) ---
+# deltaBP: change in blood pressure (mmHg) after phenylbiguanide; each of 5
+# rabbits got all 6 doses (micrograms) under both treatments (placebo, the
+# 5-HT3 antagonist MDL 72222). Written one row per rabbit, one column per
+# treatment x dose, e.g. MDL_6.25, as such data often come from a spreadsheet.
+pbg <- as.data.frame(nlme::PBG)
+pbg$Treatment <- ifelse(pbg$Treatment == "Placebo", "Placebo", "MDL")
+pbg$col <- paste(pbg$Treatment, pbg$dose, sep = "_")
+pbg_wide <- reshape(pbg[, c("Rabbit", "col", "deltaBP")], idvar = "Rabbit",
+                    timevar = "col", direction = "wide")
+names(pbg_wide) <- sub("^deltaBP\\.", "", names(pbg_wide))
+pbg_wide$Rabbit <- as.character(pbg_wide$Rabbit)
+pbg_wide <- pbg_wide[order(as.integer(pbg_wide$Rabbit)), ]
+write.csv(pbg_wide, "demos/data/pbg_wide.csv", row.names = FALSE)
+cat("Exported pbg_wide.csv\n")
+
 cat("\nDone. All datasets written to demos/data/\n")

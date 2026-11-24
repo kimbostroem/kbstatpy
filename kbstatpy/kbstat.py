@@ -514,7 +514,12 @@ class Kbstat:
         if not self._display_names or col not in df.columns:
             return df
         df = df.copy()
-        df[col] = df[col].map(lambda v: self._display_names.get(str(v), v))
+        # An interaction term is mapped part by part: matched whole, 'dose' in
+        # 'Treatment:dose' kept its column name while the main effect showed
+        # the display name, so one table named the same factor two ways.
+        names = self._display_names
+        df[col] = df[col].map(lambda v: names.get(str(v), ':'.join(
+            names.get(p, p) for p in str(v).split(':'))) if isinstance(v, str) else v)
         return df
 
     def _log_scale_ok(self, ax, context=''):

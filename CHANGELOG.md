@@ -1,5 +1,15 @@
 # Changes
 
+## [1.52.2] - 2026-11-24
+
+### Bugs
+
+- With `rename`, an interaction term in the ANOVA table kept the original variable name (`Treatment:dose`) while the main effect showed the new one (`Dose`). Both now use the new name.
+
+### Changes
+
+- New demo 19, `demo_19_wide2long.py`: `wide2long` with two within-subject factors on nlme's PBG data (rabbits × treatment × dose), stored wide.
+
 ## [1.52.1] - 2026-11-24
 
 ### Bugs

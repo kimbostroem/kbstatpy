@@ -578,7 +578,7 @@ The effect size labels use Cohen's small, medium and large values as lower thres
 
 ## Demo scripts
 
-Eighteen worked examples are included in the `demos/` folder; each demo's script
+Twenty worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -608,6 +608,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_16_profile.py` | `toothgrowth.csv` | Level-wise profile analysis with `profile_across` — how the supp effect changes across the ordered dose levels: per-level contrast (Layer 1) + focused linear-trend interaction (Layer 2) |
 | `demo_17_dispersion.py` | `toothgrowth.csv` | Per-group dispersion with `dispersion` (glmmTMB `dispformula`) — a Gamma model fitted with constant vs by-dose dispersion; the by-dose fit lowers AIC when groups differ in relative scatter |
 | `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
+| `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code> |
 
 **Equivalence to classical tests** (demos 0–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -634,6 +635,7 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 15** — `posthoc_compare` runs the pairwise comparisons (and brackets) on any chosen factor(s) instead of just the first, each plotted as if it were the first variable, and per cell (the factor is compared within each combination of the others, so every facet panel gets its own brackets)
 - **Demo 16** — `profile_across` profiles a factor's effect across an ordered factor's levels: per-level contrasts (Layer 1) plus the interaction as a focused 1-df linear trend reported against the diffuse omnibus (Layer 2) — the "pattern across levels is the finding" view
 - **Demo 17** — `dispersion` sets glmmTMB's `dispformula` so the dispersion can vary by a factor instead of the default constant `~1`; a Gamma model fitted with constant vs by-group dispersion shows the better fit (lower AIC) when groups differ in relative scatter
+- **Demo 19** — `wide2long` reads wide data directly, here with two within-subject factors in the column names, so no reshaping by hand before the analysis
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:
@@ -687,6 +689,7 @@ results inline:
 | 16 · Level-wise profile (`profile_across`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_16_profile.ipynb) |
 | 17 · Per-group dispersion (`dispersion`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_17_dispersion.ipynb) |
 | 18 · Plot annotations (`show_emm_lines`, `show_group_size`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_18_plot_annotations.ipynb) |
+| 19 · Wide data with two within factors (`wide2long`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_19_wide2long.ipynb) |
 
 ---
 
