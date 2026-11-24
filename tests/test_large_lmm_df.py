@@ -175,6 +175,23 @@ def test_underflowed_p_prints_as_a_bound():
     assert untouched == [0.04, 0.5], f'a table without underflow was altered: {untouched}'
 
 
+
+def test_posthoc_workbook_keeps_small_p():
+    """Posthoc_<var>.xlsx rounded p to 4 decimals, so p = 4.6e-10 (demo 19,
+    50 ug) read 0.0000. The workbook keeps the double."""
+    from kbstatpy.kbstat import Kbstat
+    from kbstatpy.options import KbstatOptions
+    path = '/tmp/kbstatpy_posthoc_small_p.xlsx'
+    ph = pd.DataFrame({'a_1': ['x'], 'a_2': ['y'], 'diff': [1.23456],
+                       'p': [4.550502e-10], 'pCorr': [2.730301e-09]})
+    Kbstat(KbstatOptions())._write_posthoc_xlsx(ph, path)
+    back = pd.read_excel(path)
+    os.remove(path)
+    assert np.isclose(back['p'][0], 4.550502e-10, rtol=1e-6, atol=0), back['p'][0]
+    assert np.isclose(back['pCorr'][0], 2.730301e-09, rtol=1e-6, atol=0), back['pCorr'][0]
+    assert back['diff'][0] == 1.235, 'other numbers are still rounded to 3 decimals'
+
+
 if __name__ == '__main__':
     failures = 0
     for name, fn in sorted(globals().items()):

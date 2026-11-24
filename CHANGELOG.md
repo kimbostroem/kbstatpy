@@ -1,5 +1,11 @@
 # Changes
 
+## [1.55.3] - 2026-11-25
+
+### Bugs
+
+- `Posthoc_<var>.xlsx` rounded p and pCorr to 4 decimals, so a small p read `0.0000`. They now keep full precision.
+
 ## [1.55.2] - 2026-11-25
 
 ### Bugs

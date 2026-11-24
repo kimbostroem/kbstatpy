@@ -3609,10 +3609,13 @@ class Kbstat:
     def _write_posthoc_xlsx(self, posthoc, path):
         ph_df = posthoc.to_pandas() if hasattr(posthoc, 'to_pandas') else posthoc
         ph_df = self._disp_cols(ph_df)
+        # p-values keep the full double: rounded to 4 decimals, p = 5e-10 read
+        # 0.0000, a value no test produces. Excel's General format shows them
+        # as 0.03093 or 4.55E-10. Other numbers are rounded to 3 decimals.
         for col in ph_df.columns:
             if col in ('p', 'pCorr', 'pSplit'):
-                ph_df[col] = ph_df[col].round(4)
-            elif ph_df[col].dtype == float:
+                continue
+            if ph_df[col].dtype == float:
                 ph_df[col] = ph_df[col].round(3)
         with pd.ExcelWriter(path, engine='openpyxl') as writer:
             ph_df.to_excel(writer, index=False, sheet_name='Posthoc')
