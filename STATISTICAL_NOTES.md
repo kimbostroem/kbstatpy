@@ -688,7 +688,7 @@ options.wide2long = 'side = (L, R); time = (pre, post)'
 | `R_pre` | R | pre |
 | `R_post` | R | post |
 
-The columns are every combination of the levels, joined by `_` in the order of the entries; for `pre_L` write `'time = (pre, post); side = (L, R)'`. With a single factor this is the same rule: the levels are the column names. The names are built from the levels, not split at `_`, so a level may itself contain one (`'side = (Left_knee, Right_knee); …'` finds `Left_knee_pre`). A combination without a column is reported with a warning and the design is analysed as incomplete; when none of the combinations is a column, the run stops. Names without a separator (`LeftPre`) or with another one (`L.pre`) are not supported; rename the columns, or reshape with `pandas.melt()` as above.
+The columns are every combination of the levels, joined by `_` in the order of the entries; for `pre_L` write `'time = (pre, post); side = (L, R)'`. With a single factor this is the same rule: the levels are the column names. The names are built from the levels, not split at `_`, so a level may itself contain one (`'side = (Left_knee, Right_knee); …'` finds `Left_knee_pre`). Each factor's levels are ordered as listed, also when a combination is missing; `x_order` overrides that. A combination without a column is reported with a warning and the design is analysed as incomplete; when none of the combinations is a column, the run stops. Names without a separator (`LeftPre`) or with another one (`L.pre`) are not supported; rename the columns, or reshape with `pandas.melt()` as above.
 
 R users will know the same reshape as `tidyr::pivot_longer(cols, names_to = c("side", "time"), names_sep = "_")`, which splits the column names instead of building them.
 

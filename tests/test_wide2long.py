@@ -209,6 +209,26 @@ def test_missing_combination_is_reported():
     assert len(k.output.results[0].data) == 36
 
 
+def test_listed_level_order_survives_a_missing_combination():
+    # Without Left_knee_pre, the first unit's rows run post, pre, post, so the
+    # order of first appearance would put post first.
+    w = wide2x2().drop(columns='Left_knee_pre')
+    spec = 'side = (Left_knee, Right_knee); time = (pre, post)'
+    k = run(opts(w, x='side, time', wide2long=spec))
+    assert list(k.output.results[0].data['time'].cat.categories) == ['pre', 'post']
+    # Under rename, by the renamed labels, and without an "absent level" warning.
+    o = opts(w, x='side, time', wide2long=spec, rename='time: pre -> Before')
+    k = Kbstat(o)
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter('always')
+        k.run()
+    assert list(k.output.results[0].data['time'].cat.categories) == ['Before', 'post']
+    assert not any('x_order' in str(x.message) for x in rec), [str(x.message) for x in rec]
+    # x_order still wins.
+    k = run(opts(w, x='side, time', wide2long=spec, x_order='time: post, pre'))
+    assert list(k.output.results[0].data['time'].cat.categories) == ['post', 'pre']
+
+
 def test_errors():
     raises(opts(wide(), y='a, b'), 'single spec')
     raises(opts(wide(), wide2long='time = (pre, later)'), "['later']")

@@ -1150,6 +1150,7 @@ class Kbstat:
         present = [str(v) for v in pd.unique(probe.data[col].dropna().astype(str))]
         xo = self.options.x_order
         order = [str(v) for v in xo.get(col, [])] if isinstance(xo, dict) else []
+        order = order or probe._wide2long_order(col)
         return [v for v in order if v in present] + [v for v in present if v not in order]
 
     def _run_split(self, y_var, y_units, per_y):
@@ -7200,6 +7201,11 @@ class Kbstat:
                 f"options.wide2long: the data has no column {absent}, so these "
                 "combinations of levels are missing and the design is incomplete.",
                 stacklevel=2)
+        # Each factor's levels as listed, taken before the absent columns go,
+        # for the categorical cast, which runs after rename and so looks them
+        # up under their renamed labels.
+        listed = {f: list(dict.fromkeys(combo[i] for _, combo in cells))
+                  for i, f in enumerate(factors)}
         cells = [(c, combo) for c, combo in cells if c in df.columns]
         cols = [c for c, _ in cells]
         for name, what in [(f, 'the new factor') for f in factors] + [(y_col, 'options.y')]:
@@ -7237,12 +7243,21 @@ class Kbstat:
                         long[col].astype(str).map(lambda c, i=i: lookup[c][i]))
         long = long.drop(columns=col)
         self.data = long
+        self._wide2long_levels = listed
         new_var = ', '.join(repr(f) for f in factors)
         print(f"wide2long: {len(cols)} columns -> {new_var} with the values in "
               f"{y_col!r}; {len(df)} rows -> {len(long)}"
               + (f"; created {id_col!r} = wide row number" if created else "")
               + (" and used it as options.id (set options.id if another column "
                  "identifies the units)" if default else ""))
+
+    def _wide2long_order(self, var):
+        """The levels of wide2long factor `var` in the order listed, renamed by
+        options.rename; [] if var is not one."""
+        levels = getattr(self, '_wide2long_levels', {}).get(var, [])
+        rename = self.options.rename
+        mapping = rename.get(var, {}) if isinstance(rename, dict) else {}
+        return [mapping.get(l, l) for l in levels]
 
     def _apply_rename(self):
         """Apply options.rename mappings to any column in the dataframe."""
@@ -7305,6 +7320,15 @@ class Kbstat:
                         order = x_order
                     else:
                         order = None
+                    if order is None:
+                        # Without x_order, a wide2long factor takes the order its
+                        # levels were listed in, not that of first appearance,
+                        # which a level missing from the first unit would upset.
+                        # Only levels with data: an absent one would warn below.
+                        listed = self._wide2long_order(var)
+                        if listed:
+                            have = set(col.dropna().astype(str))
+                            order = [l for l in listed if l in have] or None
                     if order is not None:
                         # x_order sets the order of the levels it names; the
                         # others follow in data order. Categories from the named

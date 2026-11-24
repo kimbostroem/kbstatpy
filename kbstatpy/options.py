@@ -126,7 +126,8 @@ class KbstatOptions:
     # list their LEVELS: 'side = (L, R); time = (pre, post)' stacks the columns
     # L_pre, L_post, R_pre, R_post, the levels joined by '_' in entry order
     # (with one factor, the levels are the column names). A missing
-    # combination warns. Runs before everything else, so rename,
+    # combination warns. Levels are ordered as listed unless x_order says
+    # otherwise. Runs before everything else, so rename,
     # x_order, constraints and split all see the long data. Each wide row is
     # one unit, so when options.id is empty it becomes 'wide_row', created as
     # the row number of the wide file; a set options.id missing from the data

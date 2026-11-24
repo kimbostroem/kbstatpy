@@ -1,5 +1,11 @@
 # Changes
 
+## [1.52.1] - 2026-11-24
+
+### Bugs
+
+- `wide2long`: a factor's levels now follow the order listed in the spec. With a missing combination they could come out in data order instead. `x_order` still overrides.
+
 ## [1.52.0] - 2026-11-24
 
 ### Features
