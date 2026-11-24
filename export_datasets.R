@@ -99,4 +99,15 @@ pbg_wide <- pbg_wide[order(as.integer(pbg_wide$Rabbit)), ]
 write.csv(pbg_wide, "demos/data/pbg_wide.csv", row.names = FALSE)
 cat("Exported pbg_wide.csv\n")
 
+# --- Demo 20: sleepstudy as one file per subject (several input files) ---
+# The same data as sleepstudy.csv, split the way a lab often stores them: one
+# file per subject, named after it, with no subject column inside.
+dir.create("demos/data/sleepstudy_subjects", showWarnings = FALSE)
+for (s in unique(as.character(ss$Subject))) {
+  rows <- ss[ss$Subject == s, c("Reaction", "Days", "Period")]
+  write.csv(rows, sprintf("demos/data/sleepstudy_subjects/subject_%s.csv", s),
+            row.names = FALSE)
+}
+cat("Exported sleepstudy_subjects/\n")
+
 cat("\nDone. All datasets written to demos/data/\n")

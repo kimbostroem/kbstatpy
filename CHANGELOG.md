@@ -1,5 +1,11 @@
 # Changes
 
+## [1.54.1] - 2026-11-24
+
+### Changes
+
+- New demo 20, `demo_20_several_files.py`: `in_file` reads a folder of 18 files, one per subject, and the source column `file` serves as subject ID. It reproduces demo 6.
+
 ## [1.54.0] - 2026-11-24
 
 ### Features
