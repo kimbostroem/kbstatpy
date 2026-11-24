@@ -1,5 +1,11 @@
 # Changes
 
+## [1.52.3] - 2026-11-24
+
+### Changes
+
+- Demo 19 fits a gamma GLMM (log link) instead of a normal model, since the scatter of the blood pressure rises grows with the dose. The treatment effect is now reported as a ratio.
+
 ## [1.52.2] - 2026-11-24
 
 ### Bugs

@@ -21,18 +21,28 @@ and dose, whose levels keep the order listed. The reshape runs first, so
 
 The rabbit is the unit measured twelve times, so it enters as random intercept:
 
-    deltaBP ~ Treatment * dose + (1|Rabbit)
+    deltaBP ~ Treatment * dose + (1|Rabbit),   gamma, log link
+
+The rises are positive and their scatter grows with the dose: the rabbits lie
+within 1 mmHg of each other at 6.25 µg and 17 mmHg apart at 100 µg. A normal model assumes one
+residual spread for all of them. In a gamma model the SD is proportional to the
+mean, and the log link makes the treatment effect a ratio (demo 8).
 
 The wide file has a Rabbit column, used as `options.id`. Without one, kbstatpy
 would create `wide_row`, the row number of the wide file, and use that.
 
-Result: the blood pressure rises steeply with dose (F(5, 44) = 81), and MDL 72222
-damps that rise at 50 and 100 µg only, by 13 and 11 mmHg; at the three lowest
-doses and at 200 µg the treatments do not differ. The Treatment × dose interaction
-(F(5, 44) = 5.7) is this shift of the dose-response curve to the right, the
-antagonist's signature. The grey lines join each rabbit's two treatments. The
-spread grows with the mean (spread ratio about 3.6), so a log transform or a
-gamma model (demos 7 and 8) would be worth comparing.
+Result: the blood pressure rises steeply with dose (chi² = 559, 5 df), and MDL
+72222 damps that rise in the middle of the dose range: placebo over MDL is 2.5 at
+25 µg, 4.3 at 50 µg and 1.6 at 100 µg, while at 200 µg the two are equal. The
+Treatment × dose interaction (chi² = 43, 5 df) is this shift of the dose-response
+curve to the right, the antagonist's signature. The grey lines join each
+rabbit's two treatments.
+
+Compared with a normal model, the gamma model also finds the difference at
+25 µg (3 mmHg, small in absolute terms but 2.5-fold) and weighs the large ones at
+100 µg less heavily, where the scatter is largest. At 6.25 µg it reports MDL
+above placebo (p = 0.03); a difference of 0.7 mmHg in one of six uncorrected
+cells is better read as noise (posthoc_family = 'pooled' corrects across them).
 """
 
 import os
@@ -45,6 +55,7 @@ options.out_dir      = 'results/demo_19_wide2long'      # output folder
 options.wide2long    = 'Treatment = (Placebo, MDL); dose = (6.25, 12.5, 25, 50, 100, 200)'
 options.y            = 'deltaBP'          # the stacked values land in this column
 options.y_units      = 'mmHg'
+options.distribution = 'gamma'           # positive, spread grows with the mean (log link)
 options.x            = 'Treatment, dose'  # Treatment on the x-axis, one panel per dose
 options.x_units      = ', µg'
 options.interaction  = 'Treatment, dose'
