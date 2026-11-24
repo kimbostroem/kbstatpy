@@ -186,6 +186,18 @@ options.in_file = 'pilot.csv; data/main/*.xlsx' # parts separated by ';' (or a P
 - The stacking comes first, before `wide2long`, so wide files are stacked and then reshaped, with `wide_row` counting across all of them. Summary.txt lists the files and their row counts.
 - A single plain path works as before, with no `file` column.
 
+When the file names carry the design, `file_vars` turns them into columns, by a template whose `{placeholders}` name the columns:
+
+```python
+options.file_vars = 'subject_{Subject}'         # subject_308.csv -> Subject = 308
+options.file_vars = '{Subject}_{Time}'          # S01_pre.csv     -> Subject = S01, Time = pre
+options.file_vars = '{Subject}/{*}_{Time}'      # S01/run1_pre.csv: a folder level, '{*}' skips a part
+```
+
+- Text outside the braces must appear literally; each placeholder takes as little as it can, so a value may contain `_` when the text after it is unambiguous.
+- The columns follow `file`, numbers as numbers, as in a data file. A file whose name does not match stops the run with the names that failed, rather than leaving its rows without values.
+- It also works on a single file, giving constant columns. Summary.txt names the file variables.
+
 
 ### Formulas and several outcomes
 
@@ -237,6 +249,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | Option | Type | Description |
 |---|---|---|
 | `in_file` | str | Path or URL of the input data (`.csv` or `.xlsx`). A URL is downloaded; a share link without extension, such as a sciebo/Nextcloud link ending in `/download`, is recognised by its content. A link to the share's web page is rejected with a hint. A leading `~` is the home folder, as in `'~/sciebo/data.csv'`. Several files: a folder, a pattern or a `;`-separated list, stacked with each row's source in a column `file`, see [Several input files](#several-input-files) |
+| `file_vars` | str | Columns read from the file names by a template: `'subject_{Subject}'` reads `subject_308.csv` as `Subject = 308`. Text outside the braces must appear literally, `'{*}'` skips a part, `/` covers folder levels. A name that does not match stops the run. See [Several input files](#several-input-files) |
 | `out_dir` | str | Output directory, resolved against `base_dir` (the working directory by default). Empty (default) displays results without writing anything, which suits notebooks |
 | `save_script` | bool | Default `True`. `save()` writes the code that created the options into `out_dir`: a script is copied under its own name, a notebook cell is written as `analysis.py` with the run call appended. Nothing is written where no source is recoverable (a REPL line, `exec()` of a string) |
 | `base_dir` | str | Directory a relative `in_file`/`out_dir` resolves against. `''` (default) the working directory; `'script_dir'` (or `'auto'`) the calling script's folder; or any path. Absolute paths ignore it |
@@ -626,7 +639,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_17_dispersion.py` | `toothgrowth.csv` | Per-group dispersion with `dispersion` (glmmTMB `dispformula`) — a Gamma model fitted with constant vs by-dose dispersion; the by-dose fit lowers AIC when groups differ in relative scatter |
 | `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
 | `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as a gamma GLMM <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code>, the per-dose comparisons corrected as one family (`posthoc_family = 'pooled'`) |
-| `demo_20_several_files.py` | `sleepstudy_subjects/` | Several input files: `in_file` names a folder of 18 files, one per subject, stacked with each row's source in the column `file`, which serves as `id`. Same results as demo 6, which reads the data from one file |
+| `demo_20_several_files.py` | `sleepstudy_subjects/` | Several input files: `in_file` names a folder of 18 files, one per subject, stacked with each row's source in the column `file`; `file_vars = 'subject_{Subject}'` reads the subject from the file names. Same results as demo 6, which reads the data from one file |
 
 **Equivalence to classical tests** (demos 0–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -654,7 +667,7 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 16** — `profile_across` profiles a factor's effect across an ordered factor's levels: per-level contrasts (Layer 1) plus the interaction as a focused 1-df linear trend reported against the diffuse omnibus (Layer 2) — the "pattern across levels is the finding" view
 - **Demo 17** — `dispersion` sets glmmTMB's `dispformula` so the dispersion can vary by a factor instead of the default constant `~1`; a Gamma model fitted with constant vs by-group dispersion shows the better fit (lower AIC) when groups differ in relative scatter
 - **Demo 19** — `wide2long` reads wide data directly, here with two within-subject factors in the column names, so no reshaping by hand before the analysis
-- **Demo 20** — `in_file` reads a whole folder, one file per subject, and the file name becomes the subject ID
+- **Demo 20** — `in_file` reads a whole folder, one file per subject, and `file_vars` reads the subject ID from the file names
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:

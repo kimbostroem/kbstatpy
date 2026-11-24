@@ -47,7 +47,7 @@ from .kbstat import Kbstat           # noqa: E402
 
 _openrlib_log.setLevel(_level)
 
-__version__ = "1.54.1"
+__version__ = "1.55.0"
 __all__ = ["Kbstat", "KbstatOptions", "chdir", "script_dir",
            "__version__"]
 

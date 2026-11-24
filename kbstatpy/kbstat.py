@@ -5195,6 +5195,96 @@ class Kbstat:
                 labels[i] = f'{l} ({seen[l]})'
         return labels
 
+    @staticmethod
+    def _parse_file_vars(template):
+        """options.file_vars as (regex, names): each '{name}' becomes a group
+        matching as little as possible, '{*}' or '{}' a part matched and
+        dropped, the text between them must appear literally."""
+        pieces = re.split(r'\{([^{}]*)\}', template)
+        if '{' in pieces[-1] or '}' in ''.join(pieces[::2]):
+            raise ValueError(f"options.file_vars: unbalanced braces in {template!r}.")
+        names, rx = [], ''
+        for i, piece in enumerate(pieces):
+            if i % 2 == 0:
+                rx += re.escape(piece)
+                continue
+            name = piece.strip()
+            if name in ('', '*'):
+                rx += '.+?'
+                continue
+            if name in names:
+                raise ValueError(f"options.file_vars: {name!r} appears twice in {template!r}.")
+            names.append(name)
+            rx += '(.+?)'
+        if not names:
+            raise ValueError(
+                f"options.file_vars: {template!r} names no column; put each one "
+                "in braces, e.g. 'subject_{Subject}'.")
+        return re.compile(rx), names
+
+    @staticmethod
+    def _file_name_tail(path, depth):
+        """The last depth+1 parts of path, '/'-joined, without the extension:
+        what a file_vars template with `depth` slashes is matched against."""
+        if _is_url(path):
+            parts = path.split('?')[0].rstrip('/').split('/')
+        else:
+            parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
+        tail = '/'.join(parts[-(depth + 1):])
+        return os.path.splitext(tail)[0]
+
+    def _file_vars_values(self, paths):
+        """{column: [value per path]} from options.file_vars, or {}. Every
+        name must match: a file that does not would get empty values and its
+        rows would leave the fit without a word. A column whose values are
+        all numbers becomes numeric, as it would in a data file."""
+        template = str(getattr(self.options, 'file_vars', '') or '').strip()
+        if not template:
+            self._file_vars_names = []
+            return {}
+        rx, names = self._parse_file_vars(template)
+        if _FILE_COL in names:
+            raise ValueError(
+                f"options.file_vars: {_FILE_COL!r} is the column of source files; "
+                "choose another name.")
+        depth = template.count('/')
+        values, misses = {n: [] for n in names}, []
+        for path in paths:
+            tail = self._file_name_tail(path, depth)
+            m = rx.fullmatch(tail)
+            if m is None:
+                misses.append(tail)
+                continue
+            for n, v in zip(names, m.groups()):
+                values[n].append(v)
+        if misses:
+            shown = ', '.join(misses[:10]) + (f' (and {len(misses) - 10} more)'
+                                              if len(misses) > 10 else '')
+            raise ValueError(
+                f"options.file_vars: {template!r} does not match the name of "
+                f"{len(misses)} of {len(paths)} files: {shown}. Text outside "
+                "the braces must appear literally; '{*}' skips a part.")
+        for n in names:
+            try:
+                values[n] = list(pd.to_numeric(pd.Series(values[n])))
+            except (ValueError, TypeError):
+                pass
+        self._file_vars_names = names
+        return values
+
+    @staticmethod
+    def _insert_file_vars(df, file_vars, i, path):
+        """Insert the file_vars columns for file number i into its table, after
+        'file' if present, else first."""
+        pos = 1 if _FILE_COL in df.columns else 0
+        for n, vals in file_vars.items():
+            if n in df.columns:
+                raise ValueError(
+                    f"options.file_vars: {path} already has a column {n!r}. "
+                    "Name the placeholder differently.")
+            df.insert(pos, n, vals[i])
+            pos += 1
+
     def _load_data(self):
         """Read data from in_file into a DataFrame.
 
@@ -5203,13 +5293,15 @@ class Kbstat:
         the only record of the subject or session the rows belong to.
         """
         paths, multi = self._input_files()
+        file_vars = self._file_vars_values(paths)
         if not multi:
             self.data = self._read_table(paths[0])
+            self._insert_file_vars(self.data, file_vars, 0, paths[0])
             self._input_file_rows = None
         else:
             labels = self._file_labels(paths)
             frames = []
-            for path, label in zip(paths, labels):
+            for i, (path, label) in enumerate(zip(paths, labels)):
                 df = self._read_table(path)
                 if _FILE_COL in df.columns:
                     raise ValueError(
@@ -5217,6 +5309,7 @@ class Kbstat:
                         "which kbstatpy creates to name the source file of each row "
                         "when it reads several files. Rename that column.")
                 df.insert(0, _FILE_COL, label)
+                self._insert_file_vars(df, file_vars, i, path)
                 frames.append(df)
             union = list(dict.fromkeys(c for df in frames for c in df.columns))
             gaps = [(label, [c for c in union if c not in df.columns])
@@ -5237,6 +5330,10 @@ class Kbstat:
                 print(f"in_file: {len(paths)} files, {len(self.data)} rows, "
                       f"source in column {_FILE_COL!r}")
                 self._input_files_reported = True
+        if file_vars and not getattr(self, '_file_vars_reported', False):
+            print(f"file_vars: {', '.join(file_vars)} taken from the file "
+                  f"name{'s' if multi else ''} ({self.options.file_vars!r})")
+            self._file_vars_reported = True
 
         # options.wide2long: first of all, so every later step (rename, split,
         # y_transform, constraints) refers to the columns of the long data.
@@ -7411,13 +7508,18 @@ class Kbstat:
     def _input_files_lines(self):
         """Summary lines naming the files read, when in_file named several, so
         a results folder records which data went in."""
+        lines = []
         rows = getattr(self, '_input_file_rows', None)
-        if not rows:
-            return []
-        shown = ', '.join(f'{label} ({n})' for label, n in rows[:20])
-        more = f', ... ({len(rows) - 20} more)' if len(rows) > 20 else ''
-        return [f'  Input files            : {len(rows)}, rows read per file: {shown}{more}',
-                f"  Source file column     : '{_FILE_COL}'"]
+        if rows:
+            shown = ', '.join(f'{label} ({n})' for label, n in rows[:20])
+            more = f', ... ({len(rows) - 20} more)' if len(rows) > 20 else ''
+            lines += [f'  Input files            : {len(rows)}, rows read per file: {shown}{more}',
+                      f"  Source file column     : '{_FILE_COL}'"]
+        names = getattr(self, '_file_vars_names', None)
+        if names:
+            lines.append(f"  File variables         : {', '.join(names)} "
+                         f"(from {self.options.file_vars!r})")
+        return lines
 
     def _wide2long_order(self, var):
         """The levels of wide2long factor `var` in the order listed, renamed by

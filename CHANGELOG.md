@@ -1,5 +1,15 @@
 # Changes
 
+## [1.55.0] - 2026-11-24
+
+### Features
+
+- New option `file_vars` reads columns from file names by a template: `'subject_{Subject}'` turns `subject_308.csv` into `Subject = 308`. `'{*}'` skips a part, `/` covers folder levels. A name that does not match stops the run.
+
+### Changes
+
+- Demo 20 reads the subject from the file names with `file_vars`, so its model and Summary match demo 6.
+
 ## [1.54.1] - 2026-11-24
 
 ### Changes

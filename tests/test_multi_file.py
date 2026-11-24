@@ -15,6 +15,8 @@ source. What goes wrong quietly without the guards tested here:
   without a word; the gap is named in a warning.
 - Two files with the same name in different folders must not share a label.
 - A single plain path behaves exactly as before: no 'file' column.
+- options.file_vars reads columns from the file names; a name that does not
+  match the template would leave its rows without values, so it is an error.
 
 Needs R (kbstatpy starts it on import; the fit tests use glmmTMB/emmeans).
 
@@ -161,6 +163,64 @@ def test_wide2long_across_files_keeps_units_apart():
     d = k.data
     assert d['wide_row'].nunique() == 4 and len(d) == 8, d
     assert list(d['file'][:4]) == ['a'] * 4
+
+
+# --- options.file_vars: columns from the file name ---------------------------
+
+def test_file_vars_literal_prefix_and_two_columns():
+    write('d/subject_2_pre.csv', table(1))
+    write('d/subject_10_post.csv', table(2))
+    d = load('d', file_vars='subject_{Subject}_{Time}').data
+    assert list(d.columns) == ['file', 'Subject', 'Time', 'cond', 'y'], list(d.columns)
+    assert list(pd.unique(d['Subject'])) == [2, 10], list(pd.unique(d['Subject']))
+    assert pd.api.types.is_numeric_dtype(d['Subject'])
+    assert list(pd.unique(d['Time'])) == ['pre', 'post']
+
+
+def test_file_vars_skip_part_folders_and_underscore_in_value():
+    write('S01/run_a_pre.csv', table(1))
+    write('S02/run_b_post.csv', table(2))
+    d = load('S0*/*.csv', file_vars='{Subject}/{*}_{Time}').data
+    # the skipped part takes as little as it can, so Time keeps its '_'
+    assert list(pd.unique(d['Subject'])) == ['S01', 'S02']
+    assert list(pd.unique(d['Time'])) == ['a_pre', 'b_post'], list(pd.unique(d['Time']))
+
+
+def test_file_vars_on_a_single_file():
+    write('d/P07_left.csv', table(1))
+    d = load('d/P07_left.csv', file_vars='{Person}_{Side}').data
+    assert 'file' not in d.columns
+    assert list(d.columns[:2]) == ['Person', 'Side'] and set(d['Side']) == {'left'}
+
+
+def test_file_vars_errors():
+    write('d/s1_pre.csv', table(1))
+    write('d/s2.csv', table(2))
+    for spec, text in [('{S}_{T}', 'does not match the name of 1 of 2 files: s2'),
+                       ('s{S}', None), ('{S}_{S}', 'appears twice'),
+                       ('s1_pre', 'names no column'), ('{file}', 'column of source files'),
+                       ('{cond}', "already has a column 'cond'")]:
+        try:
+            load('d', file_vars=spec)
+        except ValueError as e:
+            assert text is not None and text in str(e), (spec, str(e))
+            continue
+        assert text is None, f'{spec}: no ValueError mentioning {text!r}'
+
+
+def test_file_vars_as_id_in_a_fit():
+    for i in range(1, 7):
+        write(f'd/subj_{i}.csv', table(i))
+    o = KbstatOptions()
+    o.in_file, o.base_dir, o.figure_display = 'd', OUT, 'save_only'
+    o.y, o.x, o.id, o.file_vars = 'y', 'cond', 'Subject', 'subj_{Subject}'
+    k = Kbstat(o)
+    with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
+        warnings.simplefilter('ignore')
+        k.run()
+    r = k.output.results[0]
+    assert r.data['Subject'].nunique() == 6
+    assert "File variables         : Subject (from 'subj_{Subject}')" in r.summary
 
 
 if __name__ == '__main__':

@@ -24,6 +24,14 @@ class KbstatOptions:
     # pattern ('data/**/*.csv'), parts separated by ';', or a list. Several
     # files are stacked row by row, each row's source file in a column 'file'.
     in_file: object = ''
+    # Columns taken from each file's name, by a template with {placeholders}:
+    # 'subject_{Subject}' reads subject_308.csv as Subject = 308, and
+    # '{Subject}_{Time}' reads S01_pre.csv as Subject = S01, Time = pre.
+    # Text outside the braces must appear literally; '{*}' skips a part. With
+    # '/' the template also covers folders: '{Subject}/{Time}' reads
+    # S01/pre.csv. A name that does not match is an error. The columns follow
+    # 'file'; numbers become numbers, as in a data file ('' = off).
+    file_vars: str = ''
     out_dir: str = ''
 
     # Directory that a relative `in_file` / `out_dir` is resolved against.
