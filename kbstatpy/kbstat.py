@@ -7093,18 +7093,37 @@ class Kbstat:
 
     @staticmethod
     def _parse_wide2long(spec):
-        """'time = (pre, post)' -> ('time', ['pre', 'post']); '' -> None."""
+        """Parse a wide2long spec into its factors and the columns they index.
+
+        'time = (pre, post)' -> (['time'], [('pre', ('pre',)), ('post', ('post',))]);
+        'side = (L, R); time = (pre, post)' -> (['side', 'time'],
+        [('L_pre', ('L', 'pre')), ('L_post', ('L', 'post')), ...]). Each entry
+        lists one factor's LEVELS; a column name is its levels joined by '_' in
+        the order of the entries, so with one factor the levels are the column
+        names. Built, not split, so a level may contain '_' itself
+        (Left_knee_pre). '' -> None.
+        """
+        import itertools
         if not isinstance(spec, str) or not spec.strip():
             return None
-        m = re.fullmatch(r'\s*([^=()]+?)\s*=\s*\(?([^()]*?)\)?\s*', spec)
-        cols = [c.strip() for c in m.group(2).split(',') if c.strip()] if m else []
-        if not m or len(cols) < 2:
-            raise ValueError(
-                f"options.wide2long must read 'newVar = (col1, col2, ...)' with at "
-                f"least two columns (got {spec!r})")
-        if len(set(cols)) < len(cols):
-            raise ValueError(f"options.wide2long lists a column twice: {spec!r}")
-        return m.group(1), cols
+        factors, levels = [], []
+        for part in [p for p in spec.split(';') if p.strip()]:
+            m = re.fullmatch(r'\s*([^=()]+?)\s*=\s*\(?([^()]*?)\)?\s*', part)
+            lev = [c.strip() for c in m.group(2).split(',') if c.strip()] if m else []
+            if not m or len(lev) < 2:
+                raise ValueError(
+                    "options.wide2long must read 'newVar = (level1, level2, ...)', "
+                    "with at least two levels; several factors are separated by ';' "
+                    f"(got {spec!r})")
+            if len(set(lev)) < len(lev):
+                raise ValueError(f"options.wide2long lists a level of {m.group(1)!r} "
+                                 f"twice: {spec!r}")
+            factors.append(m.group(1))
+            levels.append(lev)
+        if len(set(factors)) < len(factors):
+            raise ValueError(f"options.wide2long names a factor twice: {spec!r}")
+        cells = [('_'.join(combo), combo) for combo in itertools.product(*levels)]
+        return factors, cells
 
     def _normalize_wide2long(self):
         """Validate wide2long and give the long data a grouping variable.
@@ -7152,7 +7171,7 @@ class Kbstat:
         spec = self._parse_wide2long(self.options.wide2long)
         if spec is None or self.data is None:
             return
-        new_var, cols = spec
+        factors, cells = spec
         y_list = self._split_csv(self.options.y) if self.options.y else []
         if len(y_list) != 1:
             # Only the correlation analysis of a multi-y run gets here.
@@ -7161,12 +7180,29 @@ class Kbstat:
                 f"values (got {self.options.y!r}).")
         y_col = y_list[0]
         df = self.data
-        missing = [c for c in cols if c not in df.columns]
-        if missing:
+        absent = [c for c, _ in cells if c not in df.columns]
+        if len(factors) == 1 and absent:
+            # One factor lists the columns themselves, so an absent one is a typo.
             raise ValueError(
-                f"options.wide2long: {missing} are not columns of the data "
+                f"options.wide2long: {absent} are not columns of the data "
                 f"(columns: {list(df.columns)})")
-        for name, what in ((new_var, 'the new factor'), (y_col, 'options.y')):
+        if len(absent) == len(cells):
+            raise ValueError(
+                f"options.wide2long: none of the columns {absent} is in the data. "
+                "With several factors the lists hold the LEVELS, and the columns are "
+                f"their combinations joined by '_', e.g. {cells[0][0]!r}; the entries "
+                "go in the order the parts appear in the column names "
+                f"(columns: {list(df.columns)})")
+        if absent:
+            # A mixed model fits an incomplete design, but a missing combination
+            # is more often a typo than intended, so it is said out loud.
+            warnings.warn(
+                f"options.wide2long: the data has no column {absent}, so these "
+                "combinations of levels are missing and the design is incomplete.",
+                stacklevel=2)
+        cells = [(c, combo) for c, combo in cells if c in df.columns]
+        cols = [c for c, _ in cells]
+        for name, what in [(f, 'the new factor') for f in factors] + [(y_col, 'options.y')]:
             if name in df.columns:
                 raise ValueError(
                     f"options.wide2long: {what} {name!r} is already a column of the "
@@ -7185,18 +7221,24 @@ class Kbstat:
             df = df.copy()
             df[id_col] = [str(i) for i in range(1, len(df) + 1)]
         keep = [c for c in df.columns if c not in cols]
-        row = '_row_order'
+        row, col = '_row_order', '_wide_col'
         long = df.assign(**{row: range(len(df))}).melt(
             id_vars=[row] + keep, value_vars=cols,
-            var_name=new_var, value_name=y_col)
-        # Unit by unit, levels in the order listed, as a long file is written by
-        # hand; melt itself stacks level by level.
-        long[new_var] = pd.Categorical(long[new_var], categories=cols)
-        long = (long.sort_values([row, new_var], kind='stable')
+            var_name=col, value_name=y_col)
+        # Unit by unit, columns in the order the spec generates them, as a long
+        # file is written by hand; melt itself stacks column by column.
+        long[col] = pd.Categorical(long[col], categories=cols)
+        long = (long.sort_values([row, col], kind='stable')
                     .drop(columns=row).reset_index(drop=True))
-        long[new_var] = long[new_var].astype(str)
+        # Levels from the spec, never from splitting the column names.
+        lookup = dict(cells)
+        for i, f in enumerate(factors):
+            long.insert(long.columns.get_loc(col), f,
+                        long[col].astype(str).map(lambda c, i=i: lookup[c][i]))
+        long = long.drop(columns=col)
         self.data = long
-        print(f"wide2long: {len(cols)} columns -> {new_var!r} with the values in "
+        new_var = ', '.join(repr(f) for f in factors)
+        print(f"wide2long: {len(cols)} columns -> {new_var} with the values in "
               f"{y_col!r}; {len(df)} rows -> {len(long)}"
               + (f"; created {id_col!r} = wide row number" if created else "")
               + (" and used it as options.id (set options.id if another column "

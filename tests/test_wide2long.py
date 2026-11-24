@@ -14,6 +14,10 @@ factor time. The ways this goes wrong quietly, and what guards each here:
   not exist yet and silently do nothing.
 - A single spec with several y stacks the same columns for every y, so each
   "dependent variable" is the same analysis under another name.
+- With several factors, 'side = (L, R); time = (pre, post)' lists LEVELS and
+  the columns are their combinations (L_pre, ...). Read as column lists, the
+  spec finds nothing; that, and a missing combination, must be reported, and
+  the levels must come from the spec, not from splitting names at '_'.
 
 The reference is the same data written long by hand: the fit must agree.
 
@@ -148,12 +152,76 @@ def test_one_spec_per_y():
     assert np.allclose(sorted(r['b']['b']), sorted(pd.concat([w['b_pre'], w['b_post']])))
 
 
+def wide2x2(seed=4, n=12):
+    rng = np.random.default_rng(seed)
+    unit = rng.normal(0, 1, n)
+    d = {'grp': ['A' if i % 2 else 'B' for i in range(n)]}
+    for side, s_eff in (('Left_knee', 0), ('Right_knee', 1)):
+        for time, t_eff in (('pre', 0), ('post', 2)):
+            d[f'{side}_{time}'] = 10 + unit + s_eff + t_eff + rng.normal(0, 0.5, n)
+    return pd.DataFrame(d)
+
+
+def test_two_factors_match_hand_written_long_data():
+    w = wide2x2()
+    spec = 'side = (Left_knee, Right_knee); time = (pre, post)'
+    k = run(opts(w, x='side, time', interaction='side, time', wide2long=spec))
+    d = k.output.results[0].data
+    assert len(d) == 4 * len(w), len(d)
+    # Levels from the spec: 'Left_knee', not split at every '_'.
+    assert list(d['side'].astype(str)[:4]) == ['Left_knee'] * 2 + ['Right_knee'] * 2
+    assert list(d['time'].astype(str)[:4]) == ['pre', 'post'] * 2
+    assert list(d['time'].cat.categories) == ['pre', 'post']
+
+    rows = []
+    for i, r in w.iterrows():
+        for side in ('Left_knee', 'Right_knee'):
+            for time in ('pre', 'post'):
+                rows.append({'wide_row': i + 1, 'grp': r['grp'], 'side': side,
+                             'time': time, 'score': r[f'{side}_{time}']})
+    ref = run(opts(pd.DataFrame(rows), 'long2.csv', wide2long='', id='wide_row',
+                   x='side, time', interaction='side, time'))
+    a, b = k.output.results[0].anova, ref.output.results[0].anova
+    assert list(a.index) == list(b.index) and len(a) == 3, (a, b)
+    num = a.select_dtypes('number').columns
+    assert np.allclose(a[num].to_numpy(float), b[num].to_numpy(float), equal_nan=True), (a, b)
+
+
+def test_entry_order_follows_the_column_names():
+    w = wide2x2().rename(columns=lambda c: '_'.join(reversed(c.rsplit('_', 1)))
+                         if c != 'grp' else c)        # pre_Left_knee, ...
+    k = run(opts(w, x='side, time',
+                 wide2long='time = (pre, post); side = (Left_knee, Right_knee)'))
+    d = k.output.results[0].data
+    assert len(d) == 48 and set(d['side'].astype(str)) == {'Left_knee', 'Right_knee'}
+
+
+def test_missing_combination_is_reported():
+    w = wide2x2().drop(columns='Right_knee_post')
+    msgs = []
+    o = opts(w, x='side, time', wide2long='side = (Left_knee, Right_knee); time = (pre, post)')
+    k = Kbstat(o)
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter('always')
+        k.run()
+    msgs = [str(x.message) for x in rec]
+    assert any('Right_knee_post' in m and 'incomplete' in m for m in msgs), msgs
+    assert len(k.output.results[0].data) == 36
+
+
 def test_errors():
     raises(opts(wide(), y='a, b'), 'single spec')
     raises(opts(wide(), wide2long='time = (pre, later)'), "['later']")
     raises(opts(wide(), y='pre', wide2long='time = (mid, post)'), "'pre'")
     raises(opts(wide(), wide2long='time = (pre)'), 'at least two')
     raises(opts(wide(), wide2long='pre, post'), 'newVar')
+    # Column names where levels belong: every combination is absent.
+    raises(opts(wide2x2(), x='side, time',
+                wide2long='side = (Left_knee_pre, Left_knee_post); '
+                          'time = (Right_knee_pre, Right_knee_post)'), 'LEVELS')
+    raises(opts(wide2x2(), x='side', wide2long='side = (a, b); side = (c, d)'), 'twice')
+    raises(opts(wide2x2(), x='grp', wide2long='grp = (Left_knee, Right_knee); '
+                                               'time = (pre, post)'), "'grp'")
 
 
 if __name__ == '__main__':

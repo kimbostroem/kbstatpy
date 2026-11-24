@@ -1,5 +1,11 @@
 # Changes
 
+## [1.52.0] - 2026-11-24
+
+### Features
+
+- `wide2long` takes several within-unit factors: `'side = (L, R); time = (pre, post)'` lists each factor's levels and stacks the columns `L_pre`, `L_post`, `R_pre`, `R_post`. A missing combination is reported. With one factor, nothing changes.
+
 ## [1.51.0] - 2026-11-24
 
 ### Features

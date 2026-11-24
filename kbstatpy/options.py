@@ -122,7 +122,11 @@ class KbstatOptions:
     # Wide data to long, right after reading: 'time = (pre, post)' stacks the
     # columns pre and post into one column named after options.y, and a new
     # factor time whose levels are the column names. Every other column is
-    # repeated on each new row. Runs before everything else, so rename,
+    # repeated on each new row. Several within-unit factors, separated by ';',
+    # list their LEVELS: 'side = (L, R); time = (pre, post)' stacks the columns
+    # L_pre, L_post, R_pre, R_post, the levels joined by '_' in entry order
+    # (with one factor, the levels are the column names). A missing
+    # combination warns. Runs before everything else, so rename,
     # x_order, constraints and split all see the long data. Each wide row is
     # one unit, so when options.id is empty it becomes 'wide_row', created as
     # the row number of the wide file; a set options.id missing from the data

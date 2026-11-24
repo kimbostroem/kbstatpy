@@ -675,7 +675,22 @@ The listed columns are stacked into one column named after `options.y`, and the 
 
 Each wide row is one unit measured several times, so the long rows of one unit are not independent. The unit must therefore enter the model as a random effect, or the repeated measurements would count as independent observations and the standard errors would be too small. When `options.id` is empty, kbstatpy creates a column `wide_row`, the row number of the wide file, and uses it as `options.id`. The name says where the grouping came from and does not presume the rows are subjects; a generic name such as `id` could also pick up an unrelated column of the same name. If the data already has a column `wide_row`, the run stops and asks for `options.id`. When `options.id` is set, that column is used, or created as the wide row number if the data does not have it. If the units are not the wide rows, e.g. one row per subject and session, set `options.id` to the column that identifies them (`'subject'`).
 
-In a multi-y run, give one spec per dependent variable as a list, e.g. `['time = (a_pre, a_post)', 'time = (b_pre, b_post)']`; a single spec would stack the same columns for every y and is refused. Layouts with two within-unit factors in the column names (`A1_pre`, `A1_post`, `A2_pre`, …) are not supported; reshape those with `pandas.melt()` as above.
+In a multi-y run, give one spec per dependent variable as a list, e.g. `['time = (a_pre, a_post)', 'time = (b_pre, b_post)']`; a single spec would stack the same columns for every y and is refused. **Several within-unit factors.** When the column names combine two or more factors, give one entry per factor, separated by `;`, each listing that factor's **levels**:
+
+```python
+options.wide2long = 'side = (L, R); time = (pre, post)'
+```
+
+| wide column | side | time |
+|---|---|---|
+| `L_pre` | L | pre |
+| `L_post` | L | post |
+| `R_pre` | R | pre |
+| `R_post` | R | post |
+
+The columns are every combination of the levels, joined by `_` in the order of the entries; for `pre_L` write `'time = (pre, post); side = (L, R)'`. With a single factor this is the same rule: the levels are the column names. The names are built from the levels, not split at `_`, so a level may itself contain one (`'side = (Left_knee, Right_knee); …'` finds `Left_knee_pre`). A combination without a column is reported with a warning and the design is analysed as incomplete; when none of the combinations is a column, the run stops. Names without a separator (`LeftPre`) or with another one (`L.pre`) are not supported; rename the columns, or reshape with `pandas.melt()` as above.
+
+R users will know the same reshape as `tidyr::pivot_longer(cols, names_to = c("side", "time"), names_sep = "_")`, which splits the column names instead of building them.
 
 ### Wilkinson notation for model formulae
 
