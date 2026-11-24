@@ -152,6 +152,17 @@ def test_summary_states_the_family_size():
         'the no-op note must not appear when the correction did act'
 
 
+def test_summary_explains_the_marginal_row():
+    # The table had one row more than the family count in the header said,
+    # with pCorr == p, and nothing explained it.
+    for fam in ('cell', 'pooled', 'cross'):
+        txt = fit(DF, fam)._summary_text()
+        assert "The row with limb and eyes = 'any' compares group averaged over" in txt, \
+            f'{fam}: Summary must explain the any row'
+        assert 'same test as group in the ANOVA table' in txt, fam
+        assert 'outside the family above' in txt, fam
+
+
 def test_exact_method_falls_back_to_cross_with_a_warning():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter('always')

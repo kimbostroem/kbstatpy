@@ -166,6 +166,11 @@ def test_underflowed_p_prints_as_a_bound():
     shown = _bounded_p_table(at)['p'].tolist()
     assert shown[0] == '<1e-308', f'underflow rendered as {shown[0]!r}'
     assert shown[1] == '1.500000e-09', f'ordinary p rendered as {shown[1]!r}'
+    # The post-hoc table is a text column after blanking repeats, and pandas
+    # printed 5e-10 there with 6 decimals: 0.0. Shown in full instead.
+    ph = pd.DataFrame({'p': pd.Series([4.5e-10, 0.03093, '']).astype(object)})
+    shown = _bounded_p_table(ph)['p'].tolist()
+    assert shown == ['4.500000e-10', '0.03093', ''], f'small p in a text column: {shown}'
     untouched = _bounded_p_table(pd.DataFrame({'p': [0.04, 0.5]}))['p'].tolist()
     assert untouched == [0.04, 0.5], f'a table without underflow was altered: {untouched}'
 

@@ -1,5 +1,15 @@
 # Changes
 
+## [1.55.2] - 2026-11-25
+
+### Bugs
+
+- Summary.txt printed a post-hoc p below 5e-7 as `0.0`; it now shows it in scientific notation.
+
+### Changes
+
+- Summary.txt explains the post-hoc `any` row: the main effect, the same test as in the ANOVA table, kept outside the correction family.
+
 ## [1.55.1] - 2026-11-24
 
 ### Bugs

@@ -1713,6 +1713,33 @@ class Kbstat:
             ]
         return out
 
+    def _posthoc_any_lines(self, ph):
+        """Summary note on the leading 'any' rows of a post-hoc table split by
+        further factors: the comparison averaged over those factors. It is
+        corrected as a family of its own, not with the per-cell comparisons,
+        so without this note the table holds more rows than the family count
+        above it says, and a single such row keeps pCorr == p unexplained."""
+        x = list(self.options.x or [])
+        by = [b for b in x[1:] if b in ph.columns]
+        if not by or len(x) < 1:
+            return []
+        n_any = int(ph[by].eq('any').all(axis=1).sum())
+        if not n_any:
+            return []
+        import textwrap
+        names = ' and '.join(self._disp(b) for b in by)
+        one = n_any == 1
+        f = self._disp(x[0])
+        text = (f"The {'row' if one else 'rows'} with {names} = 'any' "
+                f"compare{'s' if one else ''} {f} averaged over {names}: the main "
+                + (f'effect, the same test as {f} in the ANOVA table. Reported twice '
+                   'but tested once, it stays outside the family above, so its pCorr '
+                   'is its p.' if one else
+                   f'effect, which the ANOVA table tests as a whole. They stay outside '
+                   f'the family above and are corrected among themselves '
+                   f'({n_any} comparisons).'))
+        return textwrap.wrap(text, width=72, initial_indent='  ', subsequent_indent='  ')
+
     def _df_method_label(self):
         """Human-readable denominator-df method, for reporting in Summary.txt."""
         return {
@@ -6857,6 +6884,7 @@ class Kbstat:
             lines += self._posthoc_averaging_lines(_primary)
             lines += self._posthoc_family_lines(
                 self._posthoc_family_info.get(_primary))
+            lines += self._posthoc_any_lines(ph)
             lines += [f'  Denominator df method: {self._df_method_label()}']
             lines += self._posthoc_scale_lines()
             lines += self._posthoc_effect_lines(ph)
@@ -7733,22 +7761,34 @@ def _blank_repeated_contrasts(df, factor_col):
 
 
 def _bounded_p_table(df):
-    """Copy of `df` whose p-value columns print underflow as '<1e-308'.
+    """Copy of `df` whose p-value columns never print a small p as zero.
 
     A chi-square of 77000 on 1 df has p on the order of 1e-16000, far below the
     smallest positive double, so it arrives here as an exact 0. Printing '0'
-    reads as a defect in the test; the bound says what is actually known. Only
-    the reported text is affected -- the tables and workbooks keep the double.
+    reads as a defect in the test; the bound '<1e-308' says what is actually
+    known. A p below 5e-7 has the same problem in a text column (the post-hoc
+    table, after blanking repeats): pandas prints it with 6 decimals, so 5e-10
+    showed as 0.0. Such values print in scientific notation, the others with up
+    to 6 decimals. Only the reported text is affected -- the tables and
+    workbooks keep the double.
     """
     out = df.copy()
     for col in ('p', 'pCorr', 'pSplit'):
         if col not in out.columns:
             continue
         vals = pd.to_numeric(out[col], errors='coerce')
-        if not (vals == 0).any():
+        if not ((vals >= 0) & (vals < 5e-7)).any():
             continue
-        out[col] = ['' if pd.isna(v) else ('<1e-308' if v == 0 else f'{v:.6e}')
-                    for v in vals]
+
+        def fmt(v):
+            if pd.isna(v):
+                return ''
+            if v == 0:
+                return '<1e-308'
+            if v < 1e-4:
+                return f'{v:.6e}'
+            return np.format_float_positional(round(float(v), 6), trim='-')
+        out[col] = [fmt(v) for v in vals]
     return out
 
 
