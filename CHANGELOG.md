@@ -1,5 +1,11 @@
 # Changes
 
+## [1.55.5] - 2026-11-25
+
+### Changes
+
+- The test scripts, `run_demos.py`, `demos/make_template_notebook.py` and `export_datasets.R` are executable too, so every script runs as `./name`. They already had the shebang line.
+
 ## [1.55.4] - 2026-11-25
 
 ### Changes
