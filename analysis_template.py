@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """kbstatpy analysis template.
 
 Copy this file next to your data, fill in the five required options, uncomment

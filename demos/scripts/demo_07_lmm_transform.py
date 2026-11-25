@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 7 — LMM with log-transformed dependent variable
 
 Strictly positive, right-skewed outcomes strain the constant-variance assumption

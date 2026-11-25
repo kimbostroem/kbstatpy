@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 13 — Family-wise correction across multiple dependent variables
 
 When you test several outcomes at once, the chance of at least one false positive

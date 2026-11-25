@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 0 — Intercept-only models: the mean, the one-sample t-test and the ICC
 
 The simplest model has no predictor at all: every value is one common number

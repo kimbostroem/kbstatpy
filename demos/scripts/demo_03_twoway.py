@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 3 — Two-way ANOVA equivalent
 
 Two crossed factors and their interaction are the classic two-way ANOVA, which a

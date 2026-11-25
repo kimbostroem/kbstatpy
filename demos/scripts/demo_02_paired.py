@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 2 — Paired t-test equivalent
 
 When the same subjects are measured under both conditions, accounting for that

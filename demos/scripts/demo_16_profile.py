@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 16 — Level-wise profile analysis (profile_across)
 
 When one factor is an ordered series of levels, the interesting question is often

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 4 — One-way repeated-measures ANOVA (LMM)
 
 A within-subject factor handled by a random intercept reproduces the one-way

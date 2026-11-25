@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 8 — GLMM with gamma distribution
 
 Strictly positive, right-skewed outcomes can also be modelled directly with a

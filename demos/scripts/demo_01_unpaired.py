@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 1 — Unpaired t-test equivalent
 
 The simplest equivalence: a linear model with a single two-level factor

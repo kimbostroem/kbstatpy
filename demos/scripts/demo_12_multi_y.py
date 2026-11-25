@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 12 — Multiple dependent variables + correlation
 
 Research questions often span several outcomes at once; kbstatpy can run the whole

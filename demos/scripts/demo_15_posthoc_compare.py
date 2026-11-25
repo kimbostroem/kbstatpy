@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 15 — Comparing several factors with posthoc_compare
 
 By default kbstatpy runs the pairwise post-hoc comparisons — and the data plot's

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 19 — Wide data with two within-subject factors (`wide2long`)
 
 Data entered by hand or exported from a lab spreadsheet often arrive in wide

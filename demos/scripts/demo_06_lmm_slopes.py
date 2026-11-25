@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 6 — LMM with random intercepts and random slopes
 
 Subjects often differ not just in their baseline but in how strongly a treatment

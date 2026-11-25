@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 11 — GLMM with binomial distribution
 
 A binary outcome has a mean that is a probability bounded between 0 and 1, so a

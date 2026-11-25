@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 10 — Outlier removal (before and after fitting)
 
 Influential outliers can dominate a fit, so removing them on a principled basis —

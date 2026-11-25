@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 18 — Plot annotations: EMM reference lines and group sizes
 
 Two options change nothing about the model and everything about how quickly the

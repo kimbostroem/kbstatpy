@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 14 — LM with mixed predictors and VIF
 
 Strongly correlated predictors inflate standard errors and destabilise

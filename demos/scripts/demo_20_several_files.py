@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 20 — Several input files: one file per subject
 
 Lab data often come as one file per subject or session, named after it:

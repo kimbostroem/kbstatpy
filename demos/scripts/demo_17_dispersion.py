@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 17 — Per-group dispersion for the glmmTMB families (dispersion / dispformula)
 
 A Gamma (or inverse-Gaussian) GLM assumes a constant coefficient of variation: the

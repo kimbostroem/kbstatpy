@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 9 — LMM with partial interaction
 
 With three or more factors you often want to test one specific interaction without

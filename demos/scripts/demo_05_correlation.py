@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Demo 5 — Standalone pairwise correlation analysis
 
 When several variables all trend together, raw correlations cannot separate direct

@@ -1,5 +1,11 @@
 # Changes
 
+## [1.55.4] - 2026-11-25
+
+### Changes
+
+- The demo scripts and `analysis_template.py` start with `#!/usr/bin/env python3` and are executable, so `./demo_01_unpaired.py` runs them. `python3 file.py` works as before.
+
 ## [1.55.3] - 2026-11-25
 
 ### Bugs
