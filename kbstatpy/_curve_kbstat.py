@@ -581,20 +581,24 @@ class CurveMixin:
         fig2, axes2 = plt.subplots(nrow, ncol, figsize=(4.8 * ncol, 3.6 * nrow),
                                    squeeze=False, sharey=True)
         palette = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        # One colour per level for the whole figure, so a level keeps its
+        # colour in every panel, on its curve and in the comparison bars.
+        colour = ({str(lev): palette[i % len(palette)]
+                   for i, lev in enumerate(dict.fromkeys(emm[first]))} if first else {})
         bars_per_cell = []
         for ax, cell in zip(axes2.flat, cells):
             sub = emm
             for f, v in zip(others, cell):
                 sub = sub[sub[f] == v]
             groups = (list(dict.fromkeys(sub[first])) if first else [None])
-            for gi, lev in enumerate(groups):
+            for lev in groups:
                 g = sub if lev is None else sub[sub[first] == lev]
                 g = g.sort_values('node')
                 xx = x[g['node'].astype(int).to_numpy()]
-                ax.plot(xx, g['emmean'], color=palette[gi % len(palette)], lw=1.6,
+                line_colour = colour.get(str(lev), palette[0])
+                ax.plot(xx, g['emmean'], color=line_colour, lw=1.6,
                         label=str(lev) if lev is not None else 'mean')
-                ax.fill_between(xx, g['lower'], g['upper'], color=palette[gi % len(palette)],
-                                alpha=0.2, lw=0)
+                ax.fill_between(xx, g['lower'], g['upper'], color=line_colour, alpha=0.2, lw=0)
             cell_str = ', '.join(f'{f} = {v}' for f, v in zip(others, cell))
             bars_per_cell.append([inf for inf in cr['posthoc']
                                   if inf['cell'] == cell_str and inf['clusters']])
@@ -617,9 +621,13 @@ class CurveMixin:
         for ax, bars in zip(used, bars_per_cell):
             for bi, inf in enumerate(bars):
                 yb = ylo - row * (bi + 0.7)
+                # Two parallel strokes in the colours of the two levels
+                # compared, so a bar is matched to its curves at a glance.
                 for c in inf['clusters']:
-                    ax.plot([c['from'], c['to']], [yb, yb], color='k', lw=3,
-                            solid_capstyle='butt')
+                    for lev, dy in zip(inf['pair'], (0.09, -0.09)):
+                        ax.plot([c['from'], c['to']], [yb + dy * row] * 2,
+                                color=colour.get(str(lev), 'k'), lw=2.2,
+                                solid_capstyle='butt')
                 ax.text(x[0], yb + row * 0.18, f"{inf['pair'][0]} vs {inf['pair'][1]}",
                         fontsize=7, va='bottom', ha='left', color='#6B757C')
         for ax in used:
