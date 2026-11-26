@@ -491,6 +491,10 @@ class Kbstat(CurveMixin):
             return os.path.abspath(os.path.join(base, path))
         return os.path.abspath(path)
 
+    def _ci_pct(self):
+        """Confidence level in percent, 1 - alpha: '95' at the default alpha."""
+        return f'{(1 - self.options.alpha) * 100:.10g}'
+
     def _stars(self, p):
         """Significance stars of p at options.alpha (see _sig_stars)."""
         return _sig_stars(p, self.options.alpha, self.options.alpha_stars)
@@ -1427,6 +1431,11 @@ class Kbstat(CurveMixin):
         # Cleared per fit: postfit outlier removal changes which cells are
         # populated, so estimability has to be judged again on the rows kept.
         self._interaction_cache = None
+        # Every interval emmeans reports -- EMMs, diffCI, ratioCI, the curve
+        # bands -- is at 1 - alpha, so an interval excludes the null exactly
+        # when the unadjusted test is significant. Set per fit: a later
+        # analysis with another alpha in the same R session resets it.
+        ro.r(f'emmeans::emm_options(summary = list(level = {1 - self.options.alpha!r}))')
         # Reset the resolved random-slope structure so a re-fit (e.g. after
         # postfit outlier removal) re-decides the correlated/diagonal choice.
         self._slope_correlated_effective = None
@@ -2942,7 +2951,8 @@ class Kbstat(CurveMixin):
                 good = np.isfinite(est)
                 if good.sum() < 2:
                     continue
-                lo, hi = est - 1.96 * se, est + 1.96 * se
+                zq = stats.norm.ppf(1 - self.options.alpha / 2)
+                lo, hi = est - zq * se, est + zq * se
                 y, ylo, yhi = ((np.exp(est), np.exp(lo), np.exp(hi)) if log_link
                                else (est, lo, hi))
                 off = (k - (len(labels) - 1) / 2) * (0.04 * (pos.max() - pos.min() or 1))
@@ -6371,7 +6381,8 @@ class Kbstat(CurveMixin):
             what = ('odds ratio of emm_1 to emm_2' if self._fitted_link() == 'logit'
                     else 'ratio emm_1 / emm_2')
         if ci:
-            out.append(f'  {ci} is the unadjusted 95% CI of the {what}; it matches p, not pCorr.')
+            out.append(f'  {ci} is the unadjusted {self._ci_pct()}% CI of the {what}; '
+                       'it matches p, not pCorr.')
         elif self.options.y_transform:
             out.append('  No CI of diff: the contrast is on the y_transform scale, diff is not.')
         return out
@@ -7256,7 +7267,7 @@ class Kbstat(CurveMixin):
             against = f'0{unit}'
         lines = ['TEST OF THE MEAN (intercept-only model)',
                  '---------------------------------------',
-                 f"  Mean (EMM) [95% CI] : {it['mean']:.4g}{unit} "
+                 f"  Mean (EMM) [{self._ci_pct()}% CI] : {it['mean']:.4g}{unit} "
                  f"[{it['ci_low']:.4g}, {it['ci_high']:.4g}]",
                  f'  Tested against      : {against}',
                  f"  Test                : {stat}, {_p_text(it['p'])}"]
@@ -7413,10 +7424,11 @@ class Kbstat(CurveMixin):
             # no covariates, no model) and the model's back-transformed EMM CI.
             # The two used to share one CI95 pair next to the EMM, and the raw
             # CI was published as the EMM's.
-            ci = 1.96 * vals.sem()
+            ci = stats.norm.ppf(1 - self.options.alpha / 2) * vals.sem()
+            pct = self._ci_pct()
             row['mean'] = vals.mean()
-            row['mean_CI95_lower'] = vals.mean() - ci
-            row['mean_CI95_upper'] = vals.mean() + ci
+            row[f'mean_CI{pct}_lower'] = vals.mean() - ci
+            row[f'mean_CI{pct}_upper'] = vals.mean() + ci
             row['std'] = vals.std()
             row['SE'] = vals.sem()
             row['median'] = vals.median()
@@ -7424,8 +7436,8 @@ class Kbstat(CurveMixin):
             row['q75'] = vals.quantile(0.75)
             emm, emm_lo, emm_hi = _lookup_emm(keys_dict)
             row['emm'] = emm
-            row['emm_CI95_lower'] = emm_lo
-            row['emm_CI95_upper'] = emm_hi
+            row[f'emm_CI{pct}_lower'] = emm_lo
+            row[f'emm_CI{pct}_upper'] = emm_hi
             rows.append(row)
         return pd.DataFrame(rows)
 

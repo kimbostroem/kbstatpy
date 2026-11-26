@@ -525,7 +525,7 @@ class CurveMixin:
 
     def _curve_figures(self):
         """CurveSPM: the statistic curve of each term with its threshold and
-        clusters. CurveMeans: the estimated mean curves with 95 % bands, the
+        clusters. CurveMeans: the estimated mean curves with bands at 1 - alpha, the
         clusters of the pairwise comparisons marked under them."""
         import matplotlib.pyplot as plt
         cr = self.curve_result

@@ -307,8 +307,8 @@ class KbstatOptions:
     # and drawn as a dashed line in the data plot. Ignored when x or a
     # covariate is set.
     # Significance level: it decides what is significant -- 'n.s.', the plot
-    # brackets, the trend lines, the curve thresholds (options.curve).
-    # Confidence intervals stay at 95 %.
+    # brackets, the trend lines, the curve thresholds (options.curve) -- and
+    # the confidence level, 1 - alpha (90 % at 0.10), of every interval.
     alpha: float = 0.05
     # What the stars mean when alpha is not .05:
     #   'cut'   usual levels (*** .001, ** .01, * .05), a p at or above alpha
