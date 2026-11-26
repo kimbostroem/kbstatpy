@@ -1,5 +1,11 @@
 # Changes
 
+## [1.57.1] - 2026-11-26
+
+### Changes
+
+- `CurveMeans`: each comparison's cluster bar is drawn in the colours of its two levels, so it is matched to its curves at a glance.
+
 ## [1.57.0] - 2026-11-26
 
 ### Changes
