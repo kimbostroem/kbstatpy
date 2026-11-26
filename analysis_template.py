@@ -90,6 +90,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # ---------------------------------------------------------------------------
 # options.posthoc_compare    = 'auto'       # factor(s) to compare pairwise, '' or 'none' = off
 # options.posthoc_correction = 'holm'       # holm | bonferroni | fdr | tukey | none
+# options.alpha            = 0.05           # significance level; alpha_stars = 'cut' | 'scale' | 'keep'
 # options.posthoc_family     = 'cell'       # what the correction spans: cell | pooled | cross
 # options.y_correction       = 'none'       # correction ACROSS several dependent variables
 # options.split              = 'task'       # one model per level of this column (e.g. per task)
@@ -113,6 +114,7 @@ options.id = 'subject'                      # random grouping factor, '' for no 
 # options.y_units = 'Nm'                    # y-axis unit(s), comma-separated for multi-y
 # options.x_units = ', mg'                  # unit(s) per x factor, by position; empty = no unit
 # options.wide2long = 'time = (pre, post)'               # wide columns pre, post -> factor time, values in y
+# options.curve     = 'Time = (KA_0 : KA_100)'           # curves, SPM1D-style: the model at every point
 # options.rename  = 'grp -> Group; grp: c1 -> Control'   # display names for variables and levels
 # options.x_order = 'dose: low, medium, high'            # level order on the axis and in the tables
 

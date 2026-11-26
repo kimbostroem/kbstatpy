@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 
 from .options import KbstatOptions
 from ._glmmtmb import GlmmTMB
+from ._curve_kbstat import CurveMixin, _CURVE_NODE, _CURVE_ROW
 from ._scriptdir import (chdir as _chdir,
                          script_dir as _script_dir)
 
@@ -143,6 +144,9 @@ class ModelResult:
     trend: object = None            # {ordered variable: trend result dict}, or None
     fig_profile_across: object = None  # profile plot figure, or None
     fig_profile_contrast: object = None  # differential (contrast) profile figure, or None
+    curve: object = None            # options.curve result dict, or None
+    fig_curve_spm: object = None    # statistic curves with thresholds and clusters
+    fig_curve_means: object = None  # mean curves with bands and post-hoc clusters
 
     def __repr__(self):
         # Concise: the default dataclass repr dumps the full summary text,
@@ -186,7 +190,7 @@ class Output:
         return f"<kbstatpy.Output: {len(self.results)} model(s) [{ys}]{suffix}>"
 
 
-class Kbstat:
+class Kbstat(CurveMixin):
     """Generalized linear mixed model analysis with post-hoc pairwise comparisons."""
 
     # Exposed on the class as well as at package level, so a script that has
@@ -487,6 +491,10 @@ class Kbstat:
             return os.path.abspath(os.path.join(base, path))
         return os.path.abspath(path)
 
+    def _stars(self, p):
+        """Significance stars of p at options.alpha (see _sig_stars)."""
+        return _sig_stars(p, self.options.alpha, self.options.alpha_stars)
+
     def _disp(self, name):
         """Return the display label for an internal column name."""
         return self._display_names.get(name, name)
@@ -773,6 +781,13 @@ class Kbstat:
             self._backfill_options_from_formula(o.formula)
         self._normalize_per_y_options()
         self._normalize_wide2long()
+        self._normalize_curve()
+        try:
+            o.alpha = float(o.alpha)
+        except (TypeError, ValueError):
+            raise ValueError(f'options.alpha must be a number, not {o.alpha!r}.') from None
+        if not 0 < o.alpha < 1:
+            raise ValueError(f'options.alpha must lie between 0 and 1, not {o.alpha:g}.')
         # The US spelling of effect_labels' 'centred', resolved before the
         # validation below, whose table holds the canonical values only.
         if str(o.effect_labels or '').strip().lower() == 'centered':
@@ -1145,6 +1160,21 @@ class Kbstat:
                 self.options.y_units = units_list[i] if i < len(units_list) else ''
                 worker = self
             worker._n_y = len(y_list)
+            if self.options.curve:
+                saved = ro.r('getOption("emmeans")')
+                try:
+                    worker._compute_curve()
+                finally:
+                    ro.r('function(x) invisible(options(emmeans = x))')(saved)
+                worker.print_summary()
+                self.output.results.append(ModelResult(
+                    y=worker.options.y, formula=worker.curve_result['formula'],
+                    summary=worker._summary_text(),
+                    data=worker._data_for_export(),
+                    curve=worker.curve_result,
+                    fig_curve_spm=worker.fig_curve_spm,
+                    fig_curve_means=worker.fig_curve_means))
+                continue
             worker._compute_single()
             worker.print_summary()
             self.output.results.append(ModelResult(
@@ -1169,7 +1199,8 @@ class Kbstat:
         # per split level when options.split is set).
         if self.options.y_correction != 'none' and len({r.y for r in self.output.results}) > 1:
             self.output.multiple_comparisons = _multiple_comparisons_table(
-                self.output.results, self.options.y_correction)
+                self.output.results, self.options.y_correction, self.options.alpha,
+                self.options.alpha_stars)
             print(f"Applied y_correction='{self.options.y_correction}' across "
                   f"{len(self.output.results)} dependent variables "
                   f"(per term) -> MultipleComparisons table")
@@ -1220,7 +1251,8 @@ class Kbstat:
             workers.append(worker)
         method = self.options.split_correction
         if method != 'none' and len(workers) > 1:
-            table = _split_correction_table(workers, self.options.split, method)
+            table = _split_correction_table(workers, self.options.split, method,
+                                           self.options.alpha, self.options.alpha_stars)
             if table is not None:
                 self.output.split_corrections[y_var] = table
                 print(f"Applied split_correction='{method}' across {len(workers)} levels of "
@@ -1848,7 +1880,7 @@ class Kbstat:
         # sleep data, where d = 0.83). The pairwise d is in the post-hoc table.
         raw['effectSize'] = raw['etaSqp'].apply(
             lambda v: _effect_label_eta(v, self.options.effect_labels))
-        raw['significance'] = raw['p'].apply(_sig_stars)
+        raw['significance'] = raw['p'].apply(self._stars)
         self.anova_table = raw
         return self.anova_table
 
@@ -1952,7 +1984,7 @@ class Kbstat:
         table['SMD'] = abs(d)
         table['effectSize'] = table['etaSqp'].apply(
             lambda v: _effect_label_eta(v, self.options.effect_labels))
-        table['significance'] = table['p'].apply(_sig_stars)
+        table['significance'] = table['p'].apply(self._stars)
         return table
 
     def _intercept_emm(self):
@@ -2446,7 +2478,7 @@ class Kbstat:
                 # Labelled from d where there is one; a GLMM's fallback d is
                 # liberal, so its label comes from partial eta-squared, as the
                 # MATLAB kbstat emm post-hoc did.
-                'effectSize': label, 'significance': _sig_stars(p_corr),
+                'effectSize': label, 'significance': self._stars(p_corr),
             })
             rows.append(row)
         return pd.DataFrame(rows)
@@ -2768,7 +2800,7 @@ class Kbstat:
                              'df2': float(r['df2']), 'stat': float(r['F.ratio']),
                              'p': float(r['p.value'])})
         for r in rows:
-            r['significance'] = _sig_stars(r['p'])
+            r['significance'] = self._stars(r['p'])
         return rows
 
     def profile_across(self):
@@ -2928,7 +2960,7 @@ class Kbstat:
                 if trow is None or not np.isfinite(float(trow.get('p', np.nan))):
                     continue
                 p_val = float(trow['p'])
-                if p_val < .05:
+                if p_val < self.options.alpha:
                     coef = np.polyfit(pos[good], est[good], 1)
                     xf = np.linspace(pos.min(), pos.max(), 50)
                     fit = np.polyval(coef, xf)
@@ -3117,7 +3149,7 @@ class Kbstat:
                 'var_2':        v2,
                 'r':            round(float(r), 4),
                 'p':            round(float(p), 4),
-                'significance': _sig_stars(p),
+                'significance': self._stars(p),
                 'effectSize':   _r_label(r, self.options.effect_labels),
             })
         self.correlation_table = pd.DataFrame(rows)
@@ -3154,7 +3186,7 @@ class Kbstat:
                     'var_2':        v2,
                     'r':            round(float(r), 4),
                     'p':            round(float(p), 4),
-                    'significance': _sig_stars(p),
+                    'significance': self._stars(p),
                     'effectSize':   _r_label(r, self.options.effect_labels),
                 })
             partial_table = pd.DataFrame(part_rows)
@@ -3368,7 +3400,7 @@ class Kbstat:
         stars = str(row.iloc[0]['significance'])
         if stars in ('n.s.', 'nan', 'None'):
             stars = ''
-        return r_val, p_val, stars, (p_val < 0.05)
+        return r_val, p_val, stars, (p_val < self.options.alpha)
 
     def _plot_corr_table(self, corr_df, vars_, title):
         """Compact lower-triangle correlation table: variable names on the matrix
@@ -3545,6 +3577,15 @@ class Kbstat:
             if getattr(res, 'fig_profile_contrast', None) is not None:
                 self._write_fig(res.fig_profile_contrast, d, 'LevelProfileContrast',
                                 html=False, tight=True)
+            if getattr(res, 'curve', None) is not None:
+                with pd.ExcelWriter(os.path.join(d, 'Curve.xlsx')) as writer:
+                    for name, tbl in res.curve['tables'].items():
+                        tbl.to_excel(writer, sheet_name=name, index=False)
+                print(f'Saved Curve.xlsx to {d}')
+                if res.fig_curve_spm is not None:
+                    self._write_fig(res.fig_curve_spm, d, 'CurveSPM', html=False, tight=True)
+                if res.fig_curve_means is not None:
+                    self._write_fig(res.fig_curve_means, d, 'CurveMeans', html=False, tight=True)
 
         for y_var, tbl in (getattr(output, 'split_corrections', None) or {}).items():
             d = os.path.join(out_dir, self._safe_name(y_var))
@@ -4511,9 +4552,9 @@ class Kbstat:
                     tick_h = bracket_step * 0.3
                     for _, crow in panel_ct.iterrows():
                         p_val = crow['p.value']
-                        if not np.isfinite(p_val) or p_val >= 0.05:
+                        if not np.isfinite(p_val) or p_val >= self.options.alpha:
                             continue
-                        label = '***' if p_val < 0.001 else ('**' if p_val < 0.01 else '*')
+                        label = self._stars(p_val)
                         xi, xj = _contrast_positions(str(crow['contrast']), x_var, x_levels)
                         if xi is None:
                             xi, xj = 0, len(x_levels) - 1
@@ -5399,6 +5440,8 @@ class Kbstat:
         # options.wide2long: first of all, so every later step (rename, split,
         # y_transform, constraints) refers to the columns of the long data.
         self._apply_wide2long()
+        # options.curve with a range of wide columns: stacked the same way.
+        self._apply_curve_wide()
 
         # options.split: this worker analyses one level's rows only. Filtered here,
         # before the raw copy for plotting, so model and plots see the same rows.
@@ -5787,6 +5830,8 @@ class Kbstat:
         d = self.data if data is None else data
         if d is not None and _Y_UNTRANSFORMED in d.columns:
             d = d.drop(columns=_Y_UNTRANSFORMED)
+        if d is not None and _CURVE_NODE in d.columns:
+            d = d.drop(columns=[c for c in (_CURVE_NODE, _CURVE_ROW) if c in d.columns])
         if d is None or not getattr(self, '_covariate_originals', None):
             return d
         out = d.copy()
@@ -6629,6 +6674,8 @@ class Kbstat:
 
     def _summary_text(self) -> str:
         """Build the human-readable analysis summary (formula, fit stats, ANOVA, post-hoc, notes)."""
+        if getattr(self, 'curve_result', None):
+            return self._curve_summary_text()
         lines = []
 
         sep = '=' * 70
@@ -7147,16 +7194,7 @@ class Kbstat:
         lines += self._effect_label_key()
 
         # --- Significance key ---
-        lines += [
-            'SIGNIFICANCE',
-            '------------',
-            '  *** p < 0.001',
-            '  **  p < 0.01',
-            '  *   p < 0.05',
-            '  n.s. not significant',
-            '',
-            sep,
-        ]
+        lines += _sig_key(self.options.alpha, self.options.alpha_stars) + ['', sep]
 
         return '\n'.join(lines)
 
@@ -7316,7 +7354,7 @@ class Kbstat:
 
     def print_summary(self):
         """Print the analysis summary to stdout (no-op if no model has been fitted)."""
-        if self.model is not None:
+        if self.model is not None or getattr(self, 'curve_result', None):
             print(self._summary_text())
 
     def _build_statistics_table(self, factors: list) -> pd.DataFrame:
@@ -7950,17 +7988,52 @@ def _r_label(r, scheme='cohen'):
     return _cohen_label(r, _R_ANCHORS, scheme)
 
 
-def _sig_stars(p):
-    """Significance stars from p-value."""
+def _sig_stars(p, alpha=0.05, mode='cut'):
+    """Significance stars of p at significance level alpha.
+
+    mode (options.alpha_stars):
+      'cut'   the usual levels (*** .001, ** .01, * .05), but a p at or above
+              alpha is 'n.s.'; with alpha above .05, a p between .05 and alpha
+              is marked '+'.
+      'scale' the levels follow alpha: * alpha, ** alpha/5, *** alpha/50
+              (alpha = .05 gives the usual .05/.01/.001).
+      'keep'  the usual levels whatever alpha is, so with alpha below .05 a
+              '*' can mark a p that is not significant at alpha; above .05 as
+              'cut'.
+    """
     if pd.isna(p):
         return ''
-    if p < 0.001:
-        return '***'
-    if p < 0.01:
-        return '**'
-    if p < 0.05:
-        return '*'
-    return 'n.s.'
+    if mode == 'scale':
+        levels = (alpha / 50, alpha / 5, alpha)
+    else:
+        levels = (0.001, 0.01, 0.05)
+    if mode == 'cut' and p >= alpha:
+        return 'n.s.'
+    for sym, lev in zip(('***', '**', '*'), levels):
+        if p < lev:
+            return sym
+    return '+' if p < alpha else 'n.s.'
+
+
+def _sig_key(alpha=0.05, mode='cut'):
+    """The SIGNIFICANCE legend of Summary.txt for this alpha and alpha_stars."""
+    lines = ['SIGNIFICANCE', '------------']
+    if alpha != 0.05:
+        lines.append(f"  alpha = {alpha:g} (alpha_stars = '{mode}')")
+    if mode == 'scale':
+        levels = (alpha / 50, alpha / 5, alpha)
+    else:
+        levels = (0.001, 0.01, 0.05)
+    for sym, lev in zip(('***', '**', '*'), levels):
+        if mode != 'cut' or lev <= alpha:
+            lines.append(f'  {sym:<4} p < {lev:g}')
+    if mode != 'scale' and alpha > 0.05:
+        lines.append(f'  +    p < {alpha:g}')
+    if mode == 'keep' and alpha < 0.05:
+        lines.append(f'  n.s. p >= 0.05; significant only where p < {alpha:g}')
+    else:
+        lines.append(f'  n.s. p >= {alpha:g}')
+    return lines
 
 
 # User-facing y_correction value -> R p.adjust method name. Keys are lowercase;
@@ -8112,6 +8185,7 @@ _ENUM_OPTIONS = {
     'correlation_method': ('pearson', 'spearman'),
     'posthoc_method':     ('emm',),
     'effect_labels':      ('cohen', 'centred'),
+    'alpha_stars':        ('cut', 'scale', 'keep'),
 }
 
 # Rank contributed by each candidate interaction term, given the terms already
@@ -8168,7 +8242,7 @@ def _adjust_pvalues(pvals, method):
     return out
 
 
-def _multiple_comparisons_table(results, method):
+def _multiple_comparisons_table(results, method, alpha=0.05, mode='cut'):
     """Build the across-dependent-variable correction table. For each model term,
     the per-y p-values form one family and are adjusted together. Returns a long
     DataFrame (variable, Term, p, p_corrected, significance, method), or None."""
@@ -8187,7 +8261,7 @@ def _multiple_comparisons_table(results, method):
     df['p_corrected'] = np.nan
     for _, idx in df.groupby(['Term', 'split']).groups.items():
         df.loc[idx, 'p_corrected'] = _adjust_pvalues(df.loc[idx, 'p'].values, method)
-    df['significance'] = df['p_corrected'].apply(_sig_stars)
+    df['significance'] = df['p_corrected'].apply(lambda v: _sig_stars(v, alpha, mode))
     df['method'] = method
     if not (df['split'] != '').any():
         df = df.drop(columns='split')
@@ -8195,7 +8269,7 @@ def _multiple_comparisons_table(results, method):
     return df.sort_values(['split', 'Term', 'p']).reset_index(drop=True)
 
 
-def _split_correction_table(workers, split_col, method):
+def _split_correction_table(workers, split_col, method, alpha=0.05, mode='cut'):
     """Correct every post-hoc contrast, and every ANOVA term, across the levels of
     options.split. One family per contrast: same compared levels and same
     conditioning cell in each worker (one worker per split level). pCorr (after the
@@ -8238,7 +8312,7 @@ def _split_correction_table(workers, split_col, method):
                 continue
             ph['pSplit'] = np.nan
             ph.loc[mine['_i'].values, 'pSplit'] = mine['pSplit'].values
-            ph['significance'] = ph['pSplit'].apply(_sig_stars)
+            ph['significance'] = ph['pSplit'].apply(lambda v: _sig_stars(v, alpha, mode))
             ct = (w.contrasts_by_var or {}).get(var)
             if ct is not None and len(ct):
                 by = list(ph.columns[:list(ph.columns).index(f'{_compare_parts(var)[0]}_1')])
@@ -8251,7 +8325,7 @@ def _split_correction_table(workers, split_col, method):
                     ct['p.value'] = cond['pSplit'].values
                     w.contrasts_by_var[var] = ct
     out = df.drop(columns=['_w', '_i', 'key'])
-    out['significance'] = out['pSplit'].apply(_sig_stars)
+    out['significance'] = out['pSplit'].apply(lambda v: _sig_stars(v, alpha, mode))
     out['method'] = method
     lead = ['kind', 'factor', split_col]
     return out[lead + [c for c in out.columns if c not in lead]]

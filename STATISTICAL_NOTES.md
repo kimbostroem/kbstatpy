@@ -25,6 +25,7 @@
   - [Level-wise profile analysis (Demo 16)](#level-wise-profile-analysis-demo-16)
   - [Per-group dispersion: `dispformula` (Demo 17)](#per-group-dispersion-dispformula-demo-17)
   - [Rates: counts over unequal exposures (`offset`)](#rates-counts-over-unequal-exposures-offset)
+  - [Curves: SPM1D (Demo 21)](#curves-spm1d-demo-21)
   - [Overdispersed counts: negative binomial](#overdispersed-counts-negative-binomial)
   - [Model structure, and why kbstatpy will not pick one for you](#model-structure-and-why-kbstatpy-will-not-pick-one-for-you)
     - [Describing the structure instead of listing the terms](#describing-the-structure-instead-of-listing-the-terms)
@@ -309,6 +310,24 @@ A count depends on how long, or over how much, it was observed: five balance los
 The standard model keeps the count as the outcome and moves the exposure into the linear predictor. Since log E[count] = log(rate) + log(duration), a Poisson model with `offset = 'log(duration)'` adds log(duration) with its coefficient fixed at 1, and every estimated coefficient describes the log rate. Under the log link the offset needs the log; a bare `offset = 'duration'` would multiply the count by e^duration, and kbstatpy warns about it. An `offset(...)` term in `formula` is the same thing.
 
 Rate ratios, z and p do not depend on any choice of exposure. The estimated means and their difference do: they are expected counts at a reference exposure, which emmeans takes as the mean of the exposure, or, when it has only two values, as their geometric mean. `Summary.txt` states the value used. The offset also lets trials that ended early stay in the analysis. Excluding them biases the comparison when trials end early *because* of the events counted.
+
+### Curves: SPM1D (Demo 21)
+
+A curve (a joint angle over the gait cycle, normalised to 0–100 %) is often reduced to one number, its peak or its mean over a phase, and that number is then analysed. The choice of number decides the result, and it is easily made after looking at the curves. `options.curve` analyses the whole curve instead: the model is fitted at every point, and each model term gets a test statistic at every point, an F curve. Each pairwise comparison gets a t curve.
+
+Tested point by point at alpha, a curve of 101 points would show a "difference" somewhere far more often than in 5 % of the cases where nothing is going on. Bonferroni over the 101 points goes too far the other way: neighbouring points are nearly the same test, since curves are smooth. **Random field theory** (RFT; Worsley et al. 1996) sits between the two. It treats the statistic curve as a smooth random field and gives the probability that its maximum exceeds a height u; the threshold is the u at which that probability is alpha. The smoother the curve, the fewer independent pieces it holds, and the lower the threshold. The smoothness is estimated from the residual curves of the model, as the full width at half maximum (FWHM) of a Gaussian kernel, in points (Kiebel et al. 1999); the curve's length divided by its FWHM is its number of **resels**.
+
+Where the statistic exceeds the threshold, consecutive points form a **cluster**. Its endpoints are interpolated to where the curve crosses the threshold, and its p is the probability that a field this smooth produces a cluster at least this wide above this height (Friston et al. 1994). These are the conventions of SPM1D (Pataky 2016, the RFT1D paper), which kbstatpy follows: field length Q − 1 for Q points, the gradient estimate of the smoothness, and the Bonferroni bound where it is the less severe of the two (very rough curves). For a two-sample t-test, a one-sample t-test, a regression and a one-way ANOVA, kbstatpy's thresholds, clusters and cluster p agree with spm1d's (`tests/test_curve.py`; spm1d's own root search stops slightly early, so they differ in the fourth decimal).
+
+**F curves and t curves.** A model term is tested with an F curve, a pairwise comparison with a two-sided t curve; for a term with one numerator df, F = t². The two thresholds are not quite equivalent: the RFT approximation of the field maximum is not linear in the expected Euler characteristic, so the F threshold of a one-df term is slightly lower than the square of the two-sided t threshold (13.16 against 3.636² = 13.22 in the regression case of the tests). spm1d does the same: its ANOVA agrees with kbstatpy's F, its t-tests with kbstatpy's t.
+
+**Post-hoc comparisons.** Each pair is a t curve with its own RFT threshold, tested at the Šidák level 1 − (1 − alpha)^(1/m) over the m comparison curves, as in SPM1D's post-hoc tests. The pairs are those of the ordinary post-hoc: the compared factor within each cell of the other factors.
+
+**Mixed models.** SPM1D's repeated-measures ANOVA treats subjects as fixed. kbstatpy fits the mixed model at every point: subjects as a random effect, repeated trials as separate rows, unbalanced designs and random slopes allowed. The F curve of a balanced repeated-measures design is the same; the residuals differ, since a random effect shrinks the subject means, and with them the smoothness, by about 1 % in the test case. The denominator df of a mixed model (Kenward-Roger or Satterthwaite) may vary from point to point; the threshold uses the smallest, which is conservative, and Summary.txt reports the range. A between-subject term is tested against the same smoothness, estimated from the within-subject residuals.
+
+**What a cluster does not say.** RFT controls the chance of any false positive on the curve; it says nothing about how large an effect is. CurveMeans and the `Means` sheet show the estimated means with their bands. And the result depends on how the curves were normalised: a shift in timing between groups shows up as a difference in amplitude.
+
+Limits of the current version: normal models only (RFT needs Gaussian residual curves; a GLMM would need permutation tests), no `y_transform`, `split` or outlier removal, and equally spaced points.
 
 ### Overdispersed counts: negative binomial
 

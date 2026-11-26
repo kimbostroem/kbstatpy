@@ -110,4 +110,17 @@ for (s in unique(as.character(ss$Subject))) {
 }
 cat("Exported sleepstudy_subjects/\n")
 
+# --- Demo 21: CanadianWeather (fda), curves in wide format ---
+# Daily mean temperature, averaged over 1960-1994, at 35 Canadian weather
+# stations in four climate regions (Ramsay & Silverman 2005, Functional Data
+# Analysis). One row per station, one column per day: day_1 ... day_365.
+data(CanadianWeather, package = "fda")
+cw <- CanadianWeather
+temp <- t(cw$dailyAv[, , "Temperature.C"])
+colnames(temp) <- paste0("day_", seq_len(ncol(temp)))
+weather <- data.frame(Station = cw$place, Region = cw$region, temp,
+                      check.names = FALSE, row.names = NULL)
+write.csv(weather, "demos/data/canadian_weather.csv", row.names = FALSE)
+cat("Exported canadian_weather.csv\n")
+
 cat("\nDone. All datasets written to demos/data/\n")

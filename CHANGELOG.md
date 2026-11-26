@@ -1,5 +1,17 @@
 # Changes
 
+## [1.56.0] - 2026-11-26
+
+### Features
+
+- New option `curve`: SPM1D-style analysis of curves. The model is fitted at every point; each term gets an F curve, each pairwise comparison a t curve, tested against one random-field threshold. Long or wide data; mixed models allowed. Matches spm1d.
+- New option `alpha` sets the significance level for `n.s.`, plot brackets, trend lines and curve thresholds.
+- New option `alpha_stars` sets what the stars mean when `alpha` is not 0.05: `'cut'` (default), `'scale'` or `'keep'`.
+
+### Changes
+
+- New demo 21, `demo_21_curves.py`: daily temperature curves of 35 Canadian weather stations, compared across four regions with `curve`.
+
 ## [1.55.5] - 2026-11-25
 
 ### Changes

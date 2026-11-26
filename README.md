@@ -20,6 +20,7 @@ Fitting is done via R's `lme4` (Gaussian LMMs), `glmmTMB` (non-Gaussian GLMMs), 
 - [Residual spread ratio](#residual-spread-ratio)
 - [Variance Inflation Factor (VIF)](#variance-inflation-factor-vif)
 - [Level-wise profile analysis](#level-wise-profile-analysis)
+- [Curve analysis (SPM1D)](#curve-analysis-spm1d)
 - [Output files](#output-files)
 - [Demo scripts](#demo-scripts)
   - [Try the demos on Google Colab](#try-the-demos-on-google-colab)
@@ -260,6 +261,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `x` | list / str | Fixed-effect factor column names. Each becomes a factor with one level per value, so a numeric measurement belongs in `covariate`: a numeric `x` with more than ten values, most of them distinct, stops with `ContinuousFactor` |
 | `x_order` | str or dict | Level order, e.g. `'dose: low, medium, high; supp: OJ, VC'`. Levels not named follow in data order. With `rename`, use the renamed names |
 | `wide2long` | str or list | Wide data to long on reading: `'time = (pre, post)'` stacks the columns pre and post into `y` (`'value'` if `y` is empty, except in a correlation-only run), with a new factor `time` whose levels are the column names. Several factors list their levels: `'side = (L, R); time = (pre, post)'` stacks `L_pre`, `L_post`, `R_pre`, `R_post`. Runs first, so `rename`, `x_order` and `constraints` refer to the long data. With `id` empty, a column `wide_row` (the wide row number) is created and used as `id`. One per y as a list. See [Long vs. wide](STATISTICAL_NOTES.md#long-vs-wide-data-format) |
+| `curve` | str | Curve analysis, SPM1D-style: the model is fitted at every point of a curve, each term gets an F curve and each pairwise comparison a t curve, tested against one threshold for the whole curve. `'Time'` names the column of curve points in long data; `'KA_0 : KA_100'` a range of wide columns, stacked into `Time` (`'Phase = (KA_0 : KA_100)'` names it). Normal models (LM, LMM) only. See [Curve analysis](#curve-analysis-spm1d) |
 | `rename` | str or dict | Display labels for variables and levels, e.g. `'cyl -> Cylinders; cyl: 4 -> 4 cyl'`. Variable renames affect labels and headers, level renames affect the data before fitting |
 | `x_units` | list / str | Default `''` (no units). Unit label(s) for x-axis tick groups, matched to `x` by position. An empty entry, or `'1'`, means that factor has no unit, e.g. `', mg'` labels the second factor only |
 | `id` | str | Random grouping factor(s). Several, comma-separated, are crossed; lme4's `/` and `:` nest. Several trials per subject and condition: `'subject/session'`, or the condition effect is tested against the trial scatter. See [Crossed and nested grouping factors](STATISTICAL_NOTES.md#crossed-and-nested-grouping-factors) and [pseudo-replication](STATISTICAL_NOTES.md#several-trials-per-condition-pseudo-replication) |
@@ -287,6 +289,8 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `remove_outliers_postfit` | bool | Default `False`. Exclude outliers after fitting, by Pearson residual, then refit. Combines with the prefit rule |
 | `posthoc_method` | str | Default `'emm'` (emmeans) |
 | `effect_labels` | str | Default `'cohen'`. Verbal effect size labels: `'cohen'` uses Cohen's values as lower thresholds (negligible, small, medium, large); `'centred'` gives seven bins centred on them (very small … very large), the scheme up to 1.48. See [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels) |
+| `alpha` | float | Default `0.05`. Significance level: a p at or above it is `n.s.`, and it sets the plot brackets, the trend lines and the curve thresholds (`curve`). Confidence intervals stay at 95 % |
+| `alpha_stars` | str | Default `'cut'`. What the stars mean when `alpha` is not 0.05: `'cut'` keeps the usual levels (`***` .001, `**` .01, `*` .05) but calls a p at or above `alpha` `n.s.`, and marks a p between .05 and a larger `alpha` with `+`; `'scale'` moves the levels with `alpha` (`*` alpha, `**` alpha/5, `***` alpha/50); `'keep'` uses the usual levels whatever `alpha` is, so a `*` may then not be significant |
 | `posthoc_correction` | str | Default `'holm'`. P-value correction within a model: `'bonferroni'`, `'fdr'`, `'tukey'`, … |
 | `posthoc_family` | str | Default `'cell'`. What the correction spans: `'cell'` each cell separately, `'pooled'` all cells as one family, `'cross'` within each cell then across. See [What counts as a family](STATISTICAL_NOTES.md#what-counts-as-a-family-posthoc_family) |
 | `posthoc_compare` | str | Default `'auto'` (the first x-variable). Which factor(s) get pairwise comparisons, comma-separated; `''` or `'none'` turns them off. Comparisons are per cell, see [Comparing any factor](STATISTICAL_NOTES.md#comparing-any-factor-per-cell-demo-15). `'group | limb'` compares group within each level of limb only, averaged over the other factors, written to `Posthoc_group_by_limb.xlsx` |
@@ -573,6 +577,27 @@ in `ToothGrowth` attenuating monotonically across dose).
 
 ---
 
+## Curve analysis (SPM1D)
+
+Many outcomes are curves: a joint angle over the gait cycle, a force over stance, a temperature over the year. `options.curve` analyses the whole curve instead of a summary number such as its peak. The model you set up with `x`, `id`, `slope`, `covariate` and `interaction` is fitted at every point; each model term gets an F curve and each pairwise comparison a t curve. One threshold per curve, from random field theory, keeps the chance of a false positive anywhere on it at `alpha`. A stretch above the threshold is a **cluster**, reported with its start and end, its peak and its p. This is the method of SPM1D (Pataky 2016), and for the designs SPM1D covers kbstatpy reproduces its numbers; with kbstatpy's mixed models, repeated trials per subject, unbalanced designs and random slopes work as well.
+
+```python
+options.curve = 'Time'                     # long data: the column of curve points
+options.curve = 'KA_0 : KA_100'            # wide data: a range of columns, first : last
+options.curve = 'Phase = (KA_0 : KA_100)'  # the same, naming the column it creates
+```
+
+- **Wide data**: one row per curve, one column per point. The range is taken in file order; the values go into `y` (`'value'` if `y` is empty). The points are the numbers the column names end with (`KA_0 … KA_100`), or 0 to 100 % spread evenly when the names hold none.
+- **Long data**: one row per curve and point. Each curve must have every point once. Repeated trials need no trial column: the k-th row of a subject and condition at a point belongs to its k-th curve, so keep the rows of a trial in a consistent order.
+- The points must be **equally spaced** (resample to a common grid first), and `y` complete.
+- **Post-hoc**: the pairs of the compared factor, within each cell of the other factors, as in the ordinary post-hoc; each is a two-sided t curve, tested at the Šidák level of `alpha` over all comparison curves.
+- **Output**: `Summary.txt` (smoothness, thresholds, clusters per term and comparison), `Curve.xlsx` (sheets `Clusters`, `Points`, `Means`), `CurveSPM` (the statistic curves with thresholds and clusters) and `CurveMeans` (estimated mean curves with 95 % bands, the clusters of each comparison marked under them).
+- **Not yet**: non-normal distributions (random field theory needs Gaussian residual curves), `y_transform`, `split`, outlier removal and explicit `formula`s stop with a message.
+
+See [Curves: SPM1D](STATISTICAL_NOTES.md#curves-spm1d-demo-21) for the method and Demo 21 for an example.
+
+---
+
 ## Output files
 
 All files are written into a per-variable subdirectory of `out_dir` (named after the dependent variable):
@@ -598,6 +623,9 @@ All files are written into a per-variable subdirectory of `out_dir` (named after
 | `LevelProfile.pdf/.png` | Profile plot for `profile_across`: response EMMs across the ordered factor, one line per level of the profiled factor, with 95 % CI error bars |
 | `LevelProfile.xlsx` | Level-wise profile tables (when `profile_across` is set): a `Trend` sheet (linear-trend + factor-omnibus interaction tests) and a `Profile_<factor>` sheet of per-level contrasts per interacting factor |
 | `MultipleComparisons.xlsx` | Across-y multiple-comparison correction (when `y_correction` is set and `y` has >1 component): per term, the raw and adjusted p-values for every dependent variable |
+| `Curve.xlsx` | Curve analysis (`curve`): sheet `Clusters` (every cluster of every term and comparison: from, to, peak, threshold, p, which level is higher), `Points` (the F or t of every test at every point), `Means` (estimated means with 95 % CI at every point) |
+| `CurveSPM.pdf/.png` | Curve analysis: the F curve of each term and the t curve of each comparison, with the threshold dashed and the clusters shaded |
+| `CurveMeans.pdf/.png` | Curve analysis: estimated mean curves with 95 % bands, one panel per cell of the other factors, the clusters of each comparison as bars below |
 | `SplitCorrection.xlsx` | Across-level correction (when `split_correction` is set): per dependent variable, every post-hoc contrast and ANOVA term in every level of `split`, with `p`, `pCorr` and `pSplit`. Written to `<out_dir>/<y>/` |
 
 The effect size labels use Cohen's small, medium and large values as lower thresholds (`negligible`, `small`, `medium`, `large`); `effect_labels = 'centred'` gives the seven bins centred on them that kbstatpy used up to 1.48. `Summary.txt` lists the ranges for the measures it uses; both tables are in [Effect-size labels](STATISTICAL_NOTES.md#effect-size-labels).
@@ -608,7 +636,7 @@ The effect size labels use Cohen's small, medium and large values as lower thres
 
 ## Demo scripts
 
-Twenty-one worked examples are included in the `demos/` folder; each demo's script
+Twenty-two worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -640,6 +668,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_18_plot_annotations.py` | `toothgrowth.csv` | Plot annotations that leave the model untouched: `show_emm_lines` extends each group's EMM across its panel (and picks the line style), `show_group_size` labels each group with its observation count |
 | `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as a gamma GLMM <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code>, the per-dose comparisons corrected as one family (`posthoc_family = 'pooled'`) |
 | `demo_20_several_files.py` | `sleepstudy_subjects/` | Several input files: `in_file` names a folder of 18 files, one per subject, stacked with each row's source in the column `file`; `file_vars = 'subject_{Subject}'` reads the subject from the file names. Same results as demo 6, which reads the data from one file |
+| `demo_21_curves.py` | `canadian_weather.csv` | Curves: `curve = 'Day = (day_1 : day_365)'` fits <code>Temperature ~ Region</code> at every day of the year for 35 weather stations, with one random-field threshold for each F and t curve (SPM1D) |
 
 **Equivalence to classical tests** (demos 0–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -668,6 +697,7 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 17** — `dispersion` sets glmmTMB's `dispformula` so the dispersion can vary by a factor instead of the default constant `~1`; a Gamma model fitted with constant vs by-group dispersion shows the better fit (lower AIC) when groups differ in relative scatter
 - **Demo 19** — `wide2long` reads wide data directly, here with two within-subject factors in the column names, so no reshaping by hand before the analysis
 - **Demo 20** — `in_file` reads a whole folder, one file per subject, and `file_vars` reads the subject ID from the file names
+- **Demo 21** — `curve` tests whole curves, SPM1D-style: an F curve per term, a t curve per comparison, one threshold per curve from random field theory
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:
@@ -723,6 +753,7 @@ results inline:
 | 18 · Plot annotations (`show_emm_lines`, `show_group_size`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_18_plot_annotations.ipynb) |
 | 19 · Wide data with two within factors (`wide2long`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_19_wide2long.ipynb) |
 | 20 · Several input files (one per subject) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_20_several_files.ipynb) |
+| 21 · Curves, SPM1D-style (`curve`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_21_curves.ipynb) |
 
 ---
 
@@ -737,6 +768,7 @@ See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md) for the rationale behind key de
 - **Which scale the post-hoc columns are on** — `emm_1`, `emm_2` and `diff` are on the response scale; `t`, `df` and `p` come from the contrast on the link scale, so under a non-identity link `t` is not `diff` over its standard error, and under a decreasing link the two carry opposite signs. `Summary.txt` states this whenever the link is not the identity
 - **Effect size and CI of the difference** — SMD is Cohen's d against the total SD of y, so pairing changes the CI, not d; `diffCI` is unadjusted and goes with `p`, not `pCorr`
 - **VIF and multicollinearity** — what VIF measures and when it matters
+- **Curves (SPM1D)** — the model at every point, random field theory for one threshold per curve, and where kbstatpy's mixed models differ from SPM1D's
 
 ---
 

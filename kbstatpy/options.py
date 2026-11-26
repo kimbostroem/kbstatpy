@@ -146,6 +146,16 @@ class KbstatOptions:
     # is created the same way under its own name.
     # One per y as a list, like constraints ('' = off).
     wide2long: object = ''
+    # Curves (SPM1D-style): the model is fitted at every point of a curve and
+    # each term gets an F curve, each pairwise comparison a t curve, tested
+    # against one threshold for the whole curve from random field theory.
+    #   'Time'                    long data: the column of curve points
+    #   'KA_0 : KA_100'           wide data: a range of columns, first : last
+    #   'Time = (KA_0 : KA_100)'  the same, naming the column it creates
+    # In wide data the points are the numbers the column names end with, else
+    # 0 to 100 %. Points must be equally spaced and every curve complete.
+    # Normal models only (LM, LMM). '' (default) = off.
+    curve: str = ''
     # Random grouping factor(s). One name, or several separated by commas, in
     # which case each gets its own random intercept and they are CROSSED:
     # 'subject, session' -> (1 | subject) + (1 | session). lme4's nesting
@@ -296,6 +306,16 @@ class KbstatOptions:
     # is tested on the response scale (passed through y_transform or the link)
     # and drawn as a dashed line in the data plot. Ignored when x or a
     # covariate is set.
+    # Significance level: it decides what is significant -- 'n.s.', the plot
+    # brackets, the trend lines, the curve thresholds (options.curve).
+    # Confidence intervals stay at 95 %.
+    alpha: float = 0.05
+    # What the stars mean when alpha is not .05:
+    #   'cut'   usual levels (*** .001, ** .01, * .05), a p at or above alpha
+    #           is n.s.; above .05 a p between .05 and alpha is '+' (default)
+    #   'scale' levels follow alpha: * alpha, ** alpha/5, *** alpha/50
+    #   'keep'  usual levels whatever alpha (a '*' may then not be significant)
+    alpha_stars: str = 'cut'
     test_value: object = None
 
     # Write the code that created these options into out_dir beside the
