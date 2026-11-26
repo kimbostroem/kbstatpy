@@ -1,5 +1,11 @@
 # Changes
 
+## [1.57.0] - 2026-11-26
+
+### Changes
+
+- Confidence intervals follow `alpha`: every interval is at 1 − `alpha` (90 % at 0.10), so an unadjusted CI excludes the null exactly when the test is significant. `Statistics.xlsx` names its CI columns by the level; at the default nothing changes.
+
 ## [1.56.0] - 2026-11-26
 
 ### Features
