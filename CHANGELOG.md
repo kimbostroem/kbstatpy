@@ -1,5 +1,11 @@
 # Changes
 
+## [1.58.1] - 2026-11-27
+
+### Bugs
+
+- Formulas with bracketed crossings failed or lost factors: `(a + b + c)^2` stopped with '"^2" not found', and `(a + b)*c` did not treat `a` and `b` as factors (no factor coding, post-hoc or plots for them). Both now work as in R. Rerun analyses with such terms.
+
 ## [1.58.0] - 2026-11-27
 
 ### Features
