@@ -6148,7 +6148,10 @@ class Kbstat(CurveMixin):
 
         # Remove random-effect groups from rhs to isolate fixed effects. The
         # optional \w* also strips a covariance-structure prefix like diag(...).
-        fixed_rhs = re.sub(r'\+?\s*\w*\([^)]+\)', '', rhs).strip().strip('+').strip()
+        # Only groups with a bar: `(vision + stance)^2` is a fixed term, and
+        # stripping every bracket left '^2' behind as a "variable".
+        fixed_rhs = re.sub(r'\+?\s*\w*\([^)]*\|[^)]*\)', '', rhs).strip().strip('+').strip()
+        fixed_rhs = Kbstat._expand_crossing_powers(fixed_rhs)
 
         # The intercept controls 1, 0 and -1 are not variables. Read as one,
         # `y ~ 1` reported a factor called '1' and `y ~ 1 + group` handed it
@@ -6165,7 +6168,7 @@ class Kbstat(CurveMixin):
             # Expand * into constituent names (A*B → A, B)
             parts = re.split(r'[*:]', term)
             for part in parts:
-                part = part.strip()
+                part = part.strip().strip('()').strip()
                 if part and part not in seen:
                     seen.add(part)
                     x.append(part)
@@ -6176,13 +6179,72 @@ class Kbstat(CurveMixin):
         for term in re.split(r'[+]', fixed_rhs):
             term = term.strip()
             if '*' in term or ':' in term:
-                parts = [p.strip() for p in re.split(r'[*:]', term) if p.strip()]
+                parts = [p.strip().strip('()').strip() for p in re.split(r'[*:]', term)
+                         if p.strip().strip('()').strip()]
                 key = tuple(sorted(parts))
                 if key not in seen_ia:
                     seen_ia.add(key)
                     interactions.append(list(parts))
 
         return {'y': y, 'x': x, 'id': id_var, 'slopes': slopes, 'interactions': interactions}
+
+    @staticmethod
+    def _expand_crossing_powers(fixed_rhs: str) -> str:
+        """Write bracketed fixed terms out as R reads them, for parsing only.
+
+        `(a + b + c)^2` is a + b + c + a:b + a:c + b:c (every term up to order
+        2), `(a + b)*c` is a + b + c + a:c + b:c. Each top-level piece of the
+        sum that holds a bracket is replaced by its terms joined with ':'; the
+        rest is left as it was, so plain formulas parse exactly as before. R
+        still receives the formula as written. A power of a single variable,
+        `z^2`, is no crossing: _terms rewrites it before this point.
+        """
+        from itertools import combinations
+
+        def split_top(t, ops):
+            """Split at operators in `ops` outside brackets; keep the operators."""
+            out, depth, cur = [], 0, ''
+            for ch in t:
+                depth += (ch == '(') - (ch == ')')
+                if depth == 0 and ch in ops:
+                    out += [cur, ch]
+                    cur = ''
+                else:
+                    cur += ch
+            return out + [cur]
+
+        def terms_of(t):
+            """Terms of an expression, each a tuple of variable names."""
+            parts = split_top(t, '+')[::2]
+            if len(parts) > 1:
+                return list(dict.fromkeys(x for p in parts for x in terms_of(p)))
+            toks = split_top(t, '*:')
+            if len(toks) > 1:
+                acc = terms_of(toks[0])
+                for op, operand in zip(toks[1::2], toks[2::2]):
+                    rhs = terms_of(operand)
+                    prod = [tuple(dict.fromkeys(l + r)) for l in acc for r in rhs]
+                    acc = list(dict.fromkeys((acc + rhs if op == '*' else []) + prod))
+                return acc
+            t = t.strip()
+            m = re.fullmatch(r'\((.*)\)\s*\^\s*(\d+)', t)
+            if m:
+                base = terms_of(m.group(1))
+                k = int(m.group(2))
+                out = []
+                for order in range(1, min(k, len(base)) + 1):
+                    for combo in combinations(base, order):
+                        out.append(tuple(dict.fromkeys(v for term in combo for v in term)))
+                return list(dict.fromkeys(out))
+            if t.startswith('(') and t.endswith(')'):
+                return terms_of(t[1:-1])
+            return [(t,)] if t else []
+
+        pieces = split_top(fixed_rhs, '+')[::2]
+        ordered = []        # bracketed pieces expanded in place
+        for p in pieces:
+            ordered += [':'.join(t) for t in terms_of(p)] if '(' in p else [p]
+        return '+'.join(ordered)
 
     def _backfill_options_from_formula(self, formula: str):
         """Fill in options.y, .x, .id from formula if not already set."""
