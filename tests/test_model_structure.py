@@ -186,7 +186,7 @@ def test_comparison_says_why_for_other_formulas():
         k = fit_formula(f)
         assert k._compare_model_structures() is None, f
         note = k.model_comparison_note or ''
-        assert note.startswith('  Not run') and 'y, x, id' in note, (f, note)
+        assert note.startswith('  Not run') and 'explicit variable definitions' in note, (f, note)
         assert '\n' not in note, 'the note should be one line'
         assert 'Not run' in k._summary_text(), 'the note does not reach Summary.txt'
 
