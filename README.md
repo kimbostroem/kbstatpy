@@ -79,6 +79,8 @@ df_long = df_wide.melt(id_vars='Subject', var_name='Week', value_name='score')
 
 See [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md#long-vs-wide-data-format) for a full explanation with examples and the R equivalent (`tidyr::pivot_longer()`).
 
+**Empty cells.** A row with no value for a factor or the grouping column (`options.x`, `options.id`, or the same variables in `formula`), as when a questionnaire joined to the measurements is missing for some subjects, is left out of the whole analysis: fit, cell means, post-hoc and plots. kbstatpy warns, and `Summary.txt` shows `Rows left out: n (no value for …)` under MODEL INFORMATION. Constraints are applied first, so rows they exclude are not counted. A missing `y` is left to the fit, which skips the row.
+
 ---
 
 ## Quick start
@@ -284,7 +286,7 @@ Which of `''` and `'none'` turns something off depends on what the option names,
 | `df_method` | str | Default `'auto'`. Denominator df for the ANOVA and the post-hoc, used for both so they agree. Also `'kenward-roger'`, `'satterthwaite'`, `'asymptotic'`. See [Degrees of freedom](STATISTICAL_NOTES.md#degrees-of-freedom-kenward-roger-and-satterthwaite) |
 | `kr_max_obs` | int | Default `5000`. Above this, `df_method='auto'` takes Satterthwaite. A cost threshold, not a statistical one; `0` removes it |
 | `test_value` | float | Default `None` (tests against 0). Value the mean is tested against in an intercept-only model, in the units of y; drawn as a dashed line in the data plot. Ignored, with a warning, when `x` or `covariate` is set |
-| `model_comparison` | bool | Default `False`. Report AIC/BIC for a ladder of fixed-effect structures beside the fitted one. **A report, not a selection**, see [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
+| `model_comparison` | bool | Default `False`. Report AIC/BIC for a ladder of fixed-effect structures beside the fitted one. With `formula`, only where its fixed part is a plain `a + b` or `a * b` of factors; otherwise `Summary.txt` says why in one line. **A report, not a selection**, see [Model structure](STATISTICAL_NOTES.md#model-structure-and-why-kbstatpy-will-not-pick-one-for-you) |
 | `remove_outliers_prefit` | bool | Default `False`. Exclude outliers before fitting, by the IQR rule per group |
 | `remove_outliers_postfit` | bool | Default `False`. Exclude outliers after fitting, by Pearson residual, then refit. Combines with the prefit rule |
 | `posthoc_method` | str | Default `'emm'` (emmeans) |

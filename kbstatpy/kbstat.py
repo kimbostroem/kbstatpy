@@ -243,7 +243,9 @@ class Kbstat(CurveMixin):
         self._emm_df_full  = None             # full interaction EMM grid (multi-factor models)
         self._df_runtime   = None             # df method after any runtime KR fallback (set in anova)
         self.n_obs_fit     = None             # rows the fit actually used (set in _construct_and_fit)
+        self.dropped_missing = None           # (rows, columns) left out for a missing factor or id value
         self.model_comparison_table = None    # ML criteria per fixed-effect structure (opt-in)
+        self.model_comparison_note = None     # why there is no table, when model_comparison is on
         self.intercept_test: dict = None      # test of the mean, intercept-only models (set in anova)
         self.output: Output = None            # populated by run(); read or pass to save()
 
@@ -1397,6 +1399,7 @@ class Kbstat(CurveMixin):
         self._check_y_exists()
         self._apply_categorical()
         self._apply_constraints()
+        self._drop_missing_factor_rows()
         # After the constraints, so the z-scores describe the analysed sample.
         self._scale_covariates()
         self._build_covariate_terms()
@@ -6523,13 +6526,19 @@ class Kbstat(CurveMixin):
         ML, because REML likelihoods do not compare across fixed-effect
         structures (that is the trap this table exists to keep people out of).
 
-        Returns a DataFrame, or None when there is nothing to compare: an
-        explicit formula (the caller owns the structure) or fewer than two
-        factors (no interaction is possible).
+        Returns a DataFrame, or None when there is nothing to compare: fewer
+        than two factors (no interaction is possible), or a formula whose fixed
+        part is not a plain additive or full-factorial crossing of factors (then
+        model_comparison_note says so, since the ladder would not contain it).
         """
-        if self.model is None or self.options.formula:
+        if self.model is None:
             return None
-        factors = [f for f in (self.options.x or [])]
+        if self.options.formula:
+            factors = self._formula_comparison_factors()
+            if factors is None:
+                return None
+        else:
+            factors = [f for f in (self.options.x or [])]
         if len(factors) < 2:
             return None
         covs = [c for c in (self.options.covariate or []) if c not in factors]
@@ -6589,6 +6598,40 @@ class Kbstat(CurveMixin):
         fitted = self._model_structure_label().split(' (')[0]
         df['fitted'] = ['<-- fitted' if r == fitted else '' for r in df['Structure']]
         return df
+
+    def _formula_comparison_factors(self):
+        """The factors of a formula whose fixed part the ladder can reproduce.
+
+        The ladder is additive, (all two-way,) full factorial of the factors.
+        A formula written as `a + b` or `a * b * c` (random terms and offsets
+        aside) is one of its rungs, so the comparison means the same as with
+        y, x, id. Anything else -- a covariate, a lone a:b, (a + b)^2 -- would
+        be compared against rungs that do not include the fitted model, so it
+        is not run, and model_comparison_note says why.
+        """
+        from ._terms import split_offsets
+        formula, _ = split_offsets(self.options.formula)
+        rhs = formula.split('~', 1)[1]
+        fixed = re.sub(r'\+?\s*\w*\([^)]*\|[^)]*\)', '', rhs)
+        terms = [t.strip() for t in fixed.split('+')]
+        terms = [t for t in terms if t not in ('', '0', '1', '-1')]
+        factors = list(self.options.x or [])
+        covs = set(self.options.covariate or [])
+        names = [t.replace(' ', '') for t in terms]
+        if len(names) == 1 and '*' in names[0]:
+            used = names[0].split('*')
+        elif all(re.fullmatch(r'[A-Za-z_.][A-Za-z0-9_.]*', n) for n in names):
+            used = names
+        else:
+            used = None
+        if used is None or len(set(used)) != len(used) or \
+                any(u not in factors or u in covs for u in used):
+            shown = ' + '.join(terms) or '1'
+            self.model_comparison_note = (
+                f'  Not run: the fixed part {shown} is not a plain a + b or a * b of '
+                'factors; use y, x, id.')
+            return None
+        return used
 
     # Below this AIC gap two structures are not meaningfully distinguishable
     # (Burnham & Anderson's rule of thumb). Above it the larger model has real
@@ -6714,7 +6757,9 @@ class Kbstat(CurveMixin):
             '-----------------',
             f'  {"Software":<22} : kbstatpy {_kbstatpy_version}',
             f'  Number of observations : {n_obs}',
-        ] + self._input_files_lines() + [
+        ] + ([f'  Rows left out          : {self.dropped_missing[0]} '
+              f'(no value for {", ".join(self.dropped_missing[1])})']
+             if self.dropped_missing else []) + self._input_files_lines() + [
             f'  Distribution           : {self.options.distribution}',
         ] + ([f'  Wide to long           : {self.options.wide2long}']
              if isinstance(self.options.wide2long, str) and self.options.wide2long.strip()
@@ -6934,6 +6979,9 @@ class Kbstat(CurveMixin):
                       '  Maximum likelihood, same random effects throughout; lower AIC is better.']
             lines += self._model_comparison_verdict(mc)
             lines += ['']
+        elif self.options.model_comparison and self.model_comparison_note:
+            lines += ['MODEL STRUCTURE COMPARISON', '--------------------------',
+                      self.model_comparison_note, '']
 
         # --- Post-hoc ---
         if self.posthoc_table is not None:
@@ -7699,7 +7747,7 @@ class Kbstat(CurveMixin):
                     # them as character vectors, which R treats as factors
                     col = self.data[var]
                     if pd.api.types.is_numeric_dtype(col):
-                        col = col.astype(str)
+                        col = col.astype(str).where(col.notna(), None)
                     # Resolve user-specified level order, if any
                     x_order = self.options.x_order
                     if isinstance(x_order, dict):
@@ -7734,7 +7782,10 @@ class Kbstat(CurveMixin):
                         categories += [v for v in present if v not in categories]
                         col = col.astype(str).where(col.notna(), None)
                     else:
-                        categories = col.unique().tolist()
+                        # A missing value is not a level: pandas refuses NaN
+                        # among the categories. The row itself goes in
+                        # _drop_missing_factor_rows, after the constraints.
+                        categories = col.dropna().unique().tolist()
                     self.data[var] = pd.Categorical(
                         col,
                         categories=categories,
@@ -7747,6 +7798,35 @@ class Kbstat(CurveMixin):
             for col in self.data.columns:
                 if hasattr(self.data[col], 'cat'):
                     self.data[col] = self.data[col].cat.remove_unused_categories()
+
+    def _drop_missing_factor_rows(self):
+        """Leave out rows with no value for a factor or a grouping column.
+
+        R drops such a row from the fit anyway, but the cell means, post-hoc
+        grid and plots are built from self.data, which then held rows the
+        model never had, and emmeans failed on the mismatch. Dropping them here,
+        after the constraints (which may already exclude them), keeps every
+        step on the same rows; the warning and Summary.txt say how many went.
+        A missing y is left to the fit, as before.
+        """
+        if self.data is None:
+            return
+        cols = [v for v in dict.fromkeys(list(self.options.x) + self._id_vars())
+                if v in self.data.columns]
+        if not cols:
+            return
+        na = self.data[cols].isna()
+        rows = na.any(axis=1)
+        if not rows.any():
+            return
+        which = [c for c in cols if na[c].any()]
+        n = int(rows.sum())
+        self.dropped_missing = (n, which)
+        warnings.warn(f"{n} row(s) left out: no value for {', '.join(which)}.", stacklevel=2)
+        self.data = self.data.loc[~rows].reset_index(drop=True)
+        for col in which:
+            if hasattr(self.data[col], 'cat'):
+                self.data[col] = self.data[col].cat.remove_unused_categories()
 
 # ------------------------------------------------------------------
 # Statistical helper functions

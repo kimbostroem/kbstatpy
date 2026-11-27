@@ -139,11 +139,56 @@ def test_comparison_table_reports_without_selecting():
 
 
 def test_comparison_is_skipped_when_there_is_nothing_to_compare():
-    """One factor admits no interaction; an explicit formula is the caller's."""
+    """One factor admits no interaction."""
     k = fit(); k.options.x = ['grp']
     assert k._compare_model_structures() is None
-    k2 = fit(); k2.options.formula = 'Y ~ grp + eyes + (1|subject)'
-    assert k2._compare_model_structures() is None
+
+
+def fit_formula(formula, **opts):
+    o = KbstatOptions()
+    o.formula = formula
+    o.distribution = 'normal'
+    o.figure_display = 'save_only'
+    o.model_comparison = True
+    for key, v in opts.items():
+        setattr(o, key, v)
+    k = Kbstat(o)
+    k.data = toy_data()
+    k._normalize_options()
+    k.fit()
+    return k
+
+
+def test_comparison_with_a_formula_matches_the_variables():
+    """`y ~ a * b` is a rung of the ladder, so the table must be the one that
+    y, x, id give -- it used to be silently empty with a formula."""
+    kf = fit_formula('Y ~ 1 + grp * eyes + (1|subject)')
+    kv = fit(interaction='grp, eyes', model_comparison=True)
+    kv.options.x = ['grp', 'eyes']
+    kv.fit()
+    mf, mv = kf._compare_model_structures(), kv._compare_model_structures()
+    assert mf is not None, 'no table for a full-factorial formula'
+    assert list(mf['Structure']) == list(mv['Structure'])
+    assert np.allclose(mf['AIC'], mv['AIC']), (mf['AIC'].tolist(), mv['AIC'].tolist())
+    assert mf.loc[mf['fitted'] != '', 'Structure'].iloc[0] == 'full factorial'
+    assert kf.model_comparison_note is None
+
+
+def test_comparison_with_an_additive_formula_marks_it_fitted():
+    mc = fit_formula('Y ~ grp + eyes + limb + (1|subject)')._compare_model_structures()
+    assert mc is not None and 'all two-way' in set(mc['Structure'])
+    assert mc.loc[mc['fitted'] != '', 'Structure'].iloc[0] == 'additive'
+
+
+def test_comparison_says_why_for_other_formulas():
+    """A lone interaction is not on the ladder: no table, one line saying so."""
+    for f in ('Y ~ grp + grp:eyes + (1|subject)', 'Y ~ (grp + eyes + limb)^2 + (1|subject)'):
+        k = fit_formula(f)
+        assert k._compare_model_structures() is None, f
+        note = k.model_comparison_note or ''
+        assert note.startswith('  Not run') and 'y, x, id' in note, (f, note)
+        assert '\n' not in note, 'the note should be one line'
+        assert 'Not run' in k._summary_text(), 'the note does not reach Summary.txt'
 
 
 def test_comparison_is_off_by_default():

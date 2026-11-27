@@ -307,6 +307,7 @@ class CurveMixin:
         self._check_y_exists()
         self._apply_categorical()
         self._apply_constraints()
+        self._drop_missing_factor_rows()
         self._scale_covariates()
         self._build_covariate_terms()
         positions = self._curve_prepare()
