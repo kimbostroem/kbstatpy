@@ -171,7 +171,7 @@ def test_comparison_with_a_formula_matches_the_variables():
     assert list(mf['Structure']) == list(mv['Structure'])
     assert np.allclose(mf['AIC'], mv['AIC']), (mf['AIC'].tolist(), mv['AIC'].tolist())
     assert mf.loc[mf['fitted'] != '', 'Structure'].iloc[0] == 'full factorial'
-    assert kf.model_comparison_note is None
+    assert mf.loc[mf['fitted'] != '', 'fitted'].iloc[0] == '<-- fitted', 'same text, so no "same fit"'
 
 
 def test_comparison_with_an_additive_formula_marks_it_fitted():
@@ -180,15 +180,29 @@ def test_comparison_with_an_additive_formula_marks_it_fitted():
     assert mc.loc[mc['fitted'] != '', 'Structure'].iloc[0] == 'additive'
 
 
-def test_comparison_says_why_for_other_formulas():
-    """A lone interaction is not on the ladder: no table, one line saying so."""
-    for f in ('Y ~ grp + grp:eyes + (1|subject)', 'Y ~ (grp + eyes + limb)^2 + (1|subject)'):
-        k = fit_formula(f)
-        assert k._compare_model_structures() is None, f
-        note = k.model_comparison_note or ''
-        assert note.startswith('  Not run') and 'explicit variable definitions' in note, (f, note)
-        assert '\n' not in note, 'the note should be one line'
-        assert 'Not run' in k._summary_text(), 'the note does not reach Summary.txt'
+def test_formula_written_differently_is_matched_by_likelihood():
+    """R codes grp + grp:eyes as eyes nested in grp: the full factorial in
+    other columns. Matching by likelihood finds it; the text never would."""
+    mc = fit_formula('Y ~ grp + grp:eyes + (1|subject)')._compare_model_structures()
+    assert mc is not None
+    assert 'your formula' not in set(mc['Structure']), 'an equal model got its own row'
+    row = mc[mc['fitted'] != '']
+    assert len(row) == 1 and row['Structure'].iloc[0] == 'full factorial', mc
+    assert row['fitted'].iloc[0] == '<-- fitted (same fit)', row['fitted'].iloc[0]
+
+
+def test_formula_off_the_ladder_gets_its_own_row():
+    """grp * eyes + limb is none of the rungs: it is listed as the fitted row,
+    beside the ladder, instead of the comparison being dropped."""
+    mc = fit_formula('Y ~ grp * eyes + limb + (1|subject)')._compare_model_structures()
+    assert mc is not None
+    assert list(mc['Structure']) == ['additive', 'all two-way', 'full factorial', 'your formula'], mc
+    own = mc[mc['Structure'] == 'your formula'].iloc[0]
+    assert own['fitted'] == '<-- fitted'
+    assert own['Fixed effects'].replace(' ', '') == 'grp*eyes+limb', own['Fixed effects']
+    assert (mc['fitted'] != '').sum() == 1
+    # nested between additive (5 + 1) and all two-way: 6 fixed + subject + residual
+    assert own['npar'] == 7, own['npar']
 
 
 def test_comparison_is_off_by_default():

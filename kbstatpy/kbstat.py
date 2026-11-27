@@ -245,7 +245,6 @@ class Kbstat(CurveMixin):
         self.n_obs_fit     = None             # rows the fit actually used (set in _construct_and_fit)
         self.dropped_missing = None           # (rows, columns) left out for a missing factor or id value
         self.model_comparison_table = None    # ML criteria per fixed-effect structure (opt-in)
-        self.model_comparison_note = None     # why there is no table, when model_comparison is on
         self.intercept_test: dict = None      # test of the mean, intercept-only models (set in anova)
         self.output: Output = None            # populated by run(); read or pass to save()
 
@@ -6526,25 +6525,27 @@ class Kbstat(CurveMixin):
         ML, because REML likelihoods do not compare across fixed-effect
         structures (that is the trap this table exists to keep people out of).
 
+        With options.formula the fitted model is refitted by ML too and matched
+        to the rungs by likelihood, not by the formula's text: R codes
+        `a + a:b` as b nested in a, the same model as `a * b`, and
+        `(a + b + c)^2` is the all-two-way rung. A rung with the same logLik
+        and number of parameters is marked fitted; a model equal to none of
+        them gets its own row, so it is always in the table.
+
         Returns a DataFrame, or None when there is nothing to compare: fewer
-        than two factors (no interaction is possible), or a formula whose fixed
-        part is not a plain additive or full-factorial crossing of factors (then
-        model_comparison_note says so, since the ladder would not contain it).
+        than two factors (no interaction is possible).
         """
         if self.model is None:
             return None
-        if self.options.formula:
-            factors = self._formula_comparison_factors()
-            if factors is None:
-                return None
-        else:
-            factors = [f for f in (self.options.x or [])]
+        covs = [c for c in (self.options.covariate or [])]
+        factors = [f for f in (self.options.x or []) if f not in covs]
         if len(factors) < 2:
             return None
-        covs = [c for c in (self.options.covariate or []) if c not in factors]
         fitted_formula = str(getattr(self.model, 'formula', '') or '')
         re_terms = re.findall(r'\([^)]*\|[^)]*\)', fitted_formula)
-        tail = ''.join(f' + {t}' for t in re_terms) + ''.join(f' + {c}' for c in covs)
+        off = self.options.offset
+        off_term = [f'offset({off.strip()})'] if isinstance(off, str) and off.strip() else []
+        tail = ''.join(f' + {t}' for t in re_terms + covs + off_term)
 
         rungs = [('additive', ' + '.join(factors))]
         if len(factors) > 2:
@@ -6567,9 +6568,7 @@ class Kbstat(CurveMixin):
         fam_expr = f'{family}(link="{link}")' if link and link != 'default' else family
         has_random = bool(re_terms)
 
-        rows = []
-        for label, rhs in rungs:
-            f = f'{y} ~ {rhs}{tail}'
+        def ml_row(label, rhs, f):
             try:
                 if family == 'gaussian' and has_random:
                     ro.r('suppressMessages(library(lmerTest))')
@@ -6579,60 +6578,53 @@ class Kbstat(CurveMixin):
                 else:
                     ro.r('suppressMessages(library(glmmTMB))')
                     m = ro.r(f'glmmTMB({f}, data = ._kbstat_cmp_data, family = {fam_expr})')
-                rows.append({
+                return {
                     'Structure': label,
                     'Fixed effects': rhs,
                     'npar': int(ro.r('function(m) attr(logLik(m), "df")')(m)[0]),
                     'logLik': float(ro.r('logLik')(m)[0]),
                     'AIC': float(ro.r('AIC')(m)[0]),
                     'BIC': float(ro.r('BIC')(m)[0]),
-                })
+                }
             except Exception as exc:
                 warnings.warn(f"model_comparison: the {label!r} structure could not be "
                               f"fitted ({type(exc).__name__}); it is left out of the table.",
-                              stacklevel=2)
+                              stacklevel=3)
+                return None
+
+        rows = [r for r in (ml_row(label, rhs, f'{y} ~ {rhs}{tail}') for label, rhs in rungs) if r]
+        if self.options.formula:
+            own_f = self._build_formula()
+            own_rhs = re.sub(r'\s*\+\s*(\w*\([^)]*\|[^)]*\)|offset\([^)]*\))', '',
+                             own_f.split('~', 1)[1]).strip()
+            own_rhs = re.sub(r'^1\s*\+\s*', '', own_rhs)
+            own = ml_row('your formula', own_rhs, own_f)
+            if own is None:
+                return None
+            same = [i for i, r in enumerate(rows)
+                    if r['npar'] == own['npar']
+                    and abs(r['logLik'] - own['logLik']) <= 1e-6 * max(1.0, abs(own['logLik']))]
+            if same:
+                fitted_idx = same[0]
+            else:
+                rows.append(own)
+                fitted_idx = len(rows) - 1
         if len(rows) < 2:
             return None
         df = pd.DataFrame(rows)
         df['dAIC'] = df['AIC'] - df['AIC'].min()
-        fitted = self._model_structure_label().split(' (')[0]
-        df['fitted'] = ['<-- fitted' if r == fitted else '' for r in df['Structure']]
-        return df
-
-    def _formula_comparison_factors(self):
-        """The factors of a formula whose fixed part the ladder can reproduce.
-
-        The ladder is additive, (all two-way,) full factorial of the factors.
-        A formula written as `a + b` or `a * b * c` (random terms and offsets
-        aside) is one of its rungs, so the comparison means the same as with
-        y, x, id. Anything else -- a covariate, a lone a:b, (a + b)^2 -- would
-        be compared against rungs that do not include the fitted model, so it
-        is not run, and model_comparison_note says why.
-        """
-        from ._terms import split_offsets
-        formula, _ = split_offsets(self.options.formula)
-        rhs = formula.split('~', 1)[1]
-        fixed = re.sub(r'\+?\s*\w*\([^)]*\|[^)]*\)', '', rhs)
-        terms = [t.strip() for t in fixed.split('+')]
-        terms = [t for t in terms if t not in ('', '0', '1', '-1')]
-        factors = list(self.options.x or [])
-        covs = set(self.options.covariate or [])
-        names = [t.replace(' ', '') for t in terms]
-        if len(names) == 1 and '*' in names[0]:
-            used = names[0].split('*')
-        elif all(re.fullmatch(r'[A-Za-z_.][A-Za-z0-9_.]*', n) for n in names):
-            used = names
+        if self.options.formula:
+            # Written differently from the rung it equals (a + a:b for a * b):
+            # say that it is the same fit, or the reader looks for their formula.
+            mark = '<-- fitted'
+            if fitted_idx < len(rungs) and \
+                    own_rhs.replace(' ', '') != df.at[fitted_idx, 'Fixed effects'].replace(' ', ''):
+                mark = '<-- fitted (same fit)'
+            df['fitted'] = [mark if i == fitted_idx else '' for i in range(len(df))]
         else:
-            used = None
-        if used is None or len(set(used)) != len(used) or \
-                any(u not in factors or u in covs for u in used):
-            shown = ' + '.join(terms) or '1'
-            self.model_comparison_note = (
-                f'  Not run: the fixed part {shown} is not a plain sum (a + b) or '
-                'product (a * b) of factors. To compare structures, use explicit variable definitions: '
-                'options.y, options.x, options.id.')
-            return None
-        return used
+            fitted = self._model_structure_label().split(' (')[0]
+            df['fitted'] = ['<-- fitted' if r == fitted else '' for r in df['Structure']]
+        return df
 
     # Below this AIC gap two structures are not meaningfully distinguishable
     # (Burnham & Anderson's rule of thumb). Above it the larger model has real
@@ -6978,11 +6970,14 @@ class Kbstat(CurveMixin):
             lines += ['MODEL STRUCTURE COMPARISON', '--------------------------',
                       show.to_string(index=False),
                       '  Maximum likelihood, same random effects throughout; lower AIC is better.']
+            if (mc['fitted'] == '<-- fitted (same fit)').any():
+                lines.append('  (same fit): your formula is written differently, but it is the same '
+                             'model as this row.')
+            elif 'your formula' in set(mc['Structure']):
+                lines.append('  your formula: the fitted model, which is none of the structures '
+                             'above.')
             lines += self._model_comparison_verdict(mc)
             lines += ['']
-        elif self.options.model_comparison and self.model_comparison_note:
-            lines += ['MODEL STRUCTURE COMPARISON', '--------------------------',
-                      self.model_comparison_note, '']
 
         # --- Post-hoc ---
         if self.posthoc_table is not None:
