@@ -1,5 +1,11 @@
 # Changes
 
+## [1.58.2] - 2026-11-27
+
+### Changes
+
+- New demo 22, `demo_22_model_comparison.py` (also as a Colab notebook): `model_comparison` on ToothGrowth and npk, with formulas matched to the structures by likelihood ("same fit", "your formula") and a verdict that does not choose within 2 AIC.
+
 ## [1.58.1] - 2026-11-27
 
 ### Bugs
