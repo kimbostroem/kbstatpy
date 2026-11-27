@@ -638,7 +638,7 @@ The effect size labels use Cohen's small, medium and large values as lower thres
 
 ## Demo scripts
 
-Twenty-two worked examples are included in the `demos/` folder; each demo's script
+Twenty-three worked examples are included in the `demos/` folder; each demo's script
 docstring and notebook intro cell explain its dataset and statistical content.
 Run any demo with:
 
@@ -671,6 +671,7 @@ python3 demos/scripts/demo_01_unpaired.py
 | `demo_19_wide2long.py` | `pbg_wide.csv` | Wide data with two within-subject factors: `wide2long = 'Treatment = (Placebo, MDL); dose = (6.25, …, 200)'` reshapes one row per rabbit with twelve treatment × dose columns into long data, fitted as a gamma GLMM <code>deltaBP ~ Treatment * dose + (1&#124;Rabbit)</code>, the per-dose comparisons corrected as one family (`posthoc_family = 'pooled'`) |
 | `demo_20_several_files.py` | `sleepstudy_subjects/` | Several input files: `in_file` names a folder of 18 files, one per subject, stacked with each row's source in the column `file`; `file_vars = 'subject_{Subject}'` reads the subject from the file names. Same results as demo 6, which reads the data from one file |
 | `demo_21_curves.py` | `canadian_weather.csv` | Curves: `curve = 'Day = (day_1 : day_365)'` fits <code>Temperature ~ Region</code> at every day of the year for 35 weather stations, with one random-field threshold for each F and t curve (SPM1D) |
+| `demo_22_model_comparison.py` | `toothgrowth.csv`, `npk.csv` | Comparing model structures with `model_comparison`: AIC/BIC of additive, all two-way and full factorial beside the fitted model, reported, never chosen; formulas matched by likelihood (`supp + supp:dose` = `supp * dose`, "same fit"), a partial interaction as its own row |
 
 **Equivalence to classical tests** (demos 0–5) — see [STATISTICAL_NOTES.md](STATISTICAL_NOTES.md):
 
@@ -700,6 +701,7 @@ python3 demos/scripts/demo_01_unpaired.py
 - **Demo 19** — `wide2long` reads wide data directly, here with two within-subject factors in the column names, so no reshaping by hand before the analysis
 - **Demo 20** — `in_file` reads a whole folder, one file per subject, and `file_vars` reads the subject ID from the file names
 - **Demo 21** — `curve` tests whole curves, SPM1D-style: an F curve per term, a t curve per comparison, one threshold per curve from random field theory
+- **Demo 22** — `model_comparison` reports which fixed-effect structure the data support, next to the analysis and without changing it; within 2 AIC the criteria do not choose, and a formula is matched to the structures by likelihood, not by its text
 
 The demo datasets are already included as CSVs in `demos/data/`. You only need
 to regenerate them if you change `export_datasets.R`:
@@ -756,6 +758,7 @@ results inline:
 | 19 · Wide data with two within factors (`wide2long`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_19_wide2long.ipynb) |
 | 20 · Several input files (one per subject) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_20_several_files.ipynb) |
 | 21 · Curves, SPM1D-style (`curve`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_21_curves.ipynb) |
+| 22 · Comparing model structures (`model_comparison`) | [notebook ▸](https://colab.research.google.com/github/kimbostroem/kbstatpy/blob/master/demos/notebooks/demo_22_model_comparison.ipynb) |
 
 ---
 
