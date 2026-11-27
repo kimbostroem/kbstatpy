@@ -6628,7 +6628,7 @@ class Kbstat(CurveMixin):
                 any(u not in factors or u in covs for u in used):
             shown = ' + '.join(terms) or '1'
             self.model_comparison_note = (
-                f'  Not run: the fixed part {shown} is not a plain a + b or a * b of '
+                f'  Not run: the fixed part {shown} is not a plain sum or product of '
                 'factors. To compare structures, use explicit variable definitions: '
                 'options.y, options.x, options.id.')
             return None
