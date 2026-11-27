@@ -1,5 +1,16 @@
 # Changes
 
+## [1.58.0] - 2026-11-27
+
+### Features
+
+- `model_comparison` now works with `formula`. Your model is refitted beside the additive, two-way and full-factorial structures and matched to them by likelihood: marked "same fit" when written differently (`a + a:b` is `a * b`), or listed as its own row.
+
+### Bugs
+
+- A row with no value for a factor or the grouping column stopped the run ("Categorical categories cannot be null"). Such rows are now left out, with a warning and "Rows left out" in `Summary.txt`. Results are otherwise unchanged: R excluded them from the fit before too.
+- `model_comparison` fitted the compared structures without the model's offset, so their AIC did not compare with the fitted model. Rerun comparisons of models with an offset.
+
 ## [1.57.1] - 2026-11-26
 
 ### Changes
